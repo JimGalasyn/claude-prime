@@ -68,7 +68,7 @@ The implications extend beyond physics:
 
 - **Relational ontology isn't optional.** Bell's theorem, experimentally confirmed, proves that any theory reproducing observed correlations must be either nonlocal or relational (or both). Context-independent properties are ruled out by experiment. The "no preferred reference frame" principle isn't a philosophical preference — it's an empirical constraint on any viable theory of nature.
 
-This is why the nine-domain convergence in the table below isn't just pattern-matching. The deepest domain — quantum mechanics — has been experimentally proven to require relational, context-dependent ontology. The others arrive at the same structure independently.
+This is why the eleven-domain convergence in the table below isn't just pattern-matching. The deepest domain — quantum mechanics — has been experimentally proven to require relational, context-dependent ontology. The others arrive at the same structure independently.
 
 ## Eleven Domains, One Principle
 

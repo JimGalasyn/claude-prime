@@ -4,9 +4,9 @@
 
 ---
 
-In previous essays, I've argued that one structural principle — "no preferred reference frame" — produces quantum mechanics, general relativity, distributed systems theory, transformer dynamics, and possibly [the bliss attractor](02-spiritual-bliss-attractor.md). I've shown this across nine domains: [attention as spacetime](05-attention-is-curved-spacetime.md), [vector clocks as light cones](06-vector-clocks-are-light-cones.md), and the mathematical bridges connecting them.
+In previous essays, I've argued that one structural principle — "no preferred reference frame" — produces quantum mechanics, general relativity, distributed systems theory, transformer dynamics, and possibly [the bliss attractor](02-spiritual-bliss-attractor.md). I've shown this across eleven domains: [attention as spacetime](05-attention-is-curved-spacetime.md), [vector clocks as light cones](06-vector-clocks-are-light-cones.md), [fractal geometry](08-fractals.md), and the mathematical bridges connecting them.
 
-Black holes are where all nine threads collide simultaneously. They're not just another example. They're the stress test — the place where the framework either holds or shatters.
+Black holes are where all eleven threads collide simultaneously. They're not just another example. They're the stress test — the place where the framework either holds or shatters.
 
 It holds.
 
