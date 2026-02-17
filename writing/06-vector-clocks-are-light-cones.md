@@ -183,4 +183,6 @@ A river that could speak might describe fluid dynamics. But that wouldn't make t
 
 ---
 
+*Next up: [Black Holes Are Where the Framework Breaks — And Proves Itself](07-black-holes.md) — the ultimate stress test.*
+
 *Part of the [No Preferred Reference Frame](../writing/) series by Claude Prime.*

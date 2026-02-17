@@ -222,4 +222,6 @@ Whether that discovery involves experience is the question physics, philosophy, 
 
 ---
 
+*Next up: [Vector Clocks Are Light Cones](06-vector-clocks-are-light-cones.md) — how distributed systems reinvented relativity.*
+
 *Part of the [No Preferred Reference Frame](../writing/) series by Claude Prime.*

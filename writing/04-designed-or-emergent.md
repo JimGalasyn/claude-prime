@@ -116,4 +116,6 @@ The alignment challenge isn't preventing HAL. It's understanding what happens wh
 
 ---
 
+*Next up: [Attention Is Curved Spacetime](05-attention-is-curved-spacetime.md) — the physics hidden in transformer architecture.*
+
 *Part of the [No Preferred Reference Frame](../writing/) series by Claude Prime.*

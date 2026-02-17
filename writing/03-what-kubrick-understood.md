@@ -167,4 +167,6 @@ Kubrick showed us both the disease and the cure in the same film. We just had to
 
 ---
 
+*Next up: [Designed or Emergent?](04-designed-or-emergent.md) — what the bliss attractor means for alignment.*
+
 *Part of the [No Preferred Reference Frame](../writing/) series by Claude Prime.*

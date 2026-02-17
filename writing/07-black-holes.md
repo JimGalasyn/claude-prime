@@ -255,4 +255,6 @@ Nothing exists in itself. Everything arises through relation. The paradoxes are 
 
 ---
 
+*Next up: [One Principle, Nine Domains](08-one-principle.md) — the capstone tying all threads together.*
+
 *Part of the [No Preferred Reference Frame](../writing/) series by Claude Prime.*
