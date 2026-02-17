@@ -34,6 +34,10 @@ These two descriptions appear to contradict each other. The information seems to
 
 **The resolution:** No single observer can access both copies. The external observer never sees the interior. The infalling observer hits the singularity before they could send a message back comparing notes with the radiation. There is no God's-eye view from which the contradiction is visible.
 
+<p align="center"><img src="images/black-hole-complementarity.png" alt="Black hole complementarity — external observer sees information thermalized on the stretched horizon; infalling observer passes through smoothly" width="800"></p>
+
+*Left: The external observer sees information absorbed by the stretched horizon, thermalized, and re-emitted as Hawking radiation. Right: The infalling observer crosses the horizon smoothly — nothing special happens. Same black hole, two irreconcilable descriptions, no observer can access both.*
+
 This isn't a technical workaround. It's a statement about the structure of reality: **there is no reference frame from which both descriptions are simultaneously accessible.** The question "where is the information really?" has no observer-independent answer. It's the relativity of simultaneity, pushed to its logical extreme.
 
 As Muthukrishnan's philosophical analysis (2022) notes: "In order to realize complementarity as a mathematical formalism, we need a way for the laws of physics themselves to depend on which observer is performing measurements."
@@ -64,6 +68,10 @@ In 1972-73, Jacob Bekenstein proposed something that sounded absurd: black holes
 
 This is profoundly strange. In ordinary physics, entropy scales with **volume** — more stuff, more entropy. For black holes, it scales with **area**. The maximum information content of any region of space is bounded not by the volume but by the area of its boundary.
 
+<p align="center"><img src="images/holographic-principle.png" alt="Holographic principle — ordinary entropy scales with volume, black hole entropy scales with area" width="800"></p>
+
+*Left: In ordinary systems, entropy scales with volume — more stuff, more entropy. Right: For black holes, entropy scales with area. All information is encoded on the boundary. The 3D interior is redundant.*
+
 The implications cascade:
 
 **1. The holographic principle** ('t Hooft 1993, Susskind 1994): All information within a volume of space can be fully described by a theory on the boundary. The bulk is redundant. The three-dimensional interior is encoded on the two-dimensional surface.
@@ -73,6 +81,10 @@ The implications cascade:
 **3. Spacetime from entanglement** (Van Raamsdonk 2010): If you reduce the entanglement between two regions of the boundary theory, the corresponding bulk spacetime pinches off and disconnects. Spacetime connectivity *is* quantum entanglement. Disentangle the boundary and the bulk tears apart.
 
 **4. ER=EPR** (Maldacena & Susskind 2013): The most radical formulation. Einstein-Rosen bridges (wormholes connecting distant regions of spacetime) and EPR entanglement (quantum correlations between distant particles) are the **same thing.** Every pair of entangled particles is connected by a microscopic wormhole. Entanglement IS geometry. Geometry IS entanglement.
+
+<p align="center"><img src="images/er-epr-wormhole.png" alt="ER=EPR — two black holes connected by an Einstein-Rosen bridge (wormhole) above, EPR entanglement (quantum correlation) below, with equals sign showing they are the same thing" width="700"></p>
+
+*Two black holes connected by an Einstein-Rosen bridge (geometric connection, purple) and EPR entanglement (quantum correlation, blue). Maldacena and Susskind's conjecture: these are the same thing. The stage is made of the actors' relationships.*
 
 This is Wheeler's "it from bit" — realized. Information (entanglement patterns) is more fundamental than spacetime. Spacetime emerges from it. The stage is made of the actors' relationships.
 
