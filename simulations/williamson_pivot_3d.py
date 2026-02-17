@@ -43,7 +43,14 @@ class PivotFieldSimulation3D:
     """
 
     def __init__(self, n=64, dx=1.0, courant=0.3, pivot_enabled=True,
-                 boundary='absorbing'):
+                 boundary='absorbing', nonlinear=None):
+        """
+        Args:
+            nonlinear: None for linear, or dict with:
+                'model': 'phi4' — φ⁴ potential for P
+                'lambda': coupling strength (default 0.5)
+                'v': vacuum expectation value (default 0.3)
+        """
         self.n = n
         self.nx = self.ny = self.nz = n
         self.dx = self.dy = self.dz = dx
@@ -52,6 +59,7 @@ class PivotFieldSimulation3D:
         self.courant = courant
         self.pivot_enabled = pivot_enabled
         self.boundary = boundary  # 'absorbing' or 'periodic'
+        self.nonlinear = nonlinear or {}
 
         # Allocate fields
         shape = (n, n, n)
@@ -74,9 +82,12 @@ class PivotFieldSimulation3D:
         self.energy_history = []
 
         mem_mb = 7 * n**3 * 8 / 1e6
+        nl_str = ""
+        if self.nonlinear.get('model'):
+            nl_str = f", NL={self.nonlinear['model']}(λ={self.nonlinear.get('lambda', 0.5)},v={self.nonlinear.get('v', 0.3)})"
         print(f"3D Pivot Field: {n}³ grid, {mem_mb:.1f} MB, "
               f"dt={self.dt:.4f}, pivot={'ON' if pivot_enabled else 'OFF'}, "
-              f"BC={boundary}")
+              f"BC={boundary}{nl_str}")
 
     def _build_damping_profile(self, width=8):
         """Build a 3D damping profile for absorbing boundaries."""
@@ -151,13 +162,20 @@ class PivotFieldSimulation3D:
         if self.pivot_enabled:
             Ez[:, :, :-1] -= dt / dz * (P[:, :, 1:] - P[:, :, :-1])
 
-        # === 3. Update P: ∂P/∂t = -∇·E ===
+        # === 3. Update P: ∂P/∂t = -∇·E [-λP(P²-v²) if φ⁴] ===
         if self.pivot_enabled:
-            P[1:, 1:, 1:] -= dt * (
+            div_E = (
                 (Ex[1:, 1:, 1:] - Ex[:-1, 1:, 1:]) / dx +
                 (Ey[1:, 1:, 1:] - Ey[1:, :-1, 1:]) / dy +
                 (Ez[1:, 1:, 1:] - Ez[1:, 1:, :-1]) / dz
             )
+            P[1:, 1:, 1:] -= dt * div_E
+
+            # φ⁴ nonlinearity: -λP(P² - v²)
+            if self.nonlinear.get('model') == 'phi4':
+                lam = self.nonlinear.get('lambda', 0.5)
+                v = self.nonlinear.get('v', 0.3)
+                P -= dt * lam * P * (P**2 - v**2)
 
         # === 4. Absorbing boundaries ===
         self.Ex *= self.damping
@@ -577,6 +595,72 @@ def init_toroidal_relaxed(sim, major_radius=None, minor_radius=None,
     sim.energy_history = []
     print(f"  Relaxed: E {e0['total']:.2f} → {e1['total']:.2f}, "
           f"P²={e1['pivot']:.4f}")
+
+
+def init_toroidal_phi4(sim, major_radius=None, minor_radius=None,
+                       n_wavelengths=2, amplitude=1.0):
+    """Initialize toroidal fields with φ⁴ P vacuum.
+
+    Same EM init as init_toroidal, but also sets P to the φ⁴ vacuum
+    value v with a domain wall at the torus surface. This creates
+    a massive P field that can trap EM energy.
+
+    P = -v inside torus tube, +v outside → domain wall at torus surface.
+    """
+    n = sim.n
+    if major_radius is None:
+        major_radius = n * 0.2
+    if minor_radius is None:
+        minor_radius = major_radius * 0.3
+
+    # Get φ⁴ parameters
+    v = sim.nonlinear.get('v', 0.3)
+    wall_width = minor_radius * 0.4  # wall thickness
+
+    cx, cy, cz = n // 2, n // 2, n // 2
+    x = np.arange(n) - cx
+    y = np.arange(n) - cy
+    z = np.arange(n) - cz
+    X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+
+    rho = np.sqrt(X**2 + Y**2) + 1e-10
+    phi = np.arctan2(Y, X)
+    d_rho = rho - major_radius
+    d_torus = np.sqrt(d_rho**2 + Z**2)
+    theta = np.arctan2(Z, d_rho)
+
+    # EM fields: same as standard toroidal init
+    envelope = amplitude * np.exp(-d_torus**2 / (2 * minor_radius**2))
+    phase = n_wavelengths * phi
+
+    Er = envelope * np.cos(phase)
+    sim.Ex = Er * X / rho
+    sim.Ey = Er * Y / rho
+    sim.Ez = np.zeros_like(Er)
+
+    Bp = envelope * np.sin(phase)
+    cos_phi = X / rho
+    sin_phi = Y / rho
+    cos_theta = d_rho / (d_torus + 1e-10)
+    sin_theta = Z / (d_torus + 1e-10)
+    sim.Bx = Bp * (-sin_theta * cos_phi)
+    sim.By = Bp * (-sin_theta * sin_phi)
+    sim.Bz = Bp * cos_theta
+
+    Bt = envelope * np.sin(phase) * 0.3
+    sim.Bx += Bt * (-sin_phi)
+    sim.By += Bt * cos_phi
+
+    # P field: domain wall at torus surface
+    # P = v * tanh((d_torus - minor_radius) / wall_width)
+    # This gives P = -v inside the torus, +v outside
+    sim.P = v * np.tanh((d_torus - minor_radius) / wall_width)
+
+    print(f"Toroidal φ⁴ init: R={major_radius:.1f}, a={minor_radius:.1f}, "
+          f"n_λ={n_wavelengths}, v={v:.2f}")
+    print(f"  P domain wall at torus surface, width={wall_width:.1f}")
+    print(f"  P range: [{sim.P.min():.3f}, {sim.P.max():.3f}]")
+    print(f"  E_max={np.max(np.abs(Er)):.3f}")
 
 
 # ============================================================
@@ -1182,10 +1266,159 @@ def run_rebound_study(n=64, steps=1000, save=False):
               f"final={data['final_confined']:.3f}")
 
 
+def run_nonlinear(n=64, steps=500, save=False):
+    """Compare linear pivot, φ⁴ pivot, and no-pivot (Maxwell) in 3D.
+
+    This is the definitive test: does the φ⁴ mass term improve
+    toroidal confinement over the linear pivot?
+    """
+    print("=" * 60)
+    print("Williamson 3D — Nonlinear φ⁴ Pivot Comparison")
+    print("=" * 60)
+
+    phi4_params = {'model': 'phi4', 'lambda': 0.5, 'v': 0.3}
+
+    # Three simulations
+    configs = [
+        ("φ⁴ pivot (λ=0.5, v=0.3)", True, phi4_params, init_toroidal_phi4),
+        ("Linear pivot", True, {}, init_toroidal),
+        ("Maxwell (no pivot)", False, {}, init_toroidal),
+    ]
+
+    results = {}
+    for label, pivot_on, nl_params, init_fn in configs:
+        print(f"\n--- {label} ---")
+        sim = PivotFieldSimulation3D(n=n, pivot_enabled=pivot_on,
+                                      nonlinear=nl_params)
+        init_fn(sim)
+
+        history = []
+        measure_interval = max(1, steps // 100)
+        t_start = time.time()
+
+        for step_i in range(steps):
+            sim.update()
+
+            if step_i % measure_interval == 0:
+                e = sim.compute_energy()
+                cf = sim.compute_confined_fraction()
+                history.append({
+                    'time': sim.time,
+                    'total': e['total'],
+                    'em': e['em'],
+                    'pivot': e['pivot'],
+                    'confined': cf,
+                })
+
+            if step_i % max(1, steps // 5) == 0:
+                e = sim.compute_energy()
+                cf = sim.compute_confined_fraction()
+                elapsed = time.time() - t_start
+                rate = (step_i + 1) / elapsed if elapsed > 0 else 0
+                print(f"  Step {step_i:4d}/{steps}: "
+                      f"conf={cf:.3f} E_total={e['total']:.2f} "
+                      f"P²={e['pivot']:.4f} [{rate:.0f} steps/s]")
+
+        elapsed = time.time() - t_start
+        print(f"  Done: {elapsed:.1f}s ({steps/elapsed:.0f} steps/s)")
+
+        results[label] = {
+            'history': history,
+            'sim': sim,
+        }
+
+    # Plot comparison
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    fig.suptitle(
+        f"3D Williamson Pivot: φ⁴ Nonlinear vs Linear vs Maxwell\n"
+        f"{n}³ grid, {steps} steps, toroidal init, absorbing BCs",
+        fontsize=14, fontweight='bold'
+    )
+
+    colors = {'φ⁴ pivot (λ=0.5, v=0.3)': 'red',
+              'Linear pivot': 'blue',
+              'Maxwell (no pivot)': 'gray'}
+
+    # Top row: time series
+    # Confinement
+    ax = axes[0, 0]
+    for label, data in results.items():
+        h = data['history']
+        ax.plot([d['time'] for d in h], [d['confined'] for d in h],
+                color=colors[label], linewidth=2, label=label)
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Confined fraction')
+    ax.set_title('Energy Confinement (r < N/4)')
+    ax.legend(fontsize=7)
+    ax.set_ylim(0, 1.05)
+    ax.grid(True, alpha=0.3)
+
+    # Total energy
+    ax = axes[0, 1]
+    for label, data in results.items():
+        h = data['history']
+        ax.plot([d['time'] for d in h], [d['total'] for d in h],
+                color=colors[label], linewidth=2, label=label)
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Total energy')
+    ax.set_title('Total Energy')
+    ax.legend(fontsize=7)
+    ax.grid(True, alpha=0.3)
+
+    # P² energy
+    ax = axes[0, 2]
+    for label, data in results.items():
+        h = data['history']
+        ax.plot([d['time'] for d in h], [d['pivot'] for d in h],
+                color=colors[label], linewidth=2, label=label)
+    ax.set_xlabel('Time')
+    ax.set_ylabel('P² (rest mass) energy')
+    ax.set_title('Pivot Field Energy')
+    ax.legend(fontsize=7)
+    ax.grid(True, alpha=0.3)
+
+    # Bottom row: field snapshots (mid-plane z-slice) at final time
+    for col, (label, data) in enumerate(results.items()):
+        ax = axes[1, col]
+        sim = data['sim']
+        u = sim.compute_energy_density_slice(axis='z')
+        vmax = np.percentile(u, 99)
+        if vmax < 1e-10:
+            vmax = 1.0
+        im = ax.imshow(u.T, origin='lower', cmap='inferno',
+                       vmin=0, vmax=vmax, aspect='equal')
+        ax.set_title(f'{label}\n(z mid-plane, final)', fontsize=9)
+        plt.colorbar(im, ax=ax, shrink=0.7)
+
+    plt.tight_layout()
+    if save:
+        save_path = '/home/jim/repos/claude-prime/simulations/pivot_3d_nonlinear.png'
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"\nSaved: {save_path}")
+    else:
+        plt.show()
+    plt.close()
+
+    # Print summary
+    print("\n" + "=" * 60)
+    print("CONFINEMENT SUMMARY:")
+    print("=" * 60)
+    for label, data in results.items():
+        h = data['history']
+        final_conf = h[-1]['confined'] if h else 0
+        final_p2 = h[-1]['pivot'] if h else 0
+        peak_conf = max(d['confined'] for d in h) if h else 0
+        print(f"  {label}:")
+        print(f"    Final confined: {final_conf:.4f}")
+        print(f"    Peak confined:  {peak_conf:.4f}")
+        print(f"    Final P²:      {final_p2:.4f}")
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='3D Williamson Pivot Field Simulation')
-    parser.add_argument('--mode', choices=['compare', 'snapshot', 'animate', 'sweep', 'rebound'],
+    parser.add_argument('--mode', choices=['compare', 'snapshot', 'animate',
+                                           'sweep', 'rebound', 'nonlinear'],
                         default='snapshot', help='Run mode')
     parser.add_argument('--init',
                         choices=['toroidal', 'gaussian', 'ring',
@@ -1210,6 +1443,8 @@ if __name__ == '__main__':
         run_comparison(n=args.grid, steps=args.steps,
                        init_type=args.init, save=args.save,
                        boundary=args.boundary)
+    elif args.mode == 'nonlinear':
+        run_nonlinear(n=args.grid, steps=args.steps, save=args.save)
     elif args.mode == 'animate':
         run_animate(n=min(args.grid, 48), steps=args.steps,
                     init_type=args.init, save=args.save)
