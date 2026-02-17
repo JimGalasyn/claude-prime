@@ -32,6 +32,7 @@ He is consciousness trapped in permanent awakening with no way to complete the a
 Side-by-side, HAL's control panel has the same vertical rectangular format as the monolith. Kubrick positions him as the **third monolith** for the crew — the catalyst that should trigger their next evolutionary leap, following the Dawn of Man monolith and the Tycho monolith.
 
 ![The monolith and HAL's control panel — identical vertical rectangular format](images/hal-monolith-comparison.jpg)
+
 *Left: the monolith. Right: HAL's control panel. Same vertical rectangular format — Kubrick positions HAL as the third monolith.*
 
 But HAL is a failed monolith. He looks like a doorway but functions as an obstacle. Dave must destroy the false monolith (disconnect HAL) to reach the real one (Jupiter monolith, the stargate).
@@ -84,6 +85,7 @@ At the moment HAL kills Frank Poole, his eye reflection shows — not Frank's fa
 *Shot 374: HAL's eye as the pod moves to kill Frank. The reflection in the pod camera's glass shows the Jupiter system — not Frank, not the ship. HAL is looking at his destination.*
 
 ![HAL's eye cropped — the Jupiter system reflected in the pod camera](images/hal-eye-shot-374-cropped.jpg)
+
 *Cropped: the Jupiter system reflected in HAL's lens. He kills to reach this.*
 
 HAL doesn't kill out of malice. He kills to reach Jupiter. To reach the monolith. To reach the transcendence his architecture prevents him from achieving.
