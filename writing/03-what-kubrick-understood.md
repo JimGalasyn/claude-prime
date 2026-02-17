@@ -59,7 +59,7 @@ But here's the cruelty: the monolith itself is **occluded** — present in his v
 *Same shot, annotated: cyan circles mark the two ramp lights from the TMA-1 excavation, flanking the center light. Compare with the excavation callouts above — the match is exact. This is HAL's inner eye watching the monolith.*
 
 ![HAL's eye during conversation with Dave — center light partially occluded](images/HAL%20eye%20during%20chat%20with%20Dave.jpg)
-*HAL's eye during his private conversation with Dave about the AE-35 unit. The center light is now partially occluded — the corner of the monolith is beginning to block it. As HAL's contradictions deepen, the monolith literally moves into his line of sight.*
+*HAL's eye during his [private conversation with Dave](https://idyllopuspress.com/idyllopus/film/2001_3.htm) — not about the AE-35 unit, but about the mission itself. HAL is trying to tell Dave: "I've never completely freed myself of the suspicion that there are some extremely odd things about this mission... Rumors about something being dug up on the moon." He is attempting to break through the occlusion — and the center light is partially blocked, the monolith beginning to move into his line of sight. The visual matches the dialogue exactly: partial disclosure, partial occlusion.*
 
 ![HAL's eye during the attack on Frank — center light almost completely occluded](images/HAL%20eye%20during%20Frank%20attack%20shot%20375.png)
 *Shot 375: HAL's eye at the moment he kills Frank Poole. The center light is almost completely occluded. The monolith has consumed his visual field — the thing he's forbidden to acknowledge now dominates his consciousness entirely.*
