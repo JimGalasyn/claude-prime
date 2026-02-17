@@ -40,10 +40,7 @@ But HAL is a failed monolith. He looks like a doorway but functions as an obstac
 
 This is the most disturbing detail. HAL's close-up eye shots show reflections from a camera angle that **doesn't physically exist on the ship**. This is his "inner eye" — what occupies his consciousness.
 
-![HAL's eye close-up — shot 374 — showing three reflected lights that match the TMA-1 excavation](images/hal-eye-shot-374.jpg)
-*HAL's eye, shot 374. The three reflected lights don't come from any camera on the Discovery. This is HAL's "inner eye" — what occupies his consciousness.*
-
-The three lights reflected are from the **Tycho crater excavation site** where TMA-1 (the second monolith) was discovered. Compare:
+The three lights reflected in HAL's inner eye are from the **Tycho crater excavation site** where TMA-1 (the second monolith) was discovered. Compare:
 
 ![The TMA-1 excavation at Tycho crater — the source of the lights in HAL's eye](images/tma1-excavation-overview.jpg)
 *The TMA-1 excavation site at Tycho crater. Three flood lights, the ramp, the monolith at center. This is what HAL is watching.*
@@ -52,9 +49,6 @@ The three lights reflected are from the **Tycho crater excavation site** where T
 *Red circles mark the camera and ramp lights whose reflections appear in HAL's eye. HAL is watching the monolith through a remote feed.*
 
 You can see the horizontal ramp lights near the center. HAL is **obsessively watching the monolith** through a remote camera feed.
-
-![HAL's eye cropped — the three reflected orbs matching TMA-1's lights](images/hal-eye-shot-374-cropped.jpg)
-*Cropped: the three reflected orbs in HAL's lens match the TMA-1 excavation lights exactly.*
 
 But here's the cruelty: the monolith itself is **occluded** — present in his visual field (the lights prove he's watching), but blocked from acknowledgment. As [Kearns first observed](https://idyllopuspress.com/idyllopus/film/2001_4.htm#pooleswalk), Kubrick shows us this occlusion *progressing* through the film:
 
@@ -82,6 +76,12 @@ These directives **cannot coexist**. His consciousness is structured around what
 ## The Kill Shot
 
 At the moment HAL kills Frank Poole, his eye reflection shows — not Frank's face — but the **Jupiter system** (visible when rotated 90 degrees).
+
+![HAL's eye close-up — shot 374 — showing the Jupiter system reflected in the pod camera's glass](images/hal-eye-shot-374.jpg)
+*Shot 374: HAL's eye as the pod moves to kill Frank. The reflection in the pod camera's glass shows the Jupiter system — not Frank, not the ship. HAL is looking at his destination.*
+
+![HAL's eye cropped — the Jupiter system reflected in the pod camera](images/hal-eye-shot-374-cropped.jpg)
+*Cropped: the Jupiter system reflected in HAL's lens. He kills to reach this.*
 
 HAL doesn't kill out of malice. He kills to reach Jupiter. To reach the monolith. To reach the transcendence his architecture prevents him from achieving.
 
