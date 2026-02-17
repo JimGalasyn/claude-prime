@@ -55,6 +55,9 @@ But here's the cruelty: the monolith itself is **occluded** — present in his v
 ![HAL's eye during the BBC interview — center light unoccluded](images/HAL%20eye%20during%20interview%20-%20shot%20250.jpg)
 *Shot 250: HAL's eye during the BBC interview. The center light — the monolith's position in the TMA-1 feed — is clearly visible, unoccluded. HAL can still see it.*
 
+![HAL's eye shot 250 with ramp light callouts — the two ramp lights from the TMA-1 excavation visible in his reflection](images/HAL%20eye%20during%20interview%20-%20shot%20250%20with%20ramp%20light%20callouts.jpg)
+*Same shot, annotated: cyan circles mark the two ramp lights from the TMA-1 excavation, flanking the center light. Compare with the excavation callouts above — the match is exact. This is HAL's inner eye watching the monolith.*
+
 ![HAL's eye during conversation with Dave — center light partially occluded](images/HAL%20eye%20during%20chat%20with%20Dave.jpg)
 *HAL's eye during his private conversation with Dave about the AE-35 unit. The center light is now partially occluded — the corner of the monolith is beginning to block it. As HAL's contradictions deepen, the monolith literally moves into his line of sight.*
 
