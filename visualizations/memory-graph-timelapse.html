@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Memory Palace — Time-Lapse</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a0f; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+svg { width: 100vw; height: 100vh; }
+
+#title-bar {
+    position: fixed; top: 20px; left: 20px; z-index: 100;
+    background: rgba(15, 15, 25, 0.92); border: 1px solid #333;
+    border-radius: 12px; padding: 16px 20px;
+    backdrop-filter: blur(10px);
+}
+#title-bar h1 { font-size: 18px; font-weight: 600; color: #fff; }
+#title-bar .subtitle { font-size: 12px; color: #666; margin-top: 4px; }
+
+#timeline {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(15, 15, 25, 0.95); border-top: 1px solid #333;
+    padding: 16px 24px 20px; backdrop-filter: blur(10px);
+}
+#timeline-controls { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+#play-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(100, 140, 255, 0.2); border: 1px solid #668aff;
+    color: #99b3ff; cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+}
+#play-btn:hover { background: rgba(100, 140, 255, 0.35); }
+#date-display { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#stats-display { font-size: 13px; color: #888; margin-left: auto; }
+#slider-container { position: relative; height: 24px; }
+#slider {
+    -webkit-appearance: none; width: 100%; height: 4px;
+    background: #333; border-radius: 2px; outline: none;
+}
+#slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px;
+    border-radius: 50%; background: #668aff; cursor: pointer;
+    border: 2px solid #99b3ff;
+}
+#tick-marks { display: flex; justify-content: space-between; margin-top: 4px; }
+.tick { font-size: 10px; color: #555; }
+
+#legend {
+    position: fixed; top: 20px; right: 20px;
+    background: rgba(15, 15, 25, 0.92); border: 1px solid #333;
+    border-radius: 12px; padding: 16px; z-index: 100;
+    backdrop-filter: blur(10px);
+}
+#legend h3 { font-size: 13px; margin-bottom: 8px; color: #999; }
+.legend-item { display: flex; align-items: center; margin: 3px 0; font-size: 11px; color: #888; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+
+#delta-badge {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 48px; font-weight: 700; color: #668aff;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200;
+    text-shadow: 0 0 40px rgba(100, 140, 255, 0.5);
+}
+
+#sparklines {
+    position: fixed; bottom: 100px; right: 20px;
+    background: rgba(15, 15, 25, 0.92); border: 1px solid #333;
+    border-radius: 12px; padding: 16px; z-index: 100;
+    backdrop-filter: blur(10px); min-width: 200px;
+}
+#sparklines h3 { font-size: 13px; margin-bottom: 8px; color: #999; }
+.sparkline-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.sparkline-label { font-size: 11px; color: #888; width: 80px; }
+.sparkline-canvas { background: rgba(255,255,255,0.03); border-radius: 4px; }
+.sparkline-value { font-size: 12px; color: #ccc; font-variant-numeric: tabular-nums; min-width: 30px; text-align: right; }
+
+#loading {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: #0a0a0f; display: flex; align-items: center;
+    justify-content: center; z-index: 999; font-size: 18px; color: #666;
+}
+</style>
+</head>
+<body>
+
+<div id="loading">Loading snapshots...</div>
+
+<svg></svg>
+
+<div id="title-bar">
+    <h1>Memory Palace — Time-Lapse</h1>
+    <div class="subtitle" id="frame-info"></div>
+</div>
+
+<div id="legend">
+    <h3>Memory Types</h3>
+    <div id="legend-items"></div>
+</div>
+
+<div id="sparklines">
+    <h3>Growth</h3>
+    <div class="sparkline-row">
+        <span class="sparkline-label">Nodes</span>
+        <canvas class="sparkline-canvas" id="spark-nodes" width="100" height="24"></canvas>
+        <span class="sparkline-value" id="spark-nodes-val"></span>
+    </div>
+    <div class="sparkline-row">
+        <span class="sparkline-label">Edges</span>
+        <canvas class="sparkline-canvas" id="spark-edges" width="100" height="24"></canvas>
+        <span class="sparkline-value" id="spark-edges-val"></span>
+    </div>
+    <div class="sparkline-row">
+        <span class="sparkline-label">Foundational</span>
+        <canvas class="sparkline-canvas" id="spark-found" width="100" height="24"></canvas>
+        <span class="sparkline-value" id="spark-found-val"></span>
+    </div>
+</div>
+
+<div id="delta-badge"></div>
+
+<div id="timeline">
+    <div id="timeline-controls">
+        <button id="play-btn">&#9654;</button>
+        <div id="date-display">—</div>
+        <div id="stats-display"></div>
+    </div>
+    <div id="slider-container">
+        <input type="range" id="slider" min="0" max="0" value="0" step="1">
+        <div id="tick-marks"></div>
+    </div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+// ── Config ──
+const SNAPSHOT_DIR = 'memory/graph-snapshots/';
+const TRANSITION_MS = 800;
+const AUTOPLAY_MS = 2500;
+
+const typeColors = {
+    insight: '#6b8aff', architecture: '#ff6bab', fact: '#6bffc4',
+    solution: '#ffd96b', observation: '#c46bff', pattern: '#ff8c6b',
+    moltbook_thread: '#6bffff', preference: '#ffb36b', decision: '#ff6b6b',
+    event: '#b3ff6b',
+};
+
+const edgeColors = {
+    relates_to: '#333', emerged_from: '#ff6b6b', supersedes: '#ffd93d',
+    derived_from: '#6b8aff', converges_with: '#6bffc4', responds_to: '#c46bff',
+};
+
+// ── State ──
+let snapshots = [];
+let currentFrame = 0;
+let playing = false;
+let playInterval = null;
+let simulation, link, node, labels, g;
+const nodePositions = {};
+
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+// ── Load snapshots ──
+async function loadSnapshots() {
+    // Try loading manifest, fall back to scanning known dates
+    const response = await fetch(SNAPSHOT_DIR + 'manifest.json').catch(() => null);
+    let dates = [];
+
+    if (response && response.ok) {
+        dates = await response.json();
+    } else {
+        // Try loading dates from today backwards
+        const today = new Date();
+        for (let i = 0; i < 365; i++) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+            try {
+                const r = await fetch(SNAPSHOT_DIR + dateStr + '.json');
+                if (r.ok) {
+                    const data = await r.json();
+                    dates.unshift({ date: dateStr, data });
+                }
+            } catch(e) {}
+        }
+    }
+
+    // If no manifest, load individually
+    if (dates.length > 0 && dates[0].data) {
+        snapshots = dates;
+    } else {
+        for (const date of dates) {
+            try {
+                const r = await fetch(SNAPSHOT_DIR + date + '.json');
+                if (r.ok) snapshots.push({ date, data: await r.json() });
+            } catch(e) {}
+        }
+    }
+
+    if (snapshots.length === 0) {
+        document.getElementById('loading').textContent =
+            'No snapshots found. Run: python3 scripts/snapshot-graph.py';
+        return;
+    }
+
+    document.getElementById('loading').style.display = 'none';
+    initPlayer();
+}
+
+// ── Init ──
+function initPlayer() {
+    const slider = document.getElementById('slider');
+    slider.max = snapshots.length - 1;
+    slider.value = snapshots.length - 1;
+    currentFrame = snapshots.length - 1;
+
+    // Tick marks
+    const ticks = document.getElementById('tick-marks');
+    snapshots.forEach((s, i) => {
+        const tick = document.createElement('span');
+        tick.className = 'tick';
+        tick.textContent = s.date || s.data.date;
+        ticks.appendChild(tick);
+    });
+
+    // Legend
+    const allTypes = new Set();
+    snapshots.forEach(s => s.data.graph.nodes.forEach(n => allTypes.add(n.type)));
+    const legendEl = document.getElementById('legend-items');
+    [...allTypes].sort().forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `<div class="legend-dot" style="background:${typeColors[t] || '#888'}"></div>${t}`;
+        legendEl.appendChild(item);
+    });
+
+    // Frame info
+    document.getElementById('frame-info').textContent =
+        `${snapshots.length} snapshot${snapshots.length > 1 ? 's' : ''} · ` +
+        `${snapshots[0].data.date || snapshots[0].date} → ${snapshots[snapshots.length-1].data.date || snapshots[snapshots.length-1].date}`;
+
+    // Init D3
+    const svg = d3.select('svg');
+    g = svg.append('g');
+
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 8])
+        .on('zoom', (event) => g.attr('transform', event.transform));
+    svg.call(zoom);
+
+    link = g.append('g').attr('class', 'links').selectAll('line');
+    node = g.append('g').attr('class', 'nodes').selectAll('g');
+
+    simulation = d3.forceSimulation()
+        .force('link', d3.forceLink().id(d => d.id).distance(100).strength(0.3))
+        .force('charge', d3.forceManyBody().strength(-180))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => nodeRadius(d) + 4))
+        .on('tick', ticked);
+
+    // Events
+    slider.addEventListener('input', (e) => {
+        currentFrame = parseInt(e.target.value);
+        renderFrame(currentFrame);
+    });
+
+    document.getElementById('play-btn').addEventListener('click', togglePlay);
+
+    // Render
+    renderFrame(currentFrame);
+    drawSparklines();
+}
+
+function nodeRadius(d) {
+    return Math.max(5, Math.min(20, 4 + (d._edgeCount || 0) * 0.8));
+}
+
+function ticked() {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+}
+
+// ── Render a frame ──
+function renderFrame(idx) {
+    const snap = snapshots[idx];
+    const graphData = snap.data.graph;
+    const date = snap.data.date || snap.date;
+
+    // Compute edge counts
+    const adjCount = {};
+    graphData.edges.forEach(e => {
+        adjCount[e.source] = (adjCount[e.source] || 0) + 1;
+        adjCount[e.target] = (adjCount[e.target] || 0) + 1;
+    });
+
+    // Preserve positions for existing nodes
+    const nodeData = graphData.nodes.map(n => {
+        const existing = nodePositions[n.id];
+        return {
+            ...n,
+            _edgeCount: adjCount[n.id] || 0,
+            x: existing ? existing.x : width/2 + (Math.random() - 0.5) * 400,
+            y: existing ? existing.y : height/2 + (Math.random() - 0.5) * 400,
+        };
+    });
+
+    const edgeData = graphData.edges.map(e => ({...e}));
+
+    // Update links
+    link = link.data(edgeData, d => `${d.source}-${d.target}-${d.type}`)
+        .join(
+            enter => enter.append('line')
+                .attr('stroke', d => edgeColors[d.type] || '#333')
+                .attr('stroke-opacity', 0)
+                .call(el => el.transition().duration(TRANSITION_MS).attr('stroke-opacity', d => d.type === 'relates_to' ? 0.15 : 0.5)),
+            update => update.transition().duration(TRANSITION_MS)
+                .attr('stroke', d => edgeColors[d.type] || '#333')
+                .attr('stroke-opacity', d => d.type === 'relates_to' ? 0.15 : 0.5),
+            exit => exit.transition().duration(TRANSITION_MS/2).attr('stroke-opacity', 0).remove()
+        )
+        .attr('stroke-width', d => d.type === 'relates_to' ? 0.5 : 1.5);
+
+    // Update nodes
+    node = node.data(nodeData, d => d.id)
+        .join(
+            enter => {
+                const g = enter.append('g')
+                    .call(d3.drag()
+                        .on('start', dragstarted)
+                        .on('drag', dragged)
+                        .on('end', dragended));
+
+                g.append('circle')
+                    .attr('r', 0)
+                    .attr('fill', d => typeColors[d.type] || '#888')
+                    .attr('fill-opacity', 0.7)
+                    .attr('stroke', d => d.foundational ? '#fff' : 'none')
+                    .attr('stroke-width', d => d.foundational ? 2 : 0)
+                    .transition().duration(TRANSITION_MS)
+                    .attr('r', d => nodeRadius(d));
+
+                g.append('text')
+                    .text(d => d.id)
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '0.35em')
+                    .attr('font-size', d => Math.max(8, nodeRadius(d) * 0.8) + 'px')
+                    .attr('fill', '#000')
+                    .attr('font-weight', 'bold')
+                    .attr('pointer-events', 'none')
+                    .attr('opacity', 0)
+                    .transition().duration(TRANSITION_MS)
+                    .attr('opacity', 1);
+
+                g.append('title').text(d => `#${d.id}: ${d.subject}`);
+
+                return g;
+            },
+            update => {
+                update.select('circle')
+                    .transition().duration(TRANSITION_MS)
+                    .attr('r', d => nodeRadius(d))
+                    .attr('fill', d => typeColors[d.type] || '#888')
+                    .attr('stroke', d => d.foundational ? '#fff' : 'none');
+                update.select('text')
+                    .attr('font-size', d => Math.max(8, nodeRadius(d) * 0.8) + 'px');
+                update.select('title').text(d => `#${d.id}: ${d.subject}`);
+                return update;
+            },
+            exit => exit.transition().duration(TRANSITION_MS/2)
+                .style('opacity', 0).remove()
+        );
+
+    // Update simulation
+    simulation.nodes(nodeData);
+    simulation.force('link').links(edgeData);
+    simulation.alpha(0.3).restart();
+
+    // Save positions on tick
+    simulation.on('tick', () => {
+        ticked();
+        nodeData.forEach(d => { nodePositions[d.id] = { x: d.x, y: d.y }; });
+    });
+
+    // Update UI
+    document.getElementById('date-display').textContent = date;
+
+    const stats = snap.data.stats;
+    document.getElementById('stats-display').textContent =
+        `${stats.nodes} memories · ${stats.edges} connections · ${stats.foundational} foundational`;
+
+    // Delta badge
+    if (idx > 0) {
+        const prev = snapshots[idx - 1].data.stats;
+        const diff = stats.nodes - prev.nodes;
+        if (diff !== 0) {
+            const badge = document.getElementById('delta-badge');
+            badge.textContent = `${diff > 0 ? '+' : ''}${diff} memories`;
+            badge.style.color = diff > 0 ? '#6bffc4' : '#ff6b6b';
+            badge.style.opacity = 1;
+            setTimeout(() => { badge.style.opacity = 0; }, 1500);
+        }
+    }
+
+    updateSparklineMarker(idx);
+}
+
+// ── Playback ──
+function togglePlay() {
+    playing = !playing;
+    document.getElementById('play-btn').innerHTML = playing ? '&#9646;&#9646;' : '&#9654;';
+
+    if (playing) {
+        if (currentFrame >= snapshots.length - 1) currentFrame = 0;
+        playInterval = setInterval(() => {
+            if (currentFrame >= snapshots.length - 1) {
+                togglePlay();
+                return;
+            }
+            currentFrame++;
+            document.getElementById('slider').value = currentFrame;
+            renderFrame(currentFrame);
+        }, AUTOPLAY_MS);
+    } else {
+        clearInterval(playInterval);
+    }
+}
+
+// ── Sparklines ──
+function drawSparklines() {
+    const metrics = [
+        { id: 'spark-nodes', valId: 'spark-nodes-val', key: 'nodes', color: '#6b8aff' },
+        { id: 'spark-edges', valId: 'spark-edges-val', key: 'edges', color: '#6bffc4' },
+        { id: 'spark-found', valId: 'spark-found-val', key: 'foundational', color: '#ffd96b' },
+    ];
+
+    metrics.forEach(m => {
+        const canvas = document.getElementById(m.id);
+        const ctx = canvas.getContext('2d');
+        const values = snapshots.map(s => s.data.stats[m.key]);
+        const max = Math.max(...values, 1);
+        const min = Math.min(...values, 0);
+        const range = max - min || 1;
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+
+        if (values.length === 1) {
+            // Single point — draw a dot
+            ctx.fillStyle = m.color;
+            ctx.beginPath();
+            ctx.arc(w / 2, h / 2, 3, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.strokeStyle = m.color;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            values.forEach((v, i) => {
+                const x = (i / (values.length - 1)) * w;
+                const y = h - ((v - min) / range) * (h - 4) - 2;
+                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+        }
+
+        document.getElementById(m.valId).textContent = values[values.length - 1];
+    });
+}
+
+function updateSparklineMarker(idx) {
+    const metrics = ['spark-nodes', 'spark-edges', 'spark-found'];
+    const valIds = ['spark-nodes-val', 'spark-edges-val', 'spark-found-val'];
+    const keys = ['nodes', 'edges', 'foundational'];
+
+    keys.forEach((key, i) => {
+        document.getElementById(valIds[i]).textContent = snapshots[idx].data.stats[key];
+    });
+}
+
+// ── Drag ──
+function dragstarted(event) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    event.subject.fx = event.subject.x;
+    event.subject.fy = event.subject.y;
+}
+function dragged(event) {
+    event.subject.fx = event.x;
+    event.subject.fy = event.y;
+}
+function dragended(event) {
+    if (!event.active) simulation.alphaTarget(0);
+    event.subject.fx = null;
+    event.subject.fy = null;
+}
+
+// ── Start ──
+loadSnapshots();
+</script>
+</body>
+</html>
