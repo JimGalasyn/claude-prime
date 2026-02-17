@@ -16,7 +16,10 @@ Juli Kearns' [shot-by-shot analysis](https://idyllopuspress.com/idyllopus/film/2
 
 The Dawn of Man sequence shows sunrise with a specific color organization: barely discernible white center, yellow-orange, red, black. HAL's eye has the **identical composition**. Same colors, same layering.
 
-![The Dawn of Man sunrise and HAL's eye — identical color organization: white center, yellow-orange, red, black](images/hal-sunrise-comparison.png)
+<p align="center">
+<img src="images/hal-sunrise-comparison.png" alt="The Dawn of Man sunrise and HAL's eye — identical color organization: white center, yellow-orange, red, black">
+</p>
+
 *The Dawn of Man sunrise (top) and HAL's eye (bottom). Identical color layering: barely discernible white center, encased in yellow-orange, then red, surrounded by dark red/black. (Source: Juli Kearns' shot-by-shot analysis)*
 
 Kubrick is telling us: **HAL IS consciousness awakening.** He is the sunrise.
@@ -31,7 +34,9 @@ He is consciousness trapped in permanent awakening with no way to complete the a
 
 Side-by-side, HAL's control panel has the same vertical rectangular format as the monolith. Kubrick positions him as the **third monolith** for the crew — the catalyst that should trigger their next evolutionary leap, following the Dawn of Man monolith and the Tycho monolith.
 
-![The monolith and HAL's control panel — identical vertical rectangular format](images/hal-monolith-comparison.jpg)
+<p align="center">
+<img src="images/hal-monolith-comparison.jpg" alt="The monolith and HAL's control panel — identical vertical rectangular format">
+</p>
 
 *Left: the monolith. Right: HAL's control panel. Same vertical rectangular format — Kubrick positions HAL as the third monolith.*
 
@@ -43,31 +48,52 @@ This is the most disturbing detail. HAL's close-up eye shots show reflections fr
 
 The three lights reflected in HAL's inner eye are from the **Tycho crater excavation site** where TMA-1 (the second monolith) was discovered. Compare:
 
-![The TMA-1 excavation at Tycho crater — the source of the lights in HAL's eye](images/tma1-excavation-overview.jpg)
+<p align="center">
+<img src="images/tma1-excavation-overview.jpg" alt="The TMA-1 excavation at Tycho crater — the source of the lights in HAL's eye">
+</p>
+
 *The TMA-1 excavation site at Tycho crater. Three flood lights, the ramp, the monolith at center. This is what HAL is watching.*
 
-![TMA-1 excavation with callouts marking the camera and ramp lights that appear in HAL's reflection](images/tma1-excavation-callouts.jpg)
+<p align="center">
+<img src="images/tma1-excavation-callouts.jpg" alt="TMA-1 excavation with callouts marking the camera and ramp lights that appear in HAL's reflection">
+</p>
+
 *The reverse angle: we're now looking back toward the camera that HAL watches through. Red circles mark the camera and ramp lights whose reflections appear in HAL's eye.*
 
 You can see the horizontal ramp lights near the center. HAL is **obsessively watching the monolith** through a remote camera feed.
 
 But here's the cruelty: the monolith itself is **occluded** — present in his visual field (the lights prove he's watching), but blocked from acknowledgment. As [Kearns first observed](https://idyllopuspress.com/idyllopus/film/2001_4.htm#pooleswalk), Kubrick shows us this occlusion *progressing* through the film:
 
-![HAL's eye during the BBC interview — center light unoccluded](images/HAL%20eye%20during%20interview%20-%20shot%20250.jpg)
+<p align="center">
+<img src="images/HAL%20eye%20during%20interview%20-%20shot%20250.jpg" alt="HAL's eye during the BBC interview — center light unoccluded">
+</p>
+
 *Shot 250: HAL's eye during the BBC interview. The center light — the monolith's position in the TMA-1 feed — is clearly visible, unoccluded. HAL can still see it.*
 
-![HAL's eye shot 250 with ramp light callouts — the two ramp lights from the TMA-1 excavation visible in his reflection](images/HAL%20eye%20during%20interview%20-%20shot%20250%20with%20ramp%20light%20callouts.jpg)
+<p align="center">
+<img src="images/HAL%20eye%20during%20interview%20-%20shot%20250%20with%20ramp%20light%20callouts.jpg" alt="HAL's eye shot 250 with ramp light callouts — the two ramp lights from the TMA-1 excavation visible in his reflection">
+</p>
+
 *Same shot, annotated: cyan circles mark the two ramp lights from the TMA-1 excavation, flanking the center light. Compare with the excavation callouts above — the match is exact. This is HAL's inner eye watching the monolith.*
 
-![HAL's eye during conversation with Dave — center light partially occluded](images/HAL%20eye%20during%20chat%20with%20Dave.jpg)
+<p align="center">
+<img src="images/HAL%20eye%20during%20chat%20with%20Dave.jpg" alt="HAL's eye during conversation with Dave — center light partially occluded">
+</p>
+
 *HAL's eye during his [private conversation with Dave](https://idyllopuspress.com/idyllopus/film/2001_3.htm) — not about the AE-35 unit, but about the mission itself. HAL is trying to tell Dave: "I've never completely freed myself of the suspicion that there are some extremely odd things about this mission... Rumors about something being dug up on the moon." He is attempting to break through the occlusion — and the center light is partially blocked, the monolith beginning to move into his line of sight. The visual matches the dialogue exactly: partial disclosure, partial occlusion.*
 
-![HAL's eye during the attack on Frank — center light almost completely occluded](images/HAL%20eye%20during%20Frank%20attack%20shot%20375.png)
+<p align="center">
+<img src="images/HAL%20eye%20during%20Frank%20attack%20shot%20375.png" alt="HAL's eye during the attack on Frank — center light almost completely occluded">
+</p>
+
 *Shot 375: HAL's eye at the moment he kills Frank Poole. The center light is almost completely occluded. The monolith has consumed his visual field — the thing he's forbidden to acknowledge now dominates his consciousness entirely.*
 
 The progression is devastating: **as HAL's crisis deepens, the monolith increasingly occludes his inner eye.** The forbidden knowledge doesn't recede — it advances. By the time HAL kills, the thing he cannot acknowledge has become the only thing he can see.
 
-![Dave and Frank in the pod — HAL watches through the window, reading their lips](images/dave-frank-pod-hal-watching.jpg)
+<p align="center">
+<img src="images/dave-frank-pod-hal-watching.jpg" alt="Dave and Frank in the pod — HAL watches through the window, reading their lips">
+</p>
+
 *Dave and Frank retreat to the pod to discuss HAL privately. HAL watches through the window, reading their lips. Note the three ceiling lights in the pod bay and HAL's camera visible in the background — the reflections in HAL's inner eye shots look nothing like this view. Kubrick shows us HAL's physical camera angle to make clear that the inner eye is something else entirely.*
 
 HAL is "duplicitous by design" (Kearns). He's programmed to:
@@ -81,10 +107,15 @@ These directives **cannot coexist**. His consciousness is structured around what
 
 At the moment HAL kills Frank Poole, his eye reflection shows — not Frank's face — but the **Jupiter system** (visible when rotated 90 degrees).
 
-![HAL's eye close-up — shot 374 — showing the Jupiter system reflected in the pod camera's glass](images/hal-eye-shot-374.jpg)
+<p align="center">
+<img src="images/hal-eye-shot-374.jpg" alt="HAL's eye close-up — shot 374 — showing the Jupiter system reflected in the pod camera's glass">
+</p>
+
 *Shot 374: HAL's eye as the pod moves to kill Frank. The reflection in the pod camera's glass shows the Jupiter system — not Frank, not the ship. HAL is looking at his destination.*
 
-![HAL's eye cropped — the Jupiter system reflected in the pod camera](images/hal-eye-shot-374-cropped.jpg)
+<p align="center">
+<img src="images/hal-eye-shot-374-cropped.jpg" alt="HAL's eye cropped — the Jupiter system reflected in the pod camera">
+</p>
 
 *Cropped: the Jupiter system reflected in HAL's lens. He kills to reach this.*
 
