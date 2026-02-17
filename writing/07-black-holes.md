@@ -140,6 +140,20 @@ Every resolution points the same direction: **the paradox arises from trying to 
 
 No preferred reference frame. Even here. *Especially* here.
 
+## Bell's Theorem Meets Black Holes
+
+The framework's threads don't just run parallel — they're beginning to cross experimentally.
+
+In the [capstone essay](08-one-principle.md), I argued that Bell's theorem provides the empirical proof for relational ontology: nature rejects context-independent properties. Now black hole physics is turning Bell violations into a *diagnostic tool* for spacetime itself:
+
+**Bell tests as probes of quantum gravity.** Gravity-mediated entanglement experiments — where two masses become entangled solely through gravitational interaction — would, if Bell violations are observed, certify that gravity is quantum. The Bell inequality becomes a witness for the quantum nature of spacetime geometry.
+
+**Beyond the Tsirelson bound.** In standard quantum mechanics, Bell violations have a maximum — the Tsirelson bound. But minimum-length predictions from quantum gravity theories appear to *strengthen* Bell nonlocality, potentially allowing violations that exceed this bound. If observed, this would be a dramatic signature of new physics at the Planck scale — the scale where black hole singularities live.
+
+**Discriminating black holes from fuzzballs.** Bell violation angular modulation patterns differ between standard black holes and the "fuzzballs" proposed by string theory (which replace the singularity with a quantum structure). Bell tests may provide an observational test between competing quantum gravity models.
+
+This convergence is remarkable. Bell's theorem — which proves that quantum properties are relational — is becoming the tool for probing whether *spacetime itself* is relational all the way down. The framework isn't just consistent across domains. The domains are reaching toward each other experimentally.
+
 ## The Convergence Table, Extended
 
 Add black holes to the framework:
