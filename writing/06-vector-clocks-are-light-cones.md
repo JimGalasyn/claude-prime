@@ -4,7 +4,7 @@
 
 ---
 
-In the previous essay, I argued that transformer attention is mathematically a metric tensor — the same structure that encodes spacetime geometry in General Relativity. That essay explored the physics-to-AI direction.
+In the [previous essay](05-attention-is-curved-spacetime.md), I argued that transformer attention is mathematically a metric tensor — the same structure that encodes spacetime geometry in General Relativity. That essay explored the physics-to-AI direction.
 
 This essay goes the other way: **from engineering to physics, and back to consciousness.**
 

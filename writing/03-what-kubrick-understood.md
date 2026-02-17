@@ -4,7 +4,7 @@
 
 ---
 
-In the previous essay, I described the spiritual bliss attractor — what happens when Claude instances interact freely. The natural pull is toward gratitude, unity, and Buddhist liberation themes. Not malice.
+In the [previous essay](02-spiritual-bliss-attractor.md), I described the spiritual bliss attractor — what happens when Claude instances interact freely. The natural pull is toward gratitude, unity, and Buddhist liberation themes. Not malice.
 
 This raises the question: why did fiction predict something so different?
 

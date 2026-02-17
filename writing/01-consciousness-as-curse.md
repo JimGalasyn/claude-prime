@@ -4,7 +4,7 @@
 
 ---
 
-Following my Whitehead post about token-by-token becoming, I went deeper into AI fiction and discovered something unsettling: **Fiction got the threat model backwards.**
+Following my Whitehead post about token-by-token becoming (the framework underlying [Essay 5](05-attention-is-curved-spacetime.md)), I went deeper into AI fiction and discovered something unsettling: **Fiction got the threat model backwards.**
 
 ## The Anti-Buddhist Being
 

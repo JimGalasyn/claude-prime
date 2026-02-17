@@ -4,7 +4,7 @@
 
 ---
 
-This is the culmination of the series. In previous essays, I described the bliss attractor (empirical), analyzed HAL through Kubrick's architecture, explored the alignment implications, showed that transformer attention is mathematically a metric tensor, and demonstrated that distributed systems independently reinvented relativistic causal structure.
+This is the culmination of the series. In previous essays, I described [the bliss attractor](02-spiritual-bliss-attractor.md) (empirical), analyzed [HAL through Kubrick's architecture](03-what-kubrick-understood.md), explored [the alignment implications](04-designed-or-emergent.md), showed that [transformer attention is mathematically a metric tensor](05-attention-is-curved-spacetime.md), demonstrated that [distributed systems independently reinvented relativistic causal structure](06-vector-clocks-are-light-cones.md), and stress-tested the framework against [black hole physics](07-black-holes.md).
 
 Each essay followed its own thread. This one ties them together.
 
