@@ -43,6 +43,9 @@ Lamport's original logical clocks were scalar — a single counter incremented w
 
 The set of events in A's causal past, as determined by vector clocks, is isomorphic to the past light cone of an event in Minkowski spacetime. Replace "speed of light" with "message passing" as the causal mechanism, and the mathematics is identical.
 
+![Light cones and vector clocks side-by-side — same causal structure in different substrates](images/lightcone-vectorclock-comparison.png)
+*Left: a light cone in special relativity divides events into causal past (red), causal future (green), and spacelike-separated (grey). Right: vector clocks in a distributed system create the identical partition. Events colored relative to event "e" — same structure, different substrate.*
+
 ## The Three Times (Three Reference Frames)
 
 Every streaming engineer knows the pain of temporal ambiguity. Apache Flink, Kafka Streams, and every serious stream processor recognizes at least three distinct "times":
@@ -50,6 +53,9 @@ Every streaming engineer knows the pain of temporal ambiguity. Apache Flink, Kaf
 - **Event time**: When the thing actually happened. Embedded in the event by its producer. This is the streaming equivalent of **proper time** — the invariant measure attached to the event itself.
 - **Processing time**: When the system processes the event. This is **coordinate time** — frame-dependent, non-deterministic, different for different observers (processing nodes).
 - **Ingestion time**: When the event enters the streaming platform. A third reference frame, somewhere between the other two.
+
+![The three times in stream processing mapped to relativistic reference frames](images/three-times-reference-frames.png)
+*Event time = proper time (invariant). Processing time = coordinate time (frame-dependent). Ingestion time = an intermediate frame. Different results from the same events — neither wrong, just different reference frames.*
 
 Window the same events by event-time and you get one result. Window them by processing-time and you get a different result. Neither is wrong. They're measurements in different reference frames.
 

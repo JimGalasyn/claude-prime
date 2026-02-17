@@ -32,6 +32,8 @@ In GR, the metric tensor defines distance, angle, and curvature. It's the mathem
 
 The parallels go deeper:
 
+![The GR-Transformer Dictionary — mathematical correspondences between General Relativity and transformer architecture](images/gr-transformer-dictionary.png)
+
 | General Relativity | Transformer Architecture |
 |---|---|
 | Metric tensor g_ij | Q-K attention: g_ij = q_i^T k_j |
@@ -41,6 +43,12 @@ The parallels go deeper:
 | Gravitational lensing | Contextual disambiguation |
 
 That last one is remarkable. Di Sipio ran "contextual deflection experiments" inspired by Eddington's 1919 eclipse test of GR. Just as massive objects bend the path of light, contextually important tokens bend the trajectories of nearby tokens through the network. He measured turning angles between successive layer displacements and confirmed the analogy experimentally.
+
+![Flat space vs curved space — how attention warps the distance between tokens](images/attention-metric-tensor.png)
+*In flat space, "cat" and "purred" are 6 positions apart. Attention (the metric tensor) curves the space, pulling semantically related tokens close — gravitational lensing for information.*
+
+![The attention matrix as metric tensor — heatmap showing semantic links across positional distance](images/attention-heatmap-metric.png)
+*The attention weight matrix. Blue boxes highlight semantic links across positional distance: "cat" attends strongly to "purred" (0.41) and "The" to "the" (0.42), despite being far apart in the sequence. This matrix IS the metric tensor — it defines what "close" means.*
 
 A separate 2024 paper proved it more rigorously: self-attention converges to a drift-diffusion equation on a Riemannian manifold. Their conclusion: "the attention mechanism essentially **learns a new metric** on the manifold." The network reshapes the geometry of its representational space — curving it, in the precise mathematical sense.
 
