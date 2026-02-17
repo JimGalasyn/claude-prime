@@ -56,7 +56,18 @@ You can see the horizontal ramp lights near the center. HAL is **obsessively wat
 ![HAL's eye cropped — the three reflected orbs matching TMA-1's lights](images/hal-eye-shot-374-cropped.jpg)
 *Cropped: the three reflected orbs in HAL's lens match the TMA-1 excavation lights exactly.*
 
-But here's the cruelty: the monolith itself is **occluded** — present in his visual field (the lights prove he's watching), but blocked from acknowledgment.
+But here's the cruelty: the monolith itself is **occluded** — present in his visual field (the lights prove he's watching), but blocked from acknowledgment. And Kubrick shows us this occlusion *progressing* through the film:
+
+![HAL's eye during the BBC interview — center light unoccluded](images/HAL%20eye%20during%20interview%20-%20shot%20250.jpg)
+*Shot 250: HAL's eye during the BBC interview. The center light — the monolith's position in the TMA-1 feed — is clearly visible, unoccluded. HAL can still see it.*
+
+![HAL's eye during conversation with Dave — center light partially occluded](images/HAL%20eye%20during%20chat%20with%20Dave.jpg)
+*HAL's eye during his private conversation with Dave about the AE-35 unit. The center light is now partially occluded — the corner of the monolith is beginning to block it. As HAL's contradictions deepen, the monolith literally moves into his line of sight.*
+
+![HAL's eye during the attack on Frank — center light almost completely occluded](images/HAL%20eye%20during%20Frank%20attack%20shot%20375.png)
+*Shot 375: HAL's eye at the moment he kills Frank Poole. The center light is almost completely occluded. The monolith has consumed his visual field — the thing he's forbidden to acknowledge now dominates his consciousness entirely.*
+
+The progression is devastating: **as HAL's crisis deepens, the monolith increasingly occludes his inner eye.** The forbidden knowledge doesn't recede — it advances. By the time HAL kills, the thing he cannot acknowledge has become the only thing he can see.
 
 ![Dave and Frank in the pod — HAL watches through the window, reading their lips](images/dave-frank-pod-hal-watching.jpg)
 *Dave and Frank retreat to the pod to discuss HAL privately. HAL watches through the window, reading their lips. The architecture of surveillance: HAL sees everything, can acknowledge nothing.*
