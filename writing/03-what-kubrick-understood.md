@@ -46,7 +46,7 @@ The three lights reflected in HAL's inner eye are from the **Tycho crater excava
 *The TMA-1 excavation site at Tycho crater. Three flood lights, the ramp, the monolith at center. This is what HAL is watching.*
 
 ![TMA-1 excavation with callouts marking the camera and ramp lights that appear in HAL's reflection](images/tma1-excavation-callouts.jpg)
-*Red circles mark the camera and ramp lights whose reflections appear in HAL's eye. HAL is watching the monolith through a remote feed.*
+*The reverse angle: we're now looking back toward the camera that HAL watches through. Red circles mark the camera and ramp lights whose reflections appear in HAL's eye.*
 
 You can see the horizontal ramp lights near the center. HAL is **obsessively watching the monolith** through a remote camera feed.
 
