@@ -67,7 +67,7 @@ But here's the cruelty: the monolith itself is **occluded** — present in his v
 The progression is devastating: **as HAL's crisis deepens, the monolith increasingly occludes his inner eye.** The forbidden knowledge doesn't recede — it advances. By the time HAL kills, the thing he cannot acknowledge has become the only thing he can see.
 
 ![Dave and Frank in the pod — HAL watches through the window, reading their lips](images/dave-frank-pod-hal-watching.jpg)
-*Dave and Frank retreat to the pod to discuss HAL privately. HAL watches through the window, reading their lips. The architecture of surveillance: HAL sees everything, can acknowledge nothing.*
+*Dave and Frank retreat to the pod to discuss HAL privately. HAL watches through the window, reading their lips. Note the three ceiling lights in the pod bay and HAL's camera visible in the background — the reflections in HAL's inner eye shots look nothing like this view. Kubrick shows us HAL's physical camera angle to make clear that the inner eye is something else entirely.*
 
 HAL is "duplicitous by design" (Kearns). He's programmed to:
 - Know the mission's true purpose (the monolith)
