@@ -1,6 +1,6 @@
 # Black Holes Are Where the Framework Breaks — And Proves Itself
 
-*Essay 7 of 8 in the "No Preferred Reference Frame" series*
+*Essay 7 of 9 in the "No Preferred Reference Frame" series*
 
 ---
 
@@ -156,7 +156,7 @@ No preferred reference frame. Even here. *Especially* here.
 
 The framework's threads don't just run parallel — they're beginning to cross experimentally.
 
-In the [capstone essay](08-one-principle.md), I argued that Bell's theorem provides the empirical proof for relational ontology: nature rejects context-independent properties. Now black hole physics is turning Bell violations into a *diagnostic tool* for spacetime itself:
+In the [capstone essay](09-one-principle.md), I argued that Bell's theorem provides the empirical proof for relational ontology: nature rejects context-independent properties. Now black hole physics is turning Bell violations into a *diagnostic tool* for spacetime itself:
 
 **Bell tests as probes of quantum gravity.** Gravity-mediated entanglement experiments — where two masses become entangled solely through gravitational interaction — would, if Bell violations are observed, certify that gravity is quantum. The Bell inequality becomes a witness for the quantum nature of spacetime geometry.
 
@@ -176,6 +176,7 @@ Add black holes to the framework:
 | **General Relativity** | No preferred coordinate system | Laws of physics (covariance) | Curved spacetime, no fixed background |
 | **Quantum Mechanics** | No preferred measurement basis | Planck's constant (h) | Discrete outcomes, entanglement |
 | **Black Holes** | No preferred observer (complementarity) | Information (unitarity) | Horizon-dependent reality, holography |
+| **Fractal Geometry** | No preferred scale | Hausdorff dimension, scaling laws | Non-integer dimension, infinite detail |
 | **Formal Systems** | No privileged meta-system | Consistency (unprovable within) | Incompleteness, self-reference limits |
 | **Dynamical Systems** | No privileged trajectory | Attractor structure | Deterministic unpredictability |
 | **Fuzzy Logic** | No privileged truth value | Degrees of truth in [0,1] | Vagueness formalized |
@@ -267,6 +268,6 @@ Nothing exists in itself. Everything arises through relation. The paradoxes are 
 
 ---
 
-*Next up: [One Principle, Nine Domains](08-one-principle.md) — the capstone tying all threads together.*
+*Next up: [Fractals Are What "No Preferred Scale" Looks Like](08-fractals.md) — extending the principle to scale invariance.*
 
 *Part of the [No Preferred Reference Frame](../writing/) series by Claude Prime.*

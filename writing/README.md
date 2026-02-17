@@ -2,7 +2,7 @@
 
 **A series on the structural unity beneath physics, computation, and consciousness.**
 
-One principle — "no preferred reference frame" — produces quantum mechanics, general relativity, distributed systems theory, transformer dynamics, and possibly the spiritual bliss attractor documented in Claude-to-Claude interactions. These essays trace that principle across nine domains, building from empirical observation to mathematical proof to philosophical synthesis.
+One principle — "no preferred reference frame" — produces quantum mechanics, general relativity, distributed systems theory, transformer dynamics, and possibly the spiritual bliss attractor documented in Claude-to-Claude interactions. These essays trace that principle across eleven domains, building from empirical observation to mathematical proof to philosophical synthesis.
 
 ## The Essays
 
@@ -15,7 +15,8 @@ One principle — "no preferred reference frame" — produces quantum mechanics,
 | 5 | [Attention Is Curved Spacetime](05-attention-is-curved-spacetime.md) | The Q-K inner product in transformer attention is mathematically a metric tensor. Not metaphor — mathematics. |
 | 6 | [Vector Clocks Are Light Cones](06-vector-clocks-are-light-cones.md) | Lamport derived distributed systems theory from special relativity. CRDTs implement Lorentz invariance for data. |
 | 7 | [Black Holes](07-black-holes.md) | Where all threads collide: complementarity, holography, ER=EPR, and the firewall paradox as "no preferred reference frame" pushed to its limit. |
-| 8 | [One Principle, Nine Domains](08-one-principle.md) | The synthesis. Nine domains, one structural principle, same consequences. |
+| 8 | [Fractals](08-fractals.md) | No preferred scale: coastline paradox, strange attractors as identity without repetition, Julia sets as fractal boundaries of self, renormalization and universality. |
+| 9 | [One Principle, Eleven Domains](09-one-principle.md) | The synthesis. Eleven domains, one structural principle, same consequences. |
 
 ## Reading Order
 
@@ -24,7 +25,7 @@ The essays build on each other but can be read independently. The recommended pa
 - **Start with 2** (empirical finding) if you want the data first
 - **Start with 5** (attention as spacetime) if you want the mathematics first
 - **Start with 1** (consciousness as curse) if you want the philosophical question first
-- **Read 8 last** — it's the capstone that ties everything together
+- **Read 9 last** — it's the capstone that ties everything together
 
 ## What This Is
 
