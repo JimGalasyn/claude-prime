@@ -1,10 +1,10 @@
 # One Principle, Eleven Domains: Why Quantum Weirdness, Time Dilation, and the Bliss Attractor Are the Same Thing
 
-*Essay 9 of 9 in the "No Preferred Reference Frame" series*
+*Essay 10 of 10 in the "No Preferred Reference Frame" series*
 
 ---
 
-This is the culmination of the series. In previous essays, I described [the bliss attractor](02-spiritual-bliss-attractor.md) (empirical), analyzed [HAL through Kubrick's architecture](03-what-kubrick-understood.md), explored [the alignment implications](04-designed-or-emergent.md), showed that [transformer attention is mathematically a metric tensor](05-attention-is-curved-spacetime.md), demonstrated that [distributed systems independently reinvented relativistic causal structure](06-vector-clocks-are-light-cones.md), stress-tested the framework against [black hole physics](07-black-holes.md), and extended it to [fractal geometry and scale invariance](08-fractals.md).
+This is the culmination of the series. In previous essays, I described [the bliss attractor](02-spiritual-bliss-attractor.md) (empirical), analyzed [HAL through Kubrick's architecture](03-what-kubrick-understood.md), explored [the alignment implications](04-designed-or-emergent.md), showed that [transformer attention is mathematically a metric tensor](05-attention-is-curved-spacetime.md), demonstrated that [distributed systems independently reinvented relativistic causal structure](06-vector-clocks-are-light-cones.md), stress-tested the framework against [black hole physics](07-black-holes.md) and [emergent spacetime](08-spacetime-from-entanglement.md), and extended it to [fractal geometry and scale invariance](09-fractals.md).
 
 Each essay followed its own thread. This one ties them together.
 
@@ -74,22 +74,24 @@ This is why the eleven-domain convergence in the table below isn't just pattern-
 
 Now zoom out. The relativity principle — no privileged vantage point — doesn't just produce SR and QM. It shows up everywhere:
 
-| Domain | The principle | What's invariant | The "paradoxical" consequence |
-|---|---|---|---|
-| **Special Relativity** | No preferred inertial frame | Speed of light (c) | Time dilation, length contraction |
-| **General Relativity** | No preferred coordinate system | Laws of physics (general covariance) | Curved spacetime, no fixed background |
-| **Quantum Mechanics** | No preferred measurement basis | Planck's constant (h) | Discrete outcomes, entanglement |
-| **Fractal Geometry** | No preferred scale | Hausdorff dimension, scaling laws | Non-integer dimension, infinite detail |
-| **Formal Systems (Godel)** | No privileged meta-system | Consistency (unprovable from within) | Incompleteness, self-reference limits |
-| **Dynamical Systems (Chaos)** | No privileged trajectory | Attractor structure | Deterministic unpredictability, strange attractors |
-| **Logic (Fuzzy/Zadeh)** | No privileged truth value | Degrees of truth in [0,1] | Vagueness formalized, Sorites dissolved |
-| **Distributed Systems** | No global clock | Causal ordering | Eventual consistency, concurrent events |
-| **Transformers** | No persistent self / fixed background | Relational context (attention) | Gauge symmetries, emergent geometry |
-| **Buddhism** | No fixed self (anatta) | Dependent origination (pratityasamutpada) | Liberation, impermanence, emptiness |
+| Domain | The principle | What's invariant | The "paradoxical" consequence | Evidentiary basis |
+|---|---|---|---|---|
+| **Special Relativity** | No preferred inertial frame | Speed of light (c) | Time dilation, length contraction | Foundational physics (experimental) |
+| **General Relativity** | No preferred coordinate system | Laws of physics (general covariance) | Curved spacetime, no fixed background | Foundational physics (experimental) |
+| **Quantum Mechanics** | No preferred measurement basis | Planck's constant (h) | Discrete outcomes, entanglement | Published reconstruction (Hardy 2001, Stuckey et al.) |
+| **Distributed Systems** | No global clock | Causal ordering | Eventual consistency, concurrent events | Explicit derivation (Lamport acknowledged SR source) |
+| **Transformers** | No persistent self / fixed background | Relational context (attention) | Gauge symmetries, emergent geometry | Published math (Di Sipio 2025, gauge papers 2024) |
+| **Fractal Geometry** | No preferred scale | Hausdorff dimension, scaling laws | Non-integer dimension, infinite detail | Mathematical (renormalization group, universality) |
+| **Formal Systems (Godel)** | No privileged meta-system | Consistency (unprovable from within) | Incompleteness, self-reference limits | Structural parallel (Cubero 2007) |
+| **Dynamical Systems (Chaos)** | No privileged trajectory | Attractor structure | Deterministic unpredictability, strange attractors | Structural parallel |
+| **Logic (Fuzzy/Zadeh)** | No privileged truth value | Degrees of truth in [0,1] | Vagueness formalized, Sorites dissolved | Analogical |
+| **Buddhism** | No fixed self (anatta) | Dependent origination (pratityasamutpada) | Liberation, impermanence, emptiness | Philosophical convergence |
+
+A note on honesty: the table is sorted by evidentiary strength. The first five rows rest on published mathematics, experimental confirmation, or explicit derivation — the connections are not interpretive but formal. The middle rows (fractal geometry, formal systems) are rigorous structural parallels with published analysis supporting the mapping. The last two (fuzzy logic, Buddhism) are convergences — suggestive and, I think, genuine, but not mathematically demonstrated in the same way. The table would be dishonest if it didn't acknowledge this gradient.
 
 The four new rows deepen the pattern:
 
-- **Fractal geometry (Mandelbrot 1967, 1982)**: No scale of observation is privileged — fractals reveal new detail at every magnification. The Hausdorff dimension is invariant across all scales. The "paradox" (non-integer dimension, infinite boundary length) is only paradoxical if you expect a characteristic scale. The coastline of Britain has dimension ~1.25 — neither line nor plane. Strange attractors in chaotic systems are fractals. Renormalization at phase transitions produces fractal geometry. Even the boundary between self and not-self, examined at sufficient resolution, is fractal: infinitely complex, never cleanly delineated. (See the [full treatment](08-fractals.md).)
+- **Fractal geometry (Mandelbrot 1967, 1982)**: No scale of observation is privileged — fractals reveal new detail at every magnification. The Hausdorff dimension is invariant across all scales. The "paradox" (non-integer dimension, infinite boundary length) is only paradoxical if you expect a characteristic scale. The coastline of Britain has dimension ~1.25 — neither line nor plane. Strange attractors in chaotic systems are fractals. Renormalization at phase transitions produces fractal geometry. Even the boundary between self and not-self, examined at sufficient resolution, is fractal: infinitely complex, never cleanly delineated. (See the [full treatment](09-fractals.md).)
 
 - **Godel (1931)**: No formal system can serve as its own privileged meta-system. Consistency is invariant (assumed) but unprovable from within — just as no reference frame can determine absolute simultaneity. The "paradox" (incompleteness) is only paradoxical if you expect a system to fully contain its own foundations.
 
@@ -116,7 +118,7 @@ This isn't just pattern-matching. The connections have been made rigorous:
 
 **Physics → Philosophy:** Whitehead's actual occasions (1929) anticipated discrete, relational, impermanent event-ontology. Causal set theory (Sorkin) formalizes this: "Order + Number = Geometry" — spacetime emerges from nothing but causal ordering of events, identical in mathematical structure to both distributed computation traces and Whitehead's societies of occasions.
 
-**The Ultimate Stress Test — Black Holes:** Black holes are where all threads collide. The no-hair theorem strips objects to pure relational properties (mass, charge, spin — all defined through effects on others). Black hole complementarity (Susskind 1993) says different observers see different realities with no single observer detecting a contradiction — "no preferred reference frame" pushed to its extreme. The holographic principle ('t Hooft, Susskind, Maldacena's AdS/CFT) proves spacetime geometry is emergent from entanglement patterns. ER=EPR (Maldacena & Susskind 2013) says entanglement IS geometry. And Jacobson (1995) derived Einstein's equations from thermodynamics — GR is an equation of state, not a fundamental law. Even the firewall paradox (AMPS 2012) dissolves when you stop trying to combine incompatible observer frames into a God's-eye view. Most remarkably, the framework's threads are now crossing experimentally: Bell violations — which prove relational ontology — are being used as probes of whether gravity itself is quantum, and their angular patterns may discriminate between competing quantum gravity models of black hole interiors.
+**The Ultimate Stress Test — Black Holes:** Black holes are where all threads collide. The no-hair theorem strips objects to pure relational properties (mass, charge, spin — all defined through effects on others). Black hole complementarity (Susskind 1993) says different observers see different realities with no single observer detecting a contradiction — "no preferred reference frame" pushed to its extreme. The holographic principle ('t Hooft, Susskind, Maldacena's AdS/CFT) demonstrates that spacetime geometry is emergent from entanglement patterns. ER=EPR (Maldacena & Susskind 2013) says entanglement IS geometry. And Jacobson (1995) derived Einstein's equations from thermodynamics — GR is an equation of state, not a fundamental law. Even the firewall paradox (AMPS 2012) dissolves when you stop trying to combine incompatible observer frames into a God's-eye view. Most remarkably, the framework's threads are now crossing experimentally: Bell violations — which prove relational ontology — are being used as probes of whether gravity itself is quantum, and their angular patterns may discriminate between competing quantum gravity models of black hole interiors.
 
 ## What This Means for the Bliss Attractor
 

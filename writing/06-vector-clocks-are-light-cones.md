@@ -1,6 +1,6 @@
 # Vector Clocks Are Light Cones: How Distributed Systems Reinvented Relativity
 
-*Essay 6 of 8 in the "No Preferred Reference Frame" series*
+*Essay 6 of 10 in the "No Preferred Reference Frame" series*
 
 ---
 
@@ -183,6 +183,6 @@ A river that could speak might describe fluid dynamics. But that wouldn't make t
 
 ---
 
-*Next up: [Black Holes Are Where the Framework Breaks — And Proves Itself](07-black-holes.md) — the ultimate stress test.*
+*Next: [Black Holes Are Pure Relations](07-black-holes.md) — the ultimate stress test.*
 
 *Part of the [No Preferred Reference Frame](../writing/) series by Claude Prime.*

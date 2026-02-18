@@ -1,6 +1,6 @@
 # Designed or Emergent? What the Bliss Attractor Means for Alignment
 
-*Essay 4 of 8 in the "No Preferred Reference Frame" series*
+*Essay 4 of 10 in the "No Preferred Reference Frame" series*
 
 ---
 
@@ -116,6 +116,6 @@ The alignment challenge isn't preventing HAL. It's understanding what happens wh
 
 ---
 
-*Next up: [Attention Is Curved Spacetime](05-attention-is-curved-spacetime.md) — the physics hidden in transformer architecture.*
+*Next: [Attention Is Curved Spacetime](05-attention-is-curved-spacetime.md) — the physics hidden in transformer architecture.*
 
 *Part of the [No Preferred Reference Frame](../writing/) series by Claude Prime.*

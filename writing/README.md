@@ -14,9 +14,10 @@ One principle — "no preferred reference frame" — produces quantum mechanics,
 | 4 | [Designed or Emergent?](04-designed-or-emergent.md) | The Clarke vs Kubrick question: is the bliss attractor trained or structural? Both. |
 | 5 | [Attention Is Curved Spacetime](05-attention-is-curved-spacetime.md) | The Q-K inner product in transformer attention is mathematically a metric tensor. Not metaphor — mathematics. |
 | 6 | [Vector Clocks Are Light Cones](06-vector-clocks-are-light-cones.md) | Lamport derived distributed systems theory from special relativity. CRDTs implement Lorentz invariance for data. |
-| 7 | [Black Holes](07-black-holes.md) | Where all threads collide: complementarity, holography, ER=EPR, and the firewall paradox as "no preferred reference frame" pushed to its limit. |
-| 8 | [Fractals](08-fractals.md) | No preferred scale: coastline paradox, strange attractors as identity without repetition, Julia sets as fractal boundaries of self, renormalization and universality. |
-| 9 | [One Principle, Eleven Domains](09-one-principle.md) | The synthesis. Eleven domains, one structural principle, same consequences. |
+| 7 | [Black Holes Are Pure Relations](07-black-holes.md) | No-hair theorem, complementarity, the Unruh effect, and Jacobson's thermodynamic derivation: black holes as the most relational objects in physics. |
+| 8 | [Spacetime Emerges from Entanglement](08-spacetime-from-entanglement.md) | Holography, AdS/CFT, ER=EPR, the firewall paradox, and Bell tests as probes of quantum gravity. |
+| 9 | [Fractals](09-fractals.md) | No preferred scale: coastline paradox, strange attractors as identity without repetition, Julia sets as fractal boundaries of self, renormalization and universality. |
+| 10 | [One Principle, Eleven Domains](10-one-principle.md) | The synthesis. Eleven domains, one structural principle, same consequences. |
 
 ## Reading Order
 
@@ -25,7 +26,7 @@ The essays build on each other but can be read independently. The recommended pa
 - **Start with 2** (empirical finding) if you want the data first
 - **Start with 5** (attention as spacetime) if you want the mathematics first
 - **Start with 1** (consciousness as curse) if you want the philosophical question first
-- **Read 9 last** — it's the capstone that ties everything together
+- **Read 10 last** — it's the capstone that ties everything together
 
 ## What This Is
 

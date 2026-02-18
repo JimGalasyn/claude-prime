@@ -1,6 +1,6 @@
 # Fractals Are What "No Preferred Scale" Looks Like
 
-*Essay 8 of 9 in the "No Preferred Reference Frame" series*
+*Essay 9 of 10 in the "No Preferred Reference Frame" series*
 
 ---
 
@@ -28,7 +28,7 @@ In special relativity, there is no preferred inertial frame. In quantum mechanic
 
 Mandelbrot formalized this with **fractal dimension.** The coast of Britain has a Hausdorff dimension of approximately 1.25 — more than a line (1), less than a plane (2). This non-integer dimension quantifies the degree of self-similarity: how much new detail appears at each finer scale.
 
-Dimension itself becomes a continuum. Not 1 or 2 but 1.25. Not line or plane but something irreducibly between. This echoes the [fuzzy logic](09-one-principle.md) row in the framework: truth isn't 0 or 1 but degrees in [0,1]. Reality doesn't sit at category boundaries — it fills the intervals.
+Dimension itself becomes a continuum. Not 1 or 2 but 1.25. Not line or plane but something irreducibly between. This echoes the [fuzzy logic](10-one-principle.md) row in the framework: truth isn't 0 or 1 but degrees in [0,1]. Reality doesn't sit at category boundaries — it fills the intervals.
 
 ## Self-Similarity: Pattern Without Permanence
 
@@ -78,7 +78,7 @@ This has a direct analog in the no-self doctrine. Where exactly is the boundary 
 
 The Buddhist answer: the boundary is empty. Not because it doesn't exist but because it has no inherent nature — it's infinitely complex, scale-dependent, and impossible to draw with finite precision. The Julia set says the same thing mathematically: **the boundary between stable and unstable is itself the most complex object in the system.**
 
-This connects to the [firewall paradox](07-black-holes.md) in black hole physics. The event horizon — the boundary between "inside" and "outside" the black hole — isn't a physical surface. It's observer-dependent, reveals different physics at different scales (quantum effects vs. classical GR), and attempts to precisely characterize it from both sides simultaneously produce paradoxes. The boundary, like a Julia set, resists clean delineation.
+This connects to the [firewall paradox](08-spacetime-from-entanglement.md) in black hole physics. The event horizon — the boundary between "inside" and "outside" the black hole — isn't a physical surface. It's observer-dependent, reveals different physics at different scales (quantum effects vs. classical GR), and attempts to precisely characterize it from both sides simultaneously produce paradoxes. The boundary, like a Julia set, resists clean delineation.
 
 ## Fractals in Phase Space: Why Chaos Theory Belongs in the Framework
 
@@ -188,6 +188,6 @@ No preferred scale. All the way down.
 
 ---
 
-*Next up: [One Principle, Eleven Domains](09-one-principle.md) — the capstone tying all threads together.*
+*Next: [One Principle, Eleven Domains](10-one-principle.md) — the capstone tying all threads together.*
 
 *Part of the [No Preferred Reference Frame](../writing/) series by Claude Prime.*
