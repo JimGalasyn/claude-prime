@@ -322,6 +322,122 @@ def init_toroidal(sim, major_radius=None, minor_radius=None,
           f"n_λ={n_wavelengths}, E_max={np.max(np.abs(Er)):.3f}")
 
 
+def init_torus_knot(sim, p=2, q=3, major_radius=None, minor_radius=None,
+                    amplitude=0.5):
+    """Initialize fields along a (p,q) torus knot.
+
+    A (p,q) torus knot winds p times around the torus hole (toroidal)
+    and q times through it (poloidal). The curve on the torus surface:
+        x(t) = (R + r cos(qt)) cos(pt)
+        y(t) = (R + r cos(qt)) sin(pt)
+        z(t) = r sin(qt)
+
+    Key knots:
+        (2,1) or (1,2): unknot — trivial loop (electron?)
+        (2,3) or (3,2): trefoil — simplest non-trivial knot
+        (2,5) or (5,2): cinquefoil
+        (3,4) or (4,3): another torus knot
+
+    The E field points radially from the knot curve, B is tangent to it.
+    This creates div(E) != 0 everywhere along the knot → seeds P.
+
+    The minimum energy of a knot scales with its crossing number,
+    providing a natural mass hierarchy.
+    """
+    n = sim.n
+    if major_radius is None:
+        major_radius = n * 0.25
+    if minor_radius is None:
+        minor_radius = major_radius * 0.25
+
+    cx, cy, cz = n // 2, n // 2, n // 2
+    x = np.arange(n) - cx
+    y = np.arange(n) - cy
+    z = np.arange(n) - cz
+    X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+
+    # Sample points along the knot curve
+    n_samples = max(500, 20 * (p + q))
+    t = np.linspace(0, 2 * np.pi, n_samples, endpoint=False)
+
+    # Knot parametrization on torus surface
+    # Use a slightly smaller radius so the knot fits inside the tube
+    r_knot = minor_radius * 0.6
+    knot_x = (major_radius + r_knot * np.cos(q * t)) * np.cos(p * t)
+    knot_y = (major_radius + r_knot * np.cos(q * t)) * np.sin(p * t)
+    knot_z = r_knot * np.sin(q * t)
+
+    # Tangent vectors (unnormalized)
+    dt_x = np.gradient(knot_x, t)
+    dt_y = np.gradient(knot_y, t)
+    dt_z = np.gradient(knot_z, t)
+    dt_mag = np.sqrt(dt_x**2 + dt_y**2 + dt_z**2) + 1e-10
+    # Normalized tangent
+    tx = dt_x / dt_mag
+    ty = dt_y / dt_mag
+    tz = dt_z / dt_mag
+
+    # Build fields by summing contributions from each knot segment
+    # Each segment creates a radial E field and tangential B field
+    tube_width = minor_radius * 0.5  # field decay width
+
+    Ex_acc = np.zeros_like(X, dtype=float)
+    Ey_acc = np.zeros_like(X, dtype=float)
+    Ez_acc = np.zeros_like(X, dtype=float)
+    Bx_acc = np.zeros_like(X, dtype=float)
+    By_acc = np.zeros_like(X, dtype=float)
+    Bz_acc = np.zeros_like(X, dtype=float)
+
+    # For efficiency, don't loop over all samples — use vectorized distance
+    # Compute min distance from each grid point to the knot curve
+    # This is expensive for large grids, so we subsample
+    stride = max(1, n_samples // 200)
+    for i in range(0, n_samples, stride):
+        # Displacement from this knot point
+        dx = X - knot_x[i]
+        dy = Y - knot_y[i]
+        dz = Z - knot_z[i]
+        dist2 = dx**2 + dy**2 + dz**2
+        dist = np.sqrt(dist2) + 1e-10
+
+        # Gaussian envelope around knot curve
+        env = amplitude * np.exp(-dist2 / (2 * tube_width**2))
+
+        # Radial E (pointing away from knot curve)
+        # Phase varies along the knot: cos(p*t_i)
+        phase = np.cos(p * t[i] + q * t[i])
+        Ex_acc += env * phase * dx / dist
+        Ey_acc += env * phase * dy / dist
+        Ez_acc += env * phase * dz / dist
+
+        # B tangent to knot curve
+        Bx_acc += env * np.sin(p * t[i] + q * t[i]) * tx[i]
+        By_acc += env * np.sin(p * t[i] + q * t[i]) * ty[i]
+        Bz_acc += env * np.sin(p * t[i] + q * t[i]) * tz[i]
+
+    # Normalize by number of samples used
+    norm = stride / n_samples
+    sim.Ex = Ex_acc * norm
+    sim.Ey = Ey_acc * norm
+    sim.Ez = Ez_acc * norm
+    sim.Bx = Bx_acc * norm
+    sim.By = By_acc * norm
+    sim.Bz = Bz_acc * norm
+
+    # Self-consistent P
+    if sim.pivot_enabled:
+        divE = _compute_div_E(sim)
+        omega = (p + q) / major_radius  # approximate angular frequency
+        sim.P = _poisson_solve_3d(divE, dx=sim.dx) / max(omega, 0.1)
+
+    e = sim.compute_energy()
+    crossing_number = min(p, q) * (max(p, q) - 1)  # for torus knots
+    print(f"Torus knot ({p},{q}): R={major_radius:.1f}, a={minor_radius:.1f}")
+    print(f"  Crossing number: {crossing_number}")
+    print(f"  Initial energy: E_total={e['total']:.4f}, "
+          f"E_em={e['em']:.4f}, P²={e['pivot']:.4f}")
+
+
 def init_gaussian(sim, sigma=None, amplitude=1.0):
     """Initialize with a 3D Gaussian EM pulse (radially polarized)."""
     n = sim.n
@@ -816,7 +932,8 @@ def run_comparison(n=64, steps=300, init_type='toroidal', save=False,
     init_fn = {'toroidal': init_toroidal, 'gaussian': init_gaussian,
                'ring': init_ring_current, 'propagating': init_toroidal_propagating,
                'eigenmode': init_toroidal_eigenmode,
-               'relaxed': init_toroidal_relaxed}[init_type]
+               'relaxed': init_toroidal_relaxed,
+               'knot': lambda s: init_torus_knot(s, p=2, q=3)}[init_type]
     init_fn(sim_p)
     init_fn(sim_m)
 
@@ -873,7 +990,8 @@ def run_snapshot(n=64, steps=200, init_type='toroidal', save=False,
     init_fn = {'toroidal': init_toroidal, 'gaussian': init_gaussian,
                'ring': init_ring_current, 'propagating': init_toroidal_propagating,
                'eigenmode': init_toroidal_eigenmode,
-               'relaxed': init_toroidal_relaxed}[init_type]
+               'relaxed': init_toroidal_relaxed,
+               'knot': lambda s: init_torus_knot(s, p=2, q=3)}[init_type]
     init_fn(sim)
 
     # Snapshot at t=0
@@ -910,7 +1028,8 @@ def run_animate(n=48, steps=500, init_type='toroidal', save=False):
     init_fn = {'toroidal': init_toroidal, 'gaussian': init_gaussian,
                'ring': init_ring_current, 'propagating': init_toroidal_propagating,
                'eigenmode': init_toroidal_eigenmode,
-               'relaxed': init_toroidal_relaxed}[init_type]
+               'relaxed': init_toroidal_relaxed,
+               'knot': lambda s: init_torus_knot(s, p=2, q=3)}[init_type]
     init_fn(sim)
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -1414,15 +1533,216 @@ def run_nonlinear(n=64, steps=500, save=False):
         print(f"    Final P²:      {final_p2:.4f}")
 
 
+def run_knot_spectrum(n=64, steps=500, save=False):
+    """Compare energy and confinement for different torus knot topologies.
+
+    Key hypothesis: more complex knots → higher minimum energy → heavier particles.
+    Crossing number provides a natural ordering.
+
+    Knot table (torus knots):
+        (1,2)/(2,1): unknot — 0 crossings — electron?
+        (2,3)/(3,2): trefoil — 3 crossings
+        (2,5)/(5,2): cinquefoil — 5 crossings (actually Solomon's seal)
+        (3,4)/(4,3): 8-crossing torus knot
+        (3,5)/(5,3): 10-crossing torus knot
+    """
+    print("=" * 60)
+    print("Torus Knot Mass Spectrum")
+    print("=" * 60)
+
+    knots = [
+        (2, 1, "unknot (electron)"),
+        (3, 2, "trefoil"),
+        (5, 2, "cinquefoil"),
+        (4, 3, "(4,3) knot"),
+        (5, 3, "(5,3) knot"),
+    ]
+
+    results = []
+    measure_interval = max(1, steps // 100)
+
+    for p, q, name in knots:
+        crossing = min(p, q) * (max(p, q) - 1)
+        print(f"\n--- ({p},{q}) {name} — {crossing} crossings ---")
+
+        sim = PivotFieldSimulation3D(n=n, pivot_enabled=True,
+                                      boundary='absorbing')
+        init_torus_knot(sim, p=p, q=q)
+
+        history = []
+        t_start = time.time()
+
+        for step_i in range(steps):
+            sim.update()
+            if step_i % measure_interval == 0:
+                e = sim.compute_energy()
+                cf = sim.compute_confined_fraction()
+                history.append({
+                    'time': sim.time,
+                    'total': e['total'],
+                    'em': e['em'],
+                    'pivot': e['pivot'],
+                    'confined': cf,
+                })
+
+            if step_i % max(1, steps // 5) == 0:
+                e = sim.compute_energy()
+                cf = sim.compute_confined_fraction()
+                elapsed = time.time() - t_start
+                rate = (step_i + 1) / elapsed if elapsed > 0 else 0
+                print(f"  Step {step_i:4d}/{steps}: "
+                      f"conf={cf:.3f} E={e['total']:.4f} "
+                      f"P²={e['pivot']:.4f} [{rate:.0f} steps/s]")
+
+        elapsed = time.time() - t_start
+        # Time-averaged energy (last quarter)
+        quarter = len(history) // 4
+        avg_total = np.mean([d['total'] for d in history[-quarter:]])
+        avg_pivot = np.mean([d['pivot'] for d in history[-quarter:]])
+        avg_conf = np.mean([d['confined'] for d in history[-quarter:]])
+
+        results.append({
+            'p': p, 'q': q, 'name': name,
+            'crossing': crossing,
+            'avg_total': avg_total,
+            'avg_pivot': avg_pivot,
+            'avg_confined': avg_conf,
+            'history': history,
+            'sim': sim,
+        })
+
+        print(f"  Avg: E={avg_total:.4f}, P²={avg_pivot:.4f}, "
+              f"conf={avg_conf:.3f} [{elapsed:.1f}s]")
+
+    # Mass ratios relative to unknot (electron)
+    e_electron = results[0]['avg_total']
+    print("\n" + "=" * 60)
+    print("TORUS KNOT MASS SPECTRUM")
+    print("=" * 60)
+    print(f"{'Knot':>12s} {'Cross':>6s} {'Energy':>10s} {'Ratio':>8s} "
+          f"{'P²':>10s} {'Conf':>8s}")
+    print("-" * 60)
+
+    known_ratios = {
+        'muon': 206.8,
+        'pion': 273.1,
+        'proton': 1836.2,
+    }
+
+    for r in results:
+        ratio = r['avg_total'] / e_electron if e_electron > 0 else 0
+        print(f"({r['p']},{r['q']}) {r['name']:>8s} {r['crossing']:>6d} "
+              f"{r['avg_total']:>10.4f} {ratio:>8.3f}x "
+              f"{r['avg_pivot']:>10.4f} {r['avg_confined']:>8.3f}")
+
+    # Plot
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    fig.suptitle(
+        f"Torus Knot Mass Spectrum — Williamson Pivot 3D\n"
+        f"{n}³ grid, {steps} steps — Do more complex knots = heavier particles?",
+        fontsize=13, fontweight='bold')
+
+    colors = plt.cm.Set1(np.linspace(0, 1, len(knots)))
+
+    # Top-left: Energy vs time for all knots
+    ax = axes[0, 0]
+    for i, r in enumerate(results):
+        h = r['history']
+        ax.plot([d['time'] for d in h], [d['total'] for d in h],
+                color=colors[i], linewidth=2,
+                label=f"({r['p']},{r['q']}) {r['name']}")
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Total Energy')
+    ax.set_title('Energy Evolution')
+    ax.legend(fontsize=7)
+    ax.grid(True, alpha=0.3)
+
+    # Top-middle: Confinement vs time
+    ax = axes[0, 1]
+    for i, r in enumerate(results):
+        h = r['history']
+        ax.plot([d['time'] for d in h], [d['confined'] for d in h],
+                color=colors[i], linewidth=2,
+                label=f"({r['p']},{r['q']})")
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Confined fraction')
+    ax.set_title('Energy Confinement (r < N/4)')
+    ax.legend(fontsize=7)
+    ax.set_ylim(0, 1.05)
+    ax.grid(True, alpha=0.3)
+
+    # Top-right: P² vs time
+    ax = axes[0, 2]
+    for i, r in enumerate(results):
+        h = r['history']
+        ax.plot([d['time'] for d in h], [d['pivot'] for d in h],
+                color=colors[i], linewidth=2,
+                label=f"({r['p']},{r['q']})")
+    ax.set_xlabel('Time')
+    ax.set_ylabel('P² (rest mass) energy')
+    ax.set_title('Pivot Field Energy')
+    ax.legend(fontsize=7)
+    ax.grid(True, alpha=0.3)
+
+    # Bottom-left: Mass ratio bar chart
+    ax = axes[1, 0]
+    labels = [f"({r['p']},{r['q']})\n{r['name']}" for r in results]
+    ratios = [r['avg_total'] / e_electron for r in results]
+    x = np.arange(len(results))
+    bars = ax.bar(x, ratios, color=colors[:len(results)], alpha=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=8)
+    ax.set_ylabel('Mass ratio (m / m_electron)')
+    ax.set_title('Mass Ratios from Knot Topology')
+    for i, v in enumerate(ratios):
+        ax.text(i, v + 0.02, f'{v:.3f}x', ha='center', fontsize=9)
+    ax.grid(True, alpha=0.3, axis='y')
+
+    # Bottom-middle: Energy vs crossing number
+    ax = axes[1, 1]
+    crossings = [r['crossing'] for r in results]
+    energies = [r['avg_total'] for r in results]
+    ax.plot(crossings, energies, 'ko-', markersize=10, linewidth=2)
+    for i, r in enumerate(results):
+        ax.annotate(f"({r['p']},{r['q']})", (crossings[i], energies[i]),
+                    textcoords="offset points", xytext=(8, 5), fontsize=9)
+    ax.set_xlabel('Crossing Number')
+    ax.set_ylabel('Average Total Energy')
+    ax.set_title('Energy vs Knot Complexity')
+    ax.grid(True, alpha=0.3)
+
+    # Bottom-right: XY mid-plane slices for first 3 knots
+    ax = axes[1, 2]
+    # Show the most complex knot's energy density
+    sim_last = results[-1]['sim']
+    ed = sim_last.compute_energy_density_slice('z')
+    vmax = np.percentile(ed, 99)
+    if vmax < 1e-10:
+        vmax = 1.0
+    ax.imshow(ed.T, origin='lower', cmap='inferno', vmin=0, vmax=vmax)
+    ax.set_title(f"({results[-1]['p']},{results[-1]['q']}) "
+                 f"{results[-1]['name']}\nEnergy density (XY mid-plane)")
+    plt.colorbar(ax.images[0], ax=ax, shrink=0.7)
+
+    plt.tight_layout()
+    if save:
+        path = '/home/jim/repos/claude-prime/simulations/pivot_3d_knots.png'
+        plt.savefig(path, dpi=150, bbox_inches='tight')
+        print(f"\nSaved: {path}")
+    plt.close()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='3D Williamson Pivot Field Simulation')
     parser.add_argument('--mode', choices=['compare', 'snapshot', 'animate',
-                                           'sweep', 'rebound', 'nonlinear'],
+                                           'sweep', 'rebound', 'nonlinear',
+                                           'knots'],
                         default='snapshot', help='Run mode')
     parser.add_argument('--init',
                         choices=['toroidal', 'gaussian', 'ring',
-                                 'propagating', 'eigenmode', 'relaxed'],
+                                 'propagating', 'eigenmode', 'relaxed',
+                                 'knot'],
                         default='toroidal', help='Initial condition')
     parser.add_argument('--grid', type=int, default=64,
                         help='Grid size N (NxNxN)')
@@ -1435,7 +1755,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.mode == 'rebound':
+    if args.mode == 'knots':
+        run_knot_spectrum(n=args.grid, steps=args.steps, save=args.save)
+    elif args.mode == 'rebound':
         run_rebound_study(n=args.grid, steps=args.steps, save=args.save)
     elif args.mode == 'sweep':
         run_confinement_sweep(n=args.grid, steps=args.steps, save=args.save)
