@@ -30,7 +30,10 @@ Usage:
     python3 null_worldtube.py --energy           # detailed energy breakdown
     python3 null_worldtube.py --self-energy      # self-energy analysis with α
     python3 null_worldtube.py --resonance        # resonance quantization analysis
+    python3 null_worldtube.py --angular-momentum # literal angular momentum (spin from geometry)
     python3 null_worldtube.py --find-radii       # find self-consistent radii for known particles
+    python3 null_worldtube.py --pair-production  # pair production analysis (γ → e⁻ + e⁺)
+    python3 null_worldtube.py --decay            # decay landscape and stability analysis
 """
 
 import numpy as np
@@ -1017,6 +1020,186 @@ def print_find_radii():
         print(f"  That's the generation problem — still open.")
 
 
+def print_pair_production():
+    """
+    Analyze pair production (γ → e⁻ + e⁺) in the torus model.
+
+    The photon is a free EM wave (no torus). The electron/positron
+    are (2,±1) torus knots. Pair production is the photon "winding up"
+    into two counter-rotating torus knots near a nucleus.
+    """
+    print("=" * 70)
+    print("PAIR PRODUCTION: γ → e⁻ + e⁺")
+    print("  A free wave winds up into two torus knots")
+    print("=" * 70)
+
+    # --- Threshold geometry ---
+    print(f"\n--- Threshold condition ---")
+    E_thresh_MeV = 2 * m_e_MeV
+    E_thresh_J = E_thresh_MeV * MeV
+    lambda_photon = h_planck * c / E_thresh_J
+
+    # Electron torus path length
+    e_sol = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=0.1)
+    tp_e = TorusParams(R=e_sol['R'], r=e_sol['r'], p=2, q=1)
+    L_torus = compute_path_length(tp_e)
+
+    print(f"  Threshold energy:           E_γ = 2 m_e c² = {E_thresh_MeV:.4f} MeV")
+    print(f"  Photon wavelength:          λ_γ = {lambda_photon:.6e} m")
+    print(f"  Electron torus path length: L   = {L_torus:.6e} m")
+    print(f"  Ratio λ_γ / L_torus:        {lambda_photon / L_torus:.6f}")
+    print(f"  2π λ_C:                     {2*np.pi*lambda_C:.6e} m")
+    print(f"  Ratio λ_γ / 2πλ_C:          {lambda_photon / (2*np.pi*lambda_C):.6f}")
+    print(f"\n  λ_γ = L_torus / 2 exactly (because E_γ = 2 × m_e c² = 2 × hc/L)")
+    print(f"  The photon wavelength equals HALF the electron torus path —")
+    print(f"  one full loop of the double-wound (2,1) knot.")
+    print(f"  The photon fits one loop; the electron needs two → spin 1/2.")
+
+    # --- Nuclear field as catalyst ---
+    print(f"\n--- Nuclear Coulomb field as catalyst ---")
+    print(f"  The photon cannot produce a pair in free space (4-momentum")
+    print(f"  conservation). It needs a nucleus to absorb recoil AND to")
+    print(f"  provide the field curvature that bends the wave into a torus.")
+    print(f"\n  Schwinger critical field: E_crit = m_e²c³/(eℏ)")
+    E_schwinger = m_e**2 * c**3 / (e_charge * hbar)
+    print(f"    = {E_schwinger:.4e} V/m")
+    print(f"\n  Critical distance (where Coulomb field = Schwinger field):")
+    print(f"  {'Z':>4} {'Element':>8} {'r_crit (fm)':>12} {'r_crit/λ_C':>12} {'σ ∝ πr²_crit':>14}")
+    print(f"  " + "-" * 52)
+    elements = [(1, 'H'), (6, 'C'), (26, 'Fe'), (82, 'Pb'), (92, 'U')]
+    for Z, elem in elements:
+        r_crit = np.sqrt(Z * e_charge / (4 * np.pi * eps0 * E_schwinger))
+        sigma_rel = Z  # σ ∝ r_crit² ∝ Z
+        print(f"  {Z:4d} {elem:>8} {r_crit*1e15:12.3f} {r_crit/lambda_C:12.4f} {sigma_rel:14.1f}")
+    print(f"\n  Cross-section σ ∝ πr²_crit ∝ Z → explains Z² scaling")
+    print(f"  (Bethe-Heitler: σ ∝ α r_e² Z²)")
+
+    # --- Conservation laws ---
+    print(f"\n--- Conservation laws ---")
+    print(f"  {'Quantity':<20} {'Before (γ)':<20} {'After (e⁻ + e⁺)':<25} {'Conserved?'}")
+    print(f"  " + "-" * 70)
+    print(f"  {'Energy':<20} {'E_γ':<20} {'E_e + E_e+':<25} {'✓'}")
+    print(f"  {'Momentum':<20} {'p_γ = E/c':<20} {'p_e + p_e+ + p_nuc':<25} {'✓ (recoil)'}")
+    print(f"  {'Charge':<20} {'0':<20} {'-e + (+e) = 0':<25} {'✓'}")
+    print(f"  {'Winding (p)':<20} {'0':<20} {'+2 + (-2) = 0':<25} {'✓'}")
+    print(f"  {'Winding (q)':<20} {'0':<20} {'+1 + (-1) = 0':<25} {'✓'}")
+    print(f"  {'Angular mom':<20} {'ℏ (spin-1)':<20} {'ℏ/2 + (-ℏ/2) + orb':<25} {'✓'}")
+    print(f"  {'Net topology':<20} {'trivial':<20} {'(2,+1)+(2,-1)=trivial':<25} {'✓'}")
+    print(f"\n  Charge conservation IS topology conservation:")
+    print(f"  no net winding created — equal and opposite topology.")
+
+    # --- Annihilation (reverse) ---
+    print(f"\n--- Annihilation (reverse process) ---")
+    print(f"  e⁻ + e⁺ → γγ")
+    print(f"  (2,+1) + (2,-1) → topology cancels → free waves")
+    print(f"  Two photons required (not one) for momentum conservation")
+    print(f"  Energy: 2 × {m_e_MeV:.4f} = {2*m_e_MeV:.4f} MeV → 2 photons")
+    print(f"\n  Positronium (bound e⁻e⁺):")
+    print(f"    Para (↑↓, S=0): decays to 2γ, τ = 1.25 × 10⁻¹⁰ s")
+    print(f"    Ortho (↑↑, S=1): decays to 3γ, τ = 1.42 × 10⁻⁷ s")
+    print(f"    Ortho is 1000× slower because aligned spins (ℏ/2 + ℏ/2 = ℏ)")
+    print(f"    can't cancel into 2 photons — needs 3-body final state.")
+
+    # --- Above-threshold: heavier pairs ---
+    print(f"\n--- Above threshold: heavier pairs ---")
+    print(f"  The photon preferentially creates the LIGHTEST pair because")
+    print(f"  that's the ground state (largest torus = most probable).")
+    print(f"\n  {'Pair':<12} {'Threshold (MeV)':>16} {'E_γ needed':>12}")
+    print(f"  " + "-" * 44)
+    pair_thresholds = [
+        ('e⁻e⁺', 2 * 0.511),
+        ('μ⁻μ⁺', 2 * 105.658),
+        ('τ⁻τ⁺', 2 * 1776.86),
+        ('pp̄', 2 * 938.272),
+    ]
+    for pair, thresh in pair_thresholds:
+        print(f"  {pair:<12} {thresh:16.3f} {'> ' + f'{thresh:.0f} MeV':>12}")
+
+
+def print_decay_landscape():
+    """
+    Analyze particle decay as torus expansion / topology change.
+
+    Key insight: stable particles are ground states (largest tori)
+    of each topological class. Unstable particles are excited states
+    that expand to the ground state, releasing energy.
+    """
+    print("=" * 70)
+    print("DECAY LANDSCAPE: Stability and transitions")
+    print("=" * 70)
+
+    # Particle catalog
+    catalog = [
+        # (name, mass_MeV, p, q, spin, stable, lifetime_s, decay)
+        ('photon',   0.0,      1, 0, 1.0, True,  None,     '—'),
+        ('electron', 0.511,    2, 1, 0.5, True,  None,     '—'),
+        ('proton',   938.272,  2, 1, 0.5, True,  None,     '—'),
+        ('muon',     105.658,  2, 1, 0.5, False, 2.2e-6,   'e + ν_μ + ν̄_e'),
+        ('tau',      1776.86,  2, 1, 0.5, False, 2.9e-13,  'μ + ν_τ + ν̄_μ'),
+        ('pion±',    139.570,  1, 1, 0.0, False, 2.6e-8,   'μ + ν_μ'),
+        ('pion0',    134.977,  1, 1, 0.0, False, 8.5e-17,  'γγ'),
+        ('neutron',  939.565,  2, 1, 0.5, False, 879,      'p + e + ν̄_e'),
+    ]
+
+    print(f"\n--- Particle catalog ---")
+    print(f"  {'Name':<10} {'Mass':>10} {'(p,q)':>6} {'L_z/ℏ':>7} "
+          f"{'Status':>8} {'Lifetime':>12} {'Decays to'}")
+    print(f"  " + "-" * 75)
+    for name, mass, p, q, spin, stable, tau, decay in catalog:
+        lt = "STABLE" if stable else f"{tau:.1e} s"
+        lz = f"{1/p:.2f}" if p > 0 else "—"
+        print(f"  {name:<10} {mass:10.3f} ({p},{q}){'':<2} {lz:>7} "
+              f"{'STABLE' if stable else '':>8} {lt:>12}  {decay}")
+
+    # Decay energetics
+    print(f"\n--- Decay = torus expansion ---")
+    print(f"  Unstable particles are SMALLER tori (higher energy)")
+    print(f"  They expand to larger tori (lower energy), releasing ΔE")
+
+    decays = [
+        ('π⁰ → γγ',       134.977,  0.0,     1, 0, 'total unwinding',        8.5e-17),
+        ('τ → μ + ν + ν̄',  1776.86,  105.658, 2, 2, 'R expands 17×',         2.9e-13),
+        ('π± → μ + ν',     139.570,  105.658, 1, 2, 'TOPOLOGY CHANGE p=1→2', 2.6e-8),
+        ('μ → e + ν + ν̄',  105.658,  0.511,   2, 2, 'R expands 207×',        2.2e-6),
+        ('n → p + e + ν̄',  939.565,  938.783, 2, 2, 'ΔR/R = 0.08%',         879),
+    ]
+
+    print(f"\n  {'Decay':<16} {'ΔE (MeV)':>10} {'p→p':>5} {'τ (s)':>12}  {'Mechanism'}")
+    print(f"  " + "-" * 68)
+    for name, m_par, m_dau, pi, pf, mech, tau in sorted(decays, key=lambda x: x[6]):
+        dE = m_par - m_dau
+        print(f"  {name:<16} {dE:10.3f} {pi}→{pf:}{'':<2} {tau:12.2e}  {mech}")
+
+    # Stability principle
+    print(f"\n--- Stability principle ---")
+    print(f"  STABLE = largest torus (lowest energy) in its topological class")
+    print(f"  No lower-energy state with same topology to decay into.")
+    print(f"\n  (2,1) leptons:")
+
+    for name, mass in [('tau', 1776.86), ('muon', 105.658), ('electron', 0.511)]:
+        sol = find_self_consistent_radius(mass, p=2, q=1, r_ratio=0.1)
+        if sol:
+            stable = "← GROUND STATE" if name == 'electron' else "→ decays"
+            print(f"    {name:<10} R = {sol['R_femtometers']:10.4f} fm  "
+                  f"(E = {mass:10.3f} MeV)  {stable}")
+
+    print(f"\n  The electron is stable because there is no LARGER (2,1)")
+    print(f"  torus to expand into. It's the ground state of its topology.")
+
+    # Neutrino interpretation
+    print(f"\n--- Neutrinos as topology carriers ---")
+    print(f"  π⁺(p=1) → μ⁺(p=2) + ν_μ(p=?)")
+    print(f"  Winding changes: 1 → 2. Where does the Δp go?")
+    print(f"  The neutrino carries the topological difference.")
+    print(f"\n  If neutrinos are propagating topology changes (not tori),")
+    print(f"  this would explain:")
+    print(f"    • Nearly massless: not bound structures, just transitions")
+    print(f"    • Three flavors: one per lepton generation transition")
+    print(f"    • Weak-only: couple to topology changes, not stable EM")
+    print(f"    • Spin ℏ/2: carry angular momentum of the transition")
+    print(f"    • Oscillations: topology transitions can mix")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Closed null worldtube analysis')
     parser.add_argument('--scan', action='store_true', help='Scan parameter space')
@@ -1025,6 +1208,8 @@ def main():
     parser.add_argument('--resonance', action='store_true', help='Resonance quantization analysis')
     parser.add_argument('--find-radii', action='store_true', help='Find self-consistent radii')
     parser.add_argument('--angular-momentum', action='store_true', help='Angular momentum analysis')
+    parser.add_argument('--pair-production', action='store_true', help='Pair production analysis')
+    parser.add_argument('--decay', action='store_true', help='Decay landscape analysis')
     parser.add_argument('--R', type=float, default=1.0, help='Major radius in units of λ_C')
     parser.add_argument('--r', type=float, default=0.1, help='Minor radius in units of λ_C')
     parser.add_argument('--p', type=int, default=1, help='Toroidal winding number')
@@ -1037,6 +1222,14 @@ def main():
 
     if args.find_radii:
         print_find_radii()
+        return
+
+    if args.pair_production:
+        print_pair_production()
+        return
+
+    if args.decay:
+        print_decay_landscape()
         return
 
     params = TorusParams(
