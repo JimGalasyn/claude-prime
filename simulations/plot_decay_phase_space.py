@@ -430,8 +430,8 @@ if kl_theta is not None and kl_sigma is not None:
     p_sub = kl_p[::step]
     sig_sub = kl_sigma[::step]
 
-    ax_3d.scatter(th_sub, p_sub, sig_sub, s=0.3, c=sig_sub,
-                   cmap='plasma', alpha=0.4, edgecolors='none',
+    ax_3d.scatter(th_sub, p_sub, sig_sub, s=1.5, c=sig_sub,
+                   cmap='hot', alpha=0.9, edgecolors='none',
                    vmin=np.percentile(kl_sigma, 5),
                    vmax=np.percentile(kl_sigma, 95))
 
