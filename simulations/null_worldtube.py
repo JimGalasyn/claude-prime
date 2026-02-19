@@ -5763,9 +5763,9 @@ def print_stability_analysis():
   │    6 quark masses (need linked-torus Koide correction)       │
   └──────────────────────────────────────────────────────────────┘""")
 
-    # ── Section 11: Summary ───────────────────────────────────────────
+    # ── Section 11: Interim summary ─────────────────────────────────────
     print()
-    print("  11. SUMMARY")
+    print("  11. INTERIM SUMMARY (Sections 1-10)")
     print("  " + "─" * 51)
     print(f"""
   ┌──────────────────────────────────────────────────────┐
@@ -5791,9 +5791,337 @@ def print_stability_analysis():
   │                                                      │
   │  7. CKM angles ≈ powers of pq/N_c² = 2/9            │
   │     (Cabibbo = 2/9 to 2.5%)                          │
+  └──────────────────────────────────────────────────────┘
+
+  The Hessian in Section 5 used heuristic scaling
+  (H_ii ∝ 1/x⁴). Sections 12-14 below derive the
+  PHYSICAL couplings from Koide sphere geometry and
+  reveal a deeper structure.""")
+
+    # ── Section 12: The flat Koide sphere ─────────────────────────────
+    print()
+    print("  12. THE KOIDE SPHERE IS FLAT UNDER 2-BODY COUPLING")
+    print("  " + "─" * 51)
+
+    # Verify analytically: total mass Σm_i = constant on Koide sphere
+    # Koide parametrization: x_i = (S/3)(1 + √2 cos(θ + 2πi/3))
+    # where x_i = √m_i, so m_i = x_i² = (S/3)²(1 + √2 cos(θ + 2πi/3))²
+    # Σm_i = (S/3)² Σ(1 + √2 cos(θ + 2πi/3))²
+    #       = (S/3)² Σ[1 + 2√2 cos(φ_i) + 2cos²(φ_i)]    where φ_i = θ + 2πi/3
+    #       = (S/3)² [3 + 2√2·0 + 2·(3/2)]                 (trig identities)
+    #       = (S/3)² × 6 = 2S²/3
+
+    N_verify = 1000
+    theta_verify = np.linspace(0, 2 * np.pi, N_verify)
+    total_mass = np.zeros(N_verify)
+    for idx_v in range(N_verify):
+        th = theta_verify[idx_v]
+        f1 = 1 + np.sqrt(2) * np.cos(th)
+        f2 = 1 + np.sqrt(2) * np.cos(th + 2 * np.pi / 3)
+        f3 = 1 + np.sqrt(2) * np.cos(th + 4 * np.pi / 3)
+        total_mass[idx_v] = (S / 3)**2 * (f1**2 + f2**2 + f3**2)
+
+    total_mass_pred = 2 * S**2 / 3
+    mass_variation = np.max(total_mass) - np.min(total_mass)
+
+    # Leading 2-body EM coupling: V₂ = g × Σ_{i<j} x_i x_j
+    # On the Koide sphere: Σ_{i<j} x_i x_j = [(Σx_i)² - Σx_i²] / 2
+    #   = [S² - Σm_i] / 2 = [S² - 2S²/3] / 2 = S²/6
+    # This is CONSTANT — independent of θ!
+    V2_constant = S**2 / 6
+
+    # Verify numerically
+    V2_vals = np.zeros(N_verify)
+    for idx_v in range(N_verify):
+        th = theta_verify[idx_v]
+        x1 = (S / 3) * (1 + np.sqrt(2) * np.cos(th))
+        x2 = (S / 3) * (1 + np.sqrt(2) * np.cos(th + 2 * np.pi / 3))
+        x3 = (S / 3) * (1 + np.sqrt(2) * np.cos(th + 4 * np.pi / 3))
+        V2_vals[idx_v] = x1 * x2 + x1 * x3 + x2 * x3
+
+    V2_variation = np.max(V2_vals) - np.min(V2_vals)
+
+    print(f"""
+  The leading electromagnetic coupling between linked tori is
+  mutual-inductance-like: V₂ = g × Σ_{{i<j}} x_i x_j   (x_i = √m_i)
+
+  But on the Koide sphere, an identity holds:
+    Σ_{{i<j}} x_i x_j = [(Σx_i)² - Σx_i²] / 2
+                      = [S² - Σm_i] / 2
+
+  And we proved in Section 7 that Σm_i = 2S²/3 exactly,
+  using the trigonometric identity Σcos²(θ + 2πi/3) = 3/2.
+
+  Therefore:
+    V₂(θ) = g × [S² - 2S²/3] / 2 = g × S²/6 = CONSTANT
+
+  ┌──────────────────────────────────────────────────────┐
+  │  The 2-body coupling is EXACTLY FLAT on the Koide    │
+  │  sphere. Every point on the sphere has the same      │
+  │  2-body interaction energy.                          │
+  └──────────────────────────────────────────────────────┘
+
+  Numerical verification:
+    Total mass Σm_i: {total_mass_pred:.4f} MeV  (analytic: 2S²/3)
+    Variation over full θ range: {mass_variation:.2e} MeV  (machine ε)
+    V₂ = g × S²/6 = g × {V2_constant:.4f} MeV²
+    V₂ variation: {V2_variation:.2e} MeV²  (machine ε)
+
+  CONSEQUENCE: The Hessian in Section 5 was built from
+  ∂²V/∂x_i∂x_j of a heuristic V(x₁,x₂,x₃). But if the
+  leading coupling is flat, its Hessian is ZERO.
+
+  The normal mode frequencies ω₁, ω₂, ω₃ from Section 5
+  (and the suggestive ratio ω₃/ω₂ ≈ m_μ/m_e) came from
+  the assumed 1/x⁴ scaling, NOT from physical dynamics.
+
+  To find the REAL dynamics, we need the NEXT-ORDER coupling:
+  the 3-body Borromean interaction.""")
+
+    # ── Section 13: 3-body Borromean coupling ────────────────────────
+    print()
+    print("  13. 3-BODY BORROMEAN COUPLING LIFTS THE DEGENERACY")
+    print("  " + "─" * 51)
+
+    # The Borromean link requires ALL THREE tori present.
+    # The irreducible 3-body coupling is V₃ ∝ x₁ x₂ x₃ = Π√m_i
+    # In the Koide parametrization:
+    # x₁x₂x₃ = (S/3)³ × f₁f₂f₃
+    # where f_i = 1 + √2 cos(θ + 2πi/3)
+
+    # Compute f₁f₂f₃ analytically:
+    # Expand: f₁f₂f₃ = Π(1 + √2 cos(θ + 2πi/3))
+    # Using the triple product identity for equally spaced phases:
+    # Π(1 + a·cos(θ + 2πi/3)) = 1 + a³cos(3θ)/4   for general a
+    # Wait, let's derive carefully. With a = √2:
+    # Π(1 + √2 cos φ_i) where φ_i = θ + 2π(i-1)/3
+    #
+    # = 1 + √2(cosφ₁ + cosφ₂ + cosφ₃)
+    #   + 2(cosφ₁cosφ₂ + cosφ₁cosφ₃ + cosφ₂cosφ₃)
+    #   + 2√2 cosφ₁cosφ₂cosφ₃
+    #
+    # Σcosφ = 0, Σcosφcosφ' = -3/4, Πcosφ = cos(3θ)/4
+    #
+    # = 1 + 0 + 2(-3/4) + 2√2 × cos(3θ)/4
+    # = 1 - 3/2 + (√2/2)cos(3θ)
+    # = -1/2 + (√2/2)cos(3θ)
+
+    # Compute numerical profile
+    N_three = 500
+    theta_3b = np.linspace(0, 2 * np.pi, N_three)
+    f1f2f3_num = np.zeros(N_three)
+    f1f2f3_analytic = np.zeros(N_three)
+    V3_profile = np.zeros(N_three)
+
+    for idx_v in range(N_three):
+        th = theta_3b[idx_v]
+        f1 = 1 + np.sqrt(2) * np.cos(th)
+        f2 = 1 + np.sqrt(2) * np.cos(th + 2 * np.pi / 3)
+        f3 = 1 + np.sqrt(2) * np.cos(th + 4 * np.pi / 3)
+        f1f2f3_num[idx_v] = f1 * f2 * f3
+        f1f2f3_analytic[idx_v] = -0.5 + (np.sqrt(2) / 2) * np.cos(3 * th)
+        V3_profile[idx_v] = (S / 3)**2 / 3 * f1f2f3_num[idx_v]
+
+    f1f2f3_residual = np.max(np.abs(f1f2f3_num - f1f2f3_analytic))
+
+    # Extrema of cos(3θ): max at θ = 0, 2π/3, 4π/3
+    # V₃ maximum: f₁f₂f₃ = -1/2 + √2/2 ≈ 0.2071
+    # V₃ minimum: f₁f₂f₃ = -1/2 - √2/2 ≈ -1.2071
+    f1f2f3_max = -0.5 + np.sqrt(2) / 2
+    f1f2f3_min = -0.5 - np.sqrt(2) / 2
+
+    # Z₃ symmetry maxima: θ = 0, 2π/3, 4π/3
+    # These are the points where all three phases are symmetric
+    # (120° apart maximizes the product for positive f_i)
+
+    # The physical Koide angle
+    theta_K_phys = (6 * np.pi + 2) / 9
+    theta_K_mod_2pi3 = theta_K_phys % (2 * np.pi / 3)
+
+    # Z₃ nearest maximum
+    z3_nearest = 2 * np.pi / 3  # θ = 2π/3 is closest Z₃ point
+    delta_from_z3 = theta_K_phys - z3_nearest
+
+    # Evaluate V₃ at θ_K and at Z₃ maximum
+    f_at_thetaK = -0.5 + (np.sqrt(2) / 2) * np.cos(3 * theta_K_phys)
+    f_at_z3 = -0.5 + (np.sqrt(2) / 2) * np.cos(3 * z3_nearest)
+
+    # Binding energy cost: fraction lost from Z₃ to θ_K
+    binding_cost = 1 - f_at_thetaK / f_at_z3 if f_at_z3 > 0 else float('nan')
+
+    # Hessian of V₃: d²V₃/dθ² = h × (S/3)²/3 × (-9)(√2/2)cos(3θ)
+    # At θ = 2π/3 (Z₃ max): d²V₃/dθ² = -9(√2/2)h(S/3)²/3 × cos(2π) = -9(√2/2)h(S/3)²/3
+    # Negative → maximum → stable oscillation in the V₃ well
+    # Single frequency: ω₃ᵦ = 3√(h(√2/2)(S/3)²/3)
+    # All three generations oscillate IN PHASE around Z₃ (single mode, not three)
+
+    print(f"""
+  The Borromean link is an IRREDUCIBLE 3-BODY structure:
+  remove any one torus and the other two unlink. The
+  lowest-order 3-body coupling is:
+
+    V₃ = h × x₁ x₂ x₃ = h × (S/3)³ × f₁f₂f₃
+
+  where h is the 3-body coupling constant and
+  f_i = 1 + √2 cos(θ + 2π(i-1)/3).
+
+  ANALYTIC RESULT (triple-product identity):
+
+    f₁f₂f₃ = -1/2 + (√2/2) cos(3θ)
+
+  Numerical residual: {f1f2f3_residual:.2e}  (confirms identity)
+
+  ┌──────────────────────────────────────────────────────┐
+  │  V₃(θ) ∝ cos(3θ)                                    │
   │                                                      │
-  │  The dynamical system on the Koide sphere unifies    │
-  │  mass generation, stability, and flavor mixing.      │
+  │  This is NOT constant. The 3-body coupling           │
+  │  LIFTS the degeneracy of the flat 2-body sphere.     │
+  │  It selects preferred angles.                        │
+  └──────────────────────────────────────────────────────┘
+
+  Extrema of f₁f₂f₃:
+    Maximum: {f1f2f3_max:.4f}  at θ = 0, 2π/3, 4π/3  (Z₃ points)
+    Minimum: {f1f2f3_min:.4f}  at θ = π/3, π, 5π/3
+
+  The Z₃ SYMMETRY points (120° apart) MAXIMIZE the
+  3-body binding. This is the Borromean resonance:
+  three linked tori bind most strongly when their
+  √m values are most symmetrically distributed.
+
+  The physical Koide angle and Z₃:
+    θ_K = (6π + 2)/9 = {theta_K_phys:.6f} rad
+    Nearest Z₃ max:    {z3_nearest:.6f} rad  (= 2π/3)
+    Offset δ = θ_K - 2π/3 = 2/9 = {delta_from_z3:.6f} rad
+                                  = {np.degrees(delta_from_z3):.2f}°
+
+  This gives the DYNAMICAL DECOMPOSITION:
+
+    θ_K = 2π/3  +  2/9
+          ─────    ───
+          Z₃       winding
+          binding   correction
+
+  The first term (2π/3) maximizes 3-body Borromean
+  binding. The second term (2/9 = pq/N_c² with p=2,
+  q=1, N_c=3) satisfies the torus resonance condition.
+
+  Binding energy at each angle:
+    At Z₃ (2π/3):   f₁f₂f₃ = {f_at_z3:.6f}  (maximum binding)
+    At θ_K:          f₁f₂f₃ = {f_at_thetaK:.6f}
+    Cost of winding correction: {binding_cost*100:.1f}% of binding energy""")
+
+    # ── Section 14: Dynamical interpretation and revised assessment ───
+    print()
+    print("  14. REVISED DYNAMICS: SINGLE BORROMEAN FREQUENCY")
+    print("  " + "─" * 51)
+
+    # The cos(3θ) potential has period 2π/3 → three equivalent wells
+    # Near a maximum (Z₃ point), V₃ ≈ V_max - (9/2)(√2/2)h(S/3)³ δθ²
+    # This gives a SINGLE oscillation frequency for all three generations:
+    # All three tori oscillate together around the Z₃ binding point.
+
+    # Physical Hessian from cos(3θ):
+    # d²V₃/dθ² = -9(√2/2)h(S/3)³ cos(3θ)
+    # At Z₃ max (θ = 2π/3): cos(3×2π/3) = cos(2π) = 1
+    # So d²V₃/dθ² = -9(√2/2)h(S/3)³ < 0  (maximum of V₃ = minimum of -V₃)
+    # Oscillation frequency: ω_B = 3√[(√2/2)h(S/3)³]
+
+    # Compare with the heuristic Hessian results
+    heuristic_ratio = omega[2] / omega[1] if omega[1] > 0 else float('nan')
+    mass_ratio_mu_e = m_mu_val / m_e_val
+
+    print(f"""
+  The physical Hessian from V₃(θ) = h(S/3)³[-1/2 + (√2/2)cos(3θ)]
+  gives:
+
+    d²V₃/dθ² = -9(√2/2) h (S/3)³ cos(3θ)
+
+  Near any Z₃ maximum: cos(3θ) = 1, so the potential is
+  a simple quadratic well in δθ = θ - θ_Z₃:
+
+    V₃ ≈ V_max - (9/2)(√2/2) h (S/3)³ δθ²
+
+  This gives a SINGLE oscillation frequency:
+
+    ω_B = 3 × [(√2/2) h (S/3)³]^(1/2)
+
+  All three generations oscillate TOGETHER around
+  the Z₃ binding point. There is ONE collective mode,
+  not three independent ones.
+
+  ┌──────────────────────────────────────────────────────┐
+  │  IMPORTANT CORRECTION                                │
+  │                                                      │
+  │  The heuristic Hessian (Section 5) gave three        │
+  │  distinct frequencies with the suggestive ratio      │
+  │    ω₃/ω₂ = {heuristic_ratio:.2f}  ≈  m_μ/m_e = {mass_ratio_mu_e:.2f}        │
+  │  (0.35% discrepancy).                                │
+  │                                                      │
+  │  This came from the assumed H_ii ∝ 1/x_i⁴ scaling,  │
+  │  which gives ω_i ∝ 1/m_i and therefore               │
+  │  ω₃/ω₂ = m₂/m₁ = m_μ/m_e automatically.             │
+  │                                                      │
+  │  The PHYSICAL analysis shows:                        │
+  │  • 2-body coupling: FLAT (zero Hessian)              │
+  │  • 3-body coupling: cos(3θ) → single frequency      │
+  │  • The mass-ratio coincidence is an ARTIFACT          │
+  │    of the heuristic, not a prediction.               │
+  └──────────────────────────────────────────────────────┘
+
+  What IS physical:
+    1. The cos(3θ) structure of 3-body coupling
+    2. The Z₃ symmetry of maximal binding
+    3. θ_K = (Z₃ point) + (winding correction)
+    4. The 73% f₁f₂f₃ cost from the winding offset
+    5. The Koide sphere is an exactly flat energy surface
+       under 2-body EM coupling — only the irreducible
+       3-body Borromean interaction selects θ_K.
+
+  The hierarchy of couplings:
+    V₁(θ) = Σm_i = 2S²/3           (CONSTANT — self-energy)
+    V₂(θ) = g × S²/6               (CONSTANT — 2-body EM)
+    V₃(θ) = h(S/3)³[-½ + (√2/2)cos(3θ)]  (VARIES — 3-body Borromean)
+
+  The generation structure is set ENTIRELY by the 3-body
+  topology. Two bodies don't know about three generations.
+  Only the Borromean link — requiring all three — lifts
+  the degeneracy.""")
+
+    # ── Section 15: Updated summary ──────────────────────────────────
+    print()
+    print("  15. SUMMARY")
+    print("  " + "─" * 51)
+    print(f"""
+  ┌──────────────────────────────────────────────────────┐
+  │  STABILITY IS TOPOLOGICAL + BORROMEAN                │
+  │                                                      │
+  │  1. V_eff(R) is monotonic — no potential wells       │
+  │     (exactly like hydrogen Coulomb potential)         │
+  │                                                      │
+  │  2. Discrete radii from Koide quantization           │
+  │     θ_K = (6π+2)/9 (resonance, not minimum)          │
+  │                                                      │
+  │  3. Three generations on Koide 2-sphere (S/√3)       │
+  │                                                      │
+  │  4. Self-energy (Σm_i) and 2-body EM coupling        │
+  │     are EXACTLY CONSTANT on the Koide sphere         │
+  │                                                      │
+  │  5. 3-body Borromean coupling V₃ ∝ cos(3θ)           │
+  │     LIFTS the degeneracy — selects Z₃ points         │
+  │                                                      │
+  │  6. θ_K = 2π/3 (Z₃ binding) + 2/9 (winding)         │
+  │     Winding shifts cos(3θ) from 1.0 to 0.79         │
+  │                                                      │
+  │  7. CKM angles ≈ powers of pq/N_c² = 2/9            │
+  │     (Cabibbo = 2/9 to 2.5%)                          │
+  │                                                      │
+  │  8. The electron is topologically protected           │
+  │     (winding number conservation)                    │
+  │                                                      │
+  │  KEY INSIGHT: Generation structure requires           │
+  │  3-body topology. Two-body EM coupling cannot         │
+  │  distinguish generations — only the irreducible      │
+  │  Borromean link selects θ_K.                          │
   └──────────────────────────────────────────────────────┘""")
 
 
