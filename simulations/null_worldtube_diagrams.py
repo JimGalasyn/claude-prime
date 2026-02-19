@@ -692,6 +692,219 @@ def fig_model_summary():
     return path
 
 
+def tube_mesh(x, y, z, radius, n_sides=16):
+    """
+    Generate a tube mesh around a closed 3D curve.
+
+    Uses parallel-transport frame to avoid twisting artifacts.
+    Returns X, Y, Z arrays of shape (N, n_sides) for plot_surface.
+    """
+    N = len(x)
+    pts = np.column_stack([x, y, z])
+
+    # Tangent vectors (central differences, wrapping for closed curve)
+    tangent = np.zeros_like(pts)
+    tangent[0] = pts[1] - pts[-1]
+    tangent[-1] = pts[0] - pts[-2]
+    tangent[1:-1] = pts[2:] - pts[:-2]
+    t_len = np.linalg.norm(tangent, axis=1, keepdims=True)
+    tangent = tangent / np.maximum(t_len, 1e-12)
+
+    # Initial normal via reference vector
+    ref = np.array([0.0, 0.0, 1.0])
+    if abs(np.dot(tangent[0], ref)) > 0.9:
+        ref = np.array([1.0, 0.0, 0.0])
+
+    normal = np.zeros_like(pts)
+    binormal = np.zeros_like(pts)
+
+    n0 = np.cross(tangent[0], ref)
+    n0 /= np.linalg.norm(n0)
+    normal[0] = n0
+    binormal[0] = np.cross(tangent[0], normal[0])
+
+    # Parallel transport along curve
+    for i in range(1, N):
+        # Project previous normal onto plane perpendicular to current tangent
+        n_proj = normal[i-1] - np.dot(normal[i-1], tangent[i]) * tangent[i]
+        n_len = np.linalg.norm(n_proj)
+        if n_len > 1e-10:
+            normal[i] = n_proj / n_len
+        else:
+            normal[i] = normal[i-1]
+        binormal[i] = np.cross(tangent[i], normal[i])
+
+    # Generate tube vertices
+    theta = np.linspace(0, 2*np.pi, n_sides, endpoint=True)
+
+    X = np.zeros((N, n_sides))
+    Y = np.zeros((N, n_sides))
+    Z = np.zeros((N, n_sides))
+
+    for j in range(n_sides):
+        offset = radius * (normal * np.cos(theta[j]) + binormal * np.sin(theta[j]))
+        X[:, j] = x + offset[:, 0]
+        Y[:, j] = y + offset[:, 1]
+        Z[:, j] = z + offset[:, 2]
+
+    return X, Y, Z
+
+
+def fig_borromean_proton():
+    """Figure 7: Three linked (2,1) torus knots — the proton."""
+
+    fig = plt.figure(figsize=(16, 10))
+    fig.patch.set_facecolor('#0a0a0a')
+
+    # === Main 3D panel: three interlocking torus knots ===
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_facecolor('#0a0a0a')
+    ax.set_axis_off()
+
+    N = 500
+    t = np.linspace(0, 2*np.pi, N, endpoint=False)
+
+    # Configuration: three torus knots, each tilted and rotated 120° apart
+    R_ring = 1.0       # ring radius
+    r_tube = 0.10      # tube thickness for rendering
+    tilt = np.radians(70)  # tilt from horizontal
+
+    # Quark colors (two warm for up quarks, one cool for down)
+    quark_colors = ['#ff6b35', '#ffaa33', '#2196F3']
+    quark_labels = ['up (+⅔e)', 'up (+⅔e)', 'down (−⅓e)']
+
+    ring_curves = []
+    for i in range(3):
+        az = i * 2 * np.pi / 3
+
+        # Start with circle in xy-plane
+        x0 = R_ring * np.cos(t)
+        y0 = R_ring * np.sin(t)
+        z0 = np.zeros(N)
+
+        # Tilt around x-axis
+        x1 = x0
+        y1 = y0 * np.cos(tilt)
+        z1 = y0 * np.sin(tilt)
+
+        # Rotate around z-axis by az
+        xf = x1 * np.cos(az) - y1 * np.sin(az)
+        yf = x1 * np.sin(az) + y1 * np.cos(az)
+        zf = z1
+
+        ring_curves.append((xf, yf, zf))
+
+    # Draw rings with tube meshes
+    for i, (xf, yf, zf) in enumerate(ring_curves):
+        TX, TY, TZ = tube_mesh(xf, yf, zf, r_tube, n_sides=14)
+        ax.plot_surface(TX, TY, TZ, color=quark_colors[i],
+                       alpha=0.85, shade=True, antialiased=True,
+                       linewidth=0, edgecolor='none')
+
+        # Add a thin bright line along the center for definition
+        ax.plot(xf, yf, zf, color=quark_colors[i],
+                linewidth=0.5, alpha=0.4)
+
+        # Add helical winding line on tube surface to show (2,1) nature
+        # The photon winds p=2 times around the tube per revolution
+        t_wind = np.linspace(0, 2*np.pi, N, endpoint=False)
+        phi_wind = 2 * t_wind  # p=2: two windings of photon around tube
+        pts_center = np.column_stack([xf, yf, zf])
+
+        # Get the tube frame at each point for the helix
+        tangent = np.zeros((N, 3))
+        tangent[0] = pts_center[1] - pts_center[-1]
+        tangent[-1] = pts_center[0] - pts_center[-2]
+        tangent[1:-1] = pts_center[2:] - pts_center[:-2]
+        t_len = np.linalg.norm(tangent, axis=1, keepdims=True)
+        tangent = tangent / np.maximum(t_len, 1e-12)
+
+        ref = np.array([0., 0., 1.])
+        if abs(np.dot(tangent[0], ref)) > 0.9:
+            ref = np.array([1., 0., 0.])
+
+        normal = np.zeros((N, 3))
+        binormal = np.zeros((N, 3))
+        n0 = np.cross(tangent[0], ref)
+        n0 /= np.linalg.norm(n0)
+        normal[0] = n0
+        binormal[0] = np.cross(tangent[0], normal[0])
+        for k in range(1, N):
+            n_proj = normal[k-1] - np.dot(normal[k-1], tangent[k]) * tangent[k]
+            n_len = np.linalg.norm(n_proj)
+            if n_len > 1e-10:
+                normal[k] = n_proj / n_len
+            else:
+                normal[k] = normal[k-1]
+            binormal[k] = np.cross(tangent[k], normal[k])
+
+        # Helix on tube surface (slightly outside tube for visibility)
+        r_helix = r_tube * 1.15
+        helix_offset = r_helix * (normal * np.cos(phi_wind)[:, None] +
+                                   binormal * np.sin(phi_wind)[:, None])
+        hx = xf + helix_offset[:, 0]
+        hy = yf + helix_offset[:, 1]
+        hz = zf + helix_offset[:, 2]
+        ax.plot(hx, hy, hz, color='white', linewidth=1.0, alpha=0.6)
+
+    # Proton boundary sphere (very subtle wireframe)
+    u_s = np.linspace(0, 2*np.pi, 24)
+    v_s = np.linspace(0, np.pi, 12)
+    R_sphere = 0.35
+    xs = R_sphere * np.outer(np.cos(u_s), np.sin(v_s))
+    ys = R_sphere * np.outer(np.sin(u_s), np.sin(v_s))
+    zs = R_sphere * np.outer(np.ones_like(u_s), np.cos(v_s))
+    ax.plot_wireframe(xs, ys, zs, color='white', alpha=0.06, linewidth=0.3)
+
+    # Viewing angle
+    ax.view_init(elev=22, azim=35)
+    lim = 1.4
+    ax.set_xlim(-lim, lim)
+    ax.set_ylim(-lim, lim)
+    ax.set_zlim(-lim, lim)
+
+    # Remove 3D axis panes
+    ax.xaxis.pane.set_visible(False)
+    ax.yaxis.pane.set_visible(False)
+    ax.zaxis.pane.set_visible(False)
+
+    # Title
+    fig.text(0.5, 0.94, 'PROTON: Three Linked (2,1) Torus Knots',
+             ha='center', fontsize=20, fontweight='bold', color='white',
+             fontfamily='monospace')
+    fig.text(0.5, 0.90,
+             'Borromean topology — no two linked, all three inseparable',
+             ha='center', fontsize=13, color='#808080', fontfamily='monospace')
+
+    # Legend (bottom left)
+    y_leg = 0.14
+    for i in range(3):
+        fig.text(0.04, y_leg - i*0.04, f'■ {quark_labels[i]}',
+                 color=quark_colors[i], fontsize=13, fontweight='bold',
+                 fontfamily='monospace')
+
+    # Annotations (bottom right)
+    fig.text(0.96, 0.14, 'white helix = photon path (p=2 winding)',
+             ha='right', fontsize=10, color='#808080', fontfamily='monospace')
+    fig.text(0.96, 0.10, 'tube = torus cross-section',
+             ha='right', fontsize=10, color='#808080', fontfamily='monospace')
+    fig.text(0.96, 0.06, 'sphere = proton boundary (0.84 fm)',
+             ha='right', fontsize=10, color='#808080', fontfamily='monospace')
+
+    # Bottom tagline
+    fig.text(0.5, 0.02,
+             'The strong force IS electromagnetism between linked structures',
+             ha='center', fontsize=13, color='white', style='italic',
+             fontfamily='monospace')
+
+    path = os.path.join(OUTDIR, 'nwt_07_borromean_proton.png')
+    fig.savefig(path, dpi=200, bbox_inches='tight',
+                facecolor=fig.get_facecolor())
+    plt.close(fig)
+    print(f"  Saved: {path}")
+    return path
+
+
 def main():
     parser = argparse.ArgumentParser(description='Generate null worldtube diagrams')
     parser.add_argument('--torus', action='store_true', help='Torus knot diagram')
@@ -700,11 +913,13 @@ def main():
     parser.add_argument('--frequencies', action='store_true', help='Three frequencies')
     parser.add_argument('--mechanism', action='store_true', help='Transition mechanism')
     parser.add_argument('--summary', action='store_true', help='Summary flowchart')
+    parser.add_argument('--borromean', action='store_true', help='Borromean proton (linked tori)')
     args = parser.parse_args()
 
     # If no specific diagram requested, generate all
     gen_all = not any([args.torus, args.atom, args.spectrum,
-                       args.frequencies, args.mechanism, args.summary])
+                       args.frequencies, args.mechanism, args.summary,
+                       args.borromean])
 
     print("Generating null worldtube diagrams...")
     print(f"Output directory: {OUTDIR}\n")
@@ -721,6 +936,8 @@ def main():
         fig_driven_oscillator()
     if gen_all or args.summary:
         fig_model_summary()
+    if gen_all or args.borromean:
+        fig_borromean_proton()
 
     print("\nDone!")
 
