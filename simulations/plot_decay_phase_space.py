@@ -275,8 +275,21 @@ ax_poin = fig.add_subplot(gs[1, 0:2])
 ax_poin.set_facecolor(bg_color)
 
 if poincare_theta is not None:
-    ax_poin.scatter(poincare_theta, poincare_omega, s=0.4, c='#e74c3c',
-                     alpha=0.6, edgecolors='none')
+    # Density-based coloring to reveal fractal structure
+    from scipy.ndimage import gaussian_filter
+    _hbin = 200
+    _h2d, _xed, _yed = np.histogram2d(poincare_theta, poincare_omega,
+                                        bins=_hbin)
+    _h2d = gaussian_filter(_h2d, sigma=1.2)
+    # Map each point to its density
+    _xi = np.clip(np.searchsorted(_xed, poincare_theta) - 1, 0, _hbin - 1)
+    _yi = np.clip(np.searchsorted(_yed, poincare_omega) - 1, 0, _hbin - 1)
+    _dens = _h2d[_xi, _yi]
+    _dens = _dens / (_dens.max() + 1e-12)  # normalize 0-1
+
+    ax_poin.scatter(poincare_theta, poincare_omega, s=1.8, c=_dens,
+                     cmap='hot', alpha=0.95, edgecolors='none',
+                     vmin=0.0, vmax=0.7)
     # Mark Z₃ wells
     for k in range(3):
         well_th = k * 2 * np.pi / 3
