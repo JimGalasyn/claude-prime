@@ -438,6 +438,103 @@ for shower, (m1, d1, m2, d2) in showers.items():
               f"activity {act_enh:.2f}x  N_in={len(in_shower)}")
 
 # ============================================================
+# 7. Composition-dependent analysis: entry velocity & parent body
+# ============================================================
+# Meteor showers with known physical properties from spectroscopy literature
+# (Borovicka et al. 2005, Trigo-Rodriguez et al. 2003, Vojacek et al. 2019)
+print(f"\n7. Composition-dependent shower analysis:")
+print(f"   Testing: does entry velocity predict UAP enhancement?")
+print(f"   (High-v cometary → nm-scale MSPs → dusty plasma)")
+print(f"   (Low-v asteroidal → μm-scale melt droplets → no plasma)")
+
+shower_properties = {
+    'Quadrantids':   {'v_entry': 41.0, 'parent': '2003 EH1',       'type': 'extinct_comet', 'zhr': 120, 'density': 'medium'},
+    'Lyrids':        {'v_entry': 49.0, 'parent': 'C/1861 G1',      'type': 'comet',         'zhr': 18,  'density': 'low'},
+    'Eta Aquariids': {'v_entry': 65.4, 'parent': '1P/Halley',      'type': 'comet',         'zhr': 50,  'density': 'low'},
+    'Perseids':      {'v_entry': 59.0, 'parent': '109P/Swift-Tuttle','type': 'comet',        'zhr': 100, 'density': 'low'},
+    'Orionids':      {'v_entry': 66.0, 'parent': '1P/Halley',      'type': 'comet',         'zhr': 20,  'density': 'low'},
+    'Leonids':       {'v_entry': 70.0, 'parent': '55P/Tempel-Tuttle','type': 'comet',        'zhr': 15,  'density': 'very_low'},
+    'Geminids':      {'v_entry': 35.0, 'parent': '3200 Phaethon',  'type': 'asteroid',      'zhr': 150, 'density': 'high'},
+}
+
+# Compute deseasonalized UAP enhancement for each shower
+# This controls for the outdoor activity confound
+shower_analysis = []
+for shower, (m1, d1, m2, d2) in showers.items():
+    in_shower = df_good[
+        ((df_good['month'] == m1) & (df_good.index.day >= d1)) |
+        ((df_good['month'] == m2) & (df_good.index.day <= d2)) |
+        ((df_good['month'] > m1) & (df_good['month'] < m2))
+    ]
+    out_shower = df_good.drop(in_shower.index)
+
+    if len(in_shower) > 30 and len(out_shower) > 100:
+        # Raw UAP enhancement
+        uap_enh = in_shower['uap_count'].mean() / max(out_shower['uap_count'].mean(), 0.01)
+
+        # Deseasonalized UAP enhancement (controls for summer outdoor bias)
+        uap_deseason_in = in_shower['uap_count_deseason'].mean()
+        uap_deseason_out = out_shower['uap_count_deseason'].mean()
+        uap_enh_deseason = uap_deseason_in / max(uap_deseason_out, 0.01)
+
+        # Activity enhancement
+        act_enh = in_shower['activity_index'].mean() / max(out_shower['activity_index'].mean(), 0.01)
+
+        # Excess UAP enhancement = UAP enhancement / activity enhancement
+        # (controls for "more meteors = more outdoor interest")
+        excess_enh = uap_enh / max(act_enh, 0.01)
+
+        # t-test on deseasonalized UAP counts
+        t_ds, p_ds_shower = stats.ttest_ind(
+            in_shower['uap_count_deseason'].dropna(),
+            out_shower['uap_count_deseason'].dropna()
+        )
+
+        props = shower_properties.get(shower, {})
+        shower_analysis.append({
+            'name': shower,
+            'v_entry': props.get('v_entry', np.nan),
+            'parent_type': props.get('type', 'unknown'),
+            'parent': props.get('parent', ''),
+            'zhr': props.get('zhr', 0),
+            'uap_enh_raw': uap_enh,
+            'uap_enh_deseason': uap_enh_deseason,
+            'act_enh': act_enh,
+            'excess_enh': excess_enh,
+            'p_deseason': p_ds_shower,
+            'n_in': len(in_shower),
+        })
+
+shower_df = pd.DataFrame(shower_analysis)
+
+print(f"\n   {'Shower':15s} {'Parent':20s} {'Type':14s} v(km/s)  UAP_raw  UAP_dsn  Act    Excess  p_dsn")
+print(f"   {'-'*115}")
+for _, row in shower_df.sort_values('v_entry', ascending=False).iterrows():
+    sig = '*' if row['p_deseason'] < 0.05 else ' '
+    print(f"   {row['name']:15s} {row['parent']:20s} {row['parent_type']:14s} "
+          f"{row['v_entry']:5.1f}    {row['uap_enh_raw']:.3f}    {row['uap_enh_deseason']:.3f}    "
+          f"{row['act_enh']:.3f}   {row['excess_enh']:.3f}   {row['p_deseason']:.3f}{sig}")
+
+# Correlation: entry velocity vs UAP enhancement
+if len(shower_df) >= 4:
+    r_vel, p_vel = stats.pearsonr(shower_df['v_entry'], shower_df['uap_enh_raw'])
+    r_vel_ds, p_vel_ds = stats.pearsonr(shower_df['v_entry'], shower_df['uap_enh_deseason'])
+    r_vel_excess, p_vel_excess = stats.pearsonr(shower_df['v_entry'], shower_df['excess_enh'])
+    print(f"\n   Entry velocity vs UAP enhancement:")
+    print(f"     Raw:           r={r_vel:+.3f} (p={p_vel:.3f})")
+    print(f"     Deseasonalized: r={r_vel_ds:+.3f} (p={p_vel_ds:.3f})")
+    print(f"     Excess (UAP/activity): r={r_vel_excess:+.3f} (p={p_vel_excess:.3f})")
+
+    # Cometary vs asteroidal/extinct
+    cometary = shower_df[shower_df['parent_type'] == 'comet']
+    non_cometary = shower_df[shower_df['parent_type'] != 'comet']
+    if len(cometary) >= 2 and len(non_cometary) >= 1:
+        print(f"\n   Cometary showers (N={len(cometary)}):  mean UAP enh = {cometary['uap_enh_raw'].mean():.3f}, "
+              f"mean deseason = {cometary['uap_enh_deseason'].mean():.3f}")
+        print(f"   Non-cometary (N={len(non_cometary)}):    mean UAP enh = {non_cometary['uap_enh_raw'].mean():.3f}, "
+              f"mean deseason = {non_cometary['uap_enh_deseason'].mean():.3f}")
+
+# ============================================================
 # Figures
 # ============================================================
 print("\nGenerating figures...")
@@ -569,6 +666,113 @@ plt.savefig(OUTPUT_DIR / 'rmob_nuforc_correlation.png', dpi=200, bbox_inches='ti
 plt.savefig(OUTPUT_DIR / 'rmob_nuforc_correlation.pdf', bbox_inches='tight')
 plt.close()
 print("Figure saved: rmob_nuforc_correlation.png/pdf")
+
+# ============================================================
+# Figure 2: Composition-dependent analysis
+# ============================================================
+if len(shower_df) >= 4:
+    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+    fig.suptitle('Meteor Shower Composition & UAP Enhancement\n'
+                 'Testing: entry velocity and parent body type predict nanoparticle production',
+                 fontsize=13, fontweight='bold')
+
+    # (a) UAP enhancement vs entry velocity
+    ax = axes[0, 0]
+    for _, row in shower_df.iterrows():
+        color = 'C0' if row['parent_type'] == 'comet' else ('C2' if row['parent_type'] == 'extinct_comet' else 'C3')
+        marker = 'o' if row['parent_type'] == 'comet' else ('s' if row['parent_type'] == 'extinct_comet' else 'D')
+        ax.scatter(row['v_entry'], row['uap_enh_raw'], c=color, marker=marker,
+                  s=max(40, row['zhr']), edgecolors='k', linewidth=0.5, zorder=5)
+        ax.annotate(row['name'], (row['v_entry'], row['uap_enh_raw']),
+                   textcoords="offset points", xytext=(5, 5), fontsize=7)
+
+    ax.axhline(1.0, color='gray', linestyle='--', linewidth=0.5)
+    # Add trend line
+    z = np.polyfit(shower_df['v_entry'], shower_df['uap_enh_raw'], 1)
+    x_fit = np.linspace(30, 75, 50)
+    ax.plot(x_fit, np.polyval(z, x_fit), 'r-', linewidth=1.5, alpha=0.5)
+    r_v = stats.pearsonr(shower_df['v_entry'], shower_df['uap_enh_raw'])
+    ax.set_xlabel('Entry Velocity (km/s)')
+    ax.set_ylabel('UAP Enhancement Factor')
+    ax.set_title(f'(a) Entry Velocity vs UAP Enhancement\n(r={r_v[0]:+.3f}, p={r_v[1]:.3f})')
+    # Legend for parent types
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='C0', markersize=8, label='Cometary'),
+        Line2D([0], [0], marker='s', color='w', markerfacecolor='C2', markersize=8, label='Extinct comet'),
+        Line2D([0], [0], marker='D', color='w', markerfacecolor='C3', markersize=8, label='Asteroidal'),
+    ]
+    ax.legend(handles=legend_elements, fontsize=8)
+
+    # Annotate velocity regimes
+    ax.axvspan(30, 40, alpha=0.05, color='red')
+    ax.axvspan(55, 75, alpha=0.05, color='blue')
+    ax.text(34, ax.get_ylim()[0] + 0.02, 'Melt\nspraying', fontsize=7, color='red', ha='center', style='italic')
+    ax.text(63, ax.get_ylim()[0] + 0.02, 'Complete\nvaporization', fontsize=7, color='blue', ha='center', style='italic')
+
+    # (b) Deseasonalized UAP enhancement vs entry velocity
+    ax = axes[0, 1]
+    for _, row in shower_df.iterrows():
+        color = 'C0' if row['parent_type'] == 'comet' else ('C2' if row['parent_type'] == 'extinct_comet' else 'C3')
+        marker = 'o' if row['parent_type'] == 'comet' else ('s' if row['parent_type'] == 'extinct_comet' else 'D')
+        ax.scatter(row['v_entry'], row['uap_enh_deseason'], c=color, marker=marker,
+                  s=max(40, row['zhr']), edgecolors='k', linewidth=0.5, zorder=5)
+        ax.annotate(row['name'], (row['v_entry'], row['uap_enh_deseason']),
+                   textcoords="offset points", xytext=(5, 5), fontsize=7)
+
+    ax.axhline(1.0, color='gray', linestyle='--', linewidth=0.5)
+    z_ds = np.polyfit(shower_df['v_entry'], shower_df['uap_enh_deseason'], 1)
+    ax.plot(x_fit, np.polyval(z_ds, x_fit), 'r-', linewidth=1.5, alpha=0.5)
+    r_v_ds = stats.pearsonr(shower_df['v_entry'], shower_df['uap_enh_deseason'])
+    ax.set_xlabel('Entry Velocity (km/s)')
+    ax.set_ylabel('Deseasonalized UAP Enhancement')
+    ax.set_title(f'(b) Deseasonalized (controls seasonal bias)\n(r={r_v_ds[0]:+.3f}, p={r_v_ds[1]:.3f})')
+
+    # (c) Bar chart: raw vs deseasonalized enhancement, sorted by velocity
+    ax = axes[1, 0]
+    sorted_df = shower_df.sort_values('v_entry', ascending=False)
+    x_pos = np.arange(len(sorted_df))
+    bar_colors = ['C0' if t == 'comet' else ('C2' if t == 'extinct_comet' else 'C3')
+                  for t in sorted_df['parent_type']]
+
+    bars1 = ax.bar(x_pos - 0.2, sorted_df['uap_enh_raw'], 0.35,
+                   color=bar_colors, alpha=0.6, edgecolor='k', linewidth=0.3, label='Raw')
+    bars2 = ax.bar(x_pos + 0.2, sorted_df['uap_enh_deseason'], 0.35,
+                   color=bar_colors, alpha=1.0, edgecolor='k', linewidth=0.3, label='Deseasonalized')
+    ax.axhline(1.0, color='gray', linestyle='--', linewidth=0.5)
+    labels = [f"{row['name']}\n({row['v_entry']:.0f} km/s)" for _, row in sorted_df.iterrows()]
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(labels, fontsize=6.5)
+    ax.set_ylabel('UAP Enhancement Factor')
+    ax.set_title('(c) Showers Sorted by Entry Velocity\n(fastest → slowest)')
+    ax.legend(fontsize=8)
+
+    # (d) Ablation physics schematic: velocity → particle size → plasma formation
+    ax = axes[1, 1]
+    # Plot excess enhancement (UAP/activity) vs kinetic energy proxy (v²)
+    v_sq = shower_df['v_entry']**2
+    ax.scatter(v_sq / 1000, shower_df['excess_enh'],
+              s=100, c=['C0' if t == 'comet' else ('C2' if t == 'extinct_comet' else 'C3')
+                        for t in shower_df['parent_type']],
+              edgecolors='k', linewidth=0.5, zorder=5)
+    for _, row in shower_df.iterrows():
+        ax.annotate(row['name'], (row['v_entry']**2 / 1000, row['excess_enh']),
+                   textcoords="offset points", xytext=(5, 5), fontsize=7)
+
+    ax.axhline(1.0, color='gray', linestyle='--', linewidth=0.5)
+    z_ke = np.polyfit(v_sq / 1000, shower_df['excess_enh'], 1)
+    x_ke = np.linspace(v_sq.min() / 1000, v_sq.max() / 1000, 50)
+    ax.plot(x_ke, np.polyval(z_ke, x_ke), 'r-', linewidth=1.5, alpha=0.5)
+    r_ke = stats.pearsonr(v_sq, shower_df['excess_enh'])
+    ax.set_xlabel('Specific Kinetic Energy (v²/1000, km²/s²)')
+    ax.set_ylabel('Excess UAP Enhancement\n(UAP enh / activity enh)')
+    ax.set_title(f'(d) Kinetic Energy vs Excess UAP\n(r={r_ke[0]:+.3f}, p={r_ke[1]:.3f})')
+
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / 'shower_composition_analysis.png', dpi=200, bbox_inches='tight')
+    plt.savefig(OUTPUT_DIR / 'shower_composition_analysis.pdf', bbox_inches='tight')
+    plt.close()
+    print("Figure saved: shower_composition_analysis.png/pdf")
 
 # ============================================================
 # Summary
