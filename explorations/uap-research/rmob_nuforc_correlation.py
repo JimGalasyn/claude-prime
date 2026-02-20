@@ -26,9 +26,9 @@ from scipy import stats
 # ============================================================
 # Paths
 # ============================================================
-RMOB_DIR = Path("/mnt/c/Users/jimga/OneDrive/Documents/Research/UAP/RMOB")
+RMOB_DIR = Path("/tmp/rmob_data")
 NUFORC_FILE = Path("/mnt/c/Users/jimga/OneDrive/Documents/Research/UAP/NUFORC/All-Nuforc-Records.csv")
-OUTPUT_DIR = Path("/mnt/c/Users/jimga/OneDrive/Documents/Research/UAP/simulations/output/rmob_correlation")
+OUTPUT_DIR = Path("/home/jim/repos/claude-prime/explorations/uap-research/output/rmob_correlation")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ============================================================
@@ -217,7 +217,7 @@ nuforc = pd.read_csv(NUFORC_FILE, low_memory=False)
 print(f"  Total records: {len(nuforc)}")
 
 # Parse dates
-nuforc['date'] = pd.to_datetime(nuforc['Date / Time'], format='mixed', errors='coerce')
+nuforc['date'] = pd.to_datetime(nuforc['EventDate'], format='mixed', errors='coerce')
 nuforc = nuforc.dropna(subset=['date'])
 nuforc['date_only'] = nuforc['date'].dt.date
 
