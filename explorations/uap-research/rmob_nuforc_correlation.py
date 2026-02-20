@@ -8,8 +8,11 @@ from dozens of stations worldwide. Key advantages over IMO visual data:
   3. Multiple independent observers per day
   4. Geographic coordinates for each station
 
-We compute daily median meteor rate across all active stations, then
-correlate with NUFORC daily UAP report counts.
+Normalization strategy (per rmob_parser.py):
+  - Each observer's daily count is normalized by their own monthly median
+    to produce an activity index (1.0 = typical day for that observer).
+  - This handles huge variation in equipment sensitivity across stations.
+  - IQR-based outlier rejection filters noisy readings before aggregation.
 
 Uses the NUFORC All-Records dataset and RMOB text files (2000-2020).
 """
@@ -19,6 +22,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 from datetime import datetime
+from collections import defaultdict
 import calendar
 import re
 from scipy import stats
@@ -183,30 +187,82 @@ for year_dir in sorted(RMOB_DIR.iterdir()):
 print(f"  Parsed {len(all_records)} observer-months from {file_count} files")
 print(f"  Parse errors: {parse_errors}")
 
-# Aggregate to daily meteor index
-# For each day: take the MEDIAN across all observers (robust to outliers)
-daily_data = {}  # date → list of observer totals
+# ============================================================
+# Per-observer normalization (adapted from rmob_parser.py)
+# ============================================================
+# Step 1: Collect per-observer daily counts keyed by (observer, year, month)
+observer_monthly = defaultdict(list)  # (observer, year, month) → [daily counts]
+date_raw = defaultdict(list)          # date → [(observer, count)]
 
 for rec in all_records:
-    for date, count in rec['daily_totals'].items():
-        if date not in daily_data:
-            daily_data[date] = []
-        daily_data[date].append(count)
+    obs_name = rec['observer']
+    for dt, count in rec['daily_totals'].items():
+        if count < 0 or count > 100000:  # sanity filter
+            continue
+        observer_monthly[(obs_name, dt.year, dt.month)].append(count)
+        date_raw[dt].append((obs_name, count))
 
-# Build dataframe
-dates = sorted(daily_data.keys())
-df_rmob = pd.DataFrame({
-    'date': dates,
-    'meteor_median': [np.median(daily_data[d]) for d in dates],
-    'meteor_mean': [np.mean(daily_data[d]) for d in dates],
-    'n_observers': [len(daily_data[d]) for d in dates],
-})
+# Step 2: Compute monthly median baseline per observer
+observer_baselines = {}
+for key, vals in observer_monthly.items():
+    median_val = np.median(vals)
+    if median_val > 0:
+        observer_baselines[key] = median_val
+
+print(f"\n  Observer-month baselines computed: {len(observer_baselines)}")
+
+# Step 3: Normalize each daily count by observer's own monthly baseline
+date_normalized = defaultdict(list)
+date_absolute = defaultdict(list)
+
+for dt, obs_vals in date_raw.items():
+    for obs_name, val in obs_vals:
+        key = (obs_name, dt.year, dt.month)
+        if key in observer_baselines:
+            baseline = observer_baselines[key]
+            normalized = val / baseline  # 1.0 = typical day for this observer
+            date_normalized[dt].append(normalized)
+            date_absolute[dt].append(val)
+
+# Step 4: Aggregate with IQR-based outlier rejection
+daily_rows = []
+for dt in sorted(date_normalized.keys()):
+    norm_vals = np.array(date_normalized[dt])
+    abs_vals = np.array(date_absolute[dt])
+
+    # IQR outlier rejection on normalized values
+    if len(norm_vals) >= 5:
+        q1, q3 = np.percentile(norm_vals, [25, 75])
+        iqr = q3 - q1
+        mask = (norm_vals >= q1 - 3 * iqr) & (norm_vals <= q3 + 3 * iqr)
+        norm_clean = norm_vals[mask]
+        abs_clean = abs_vals[mask]
+    else:
+        norm_clean = norm_vals
+        abs_clean = abs_vals
+
+    if len(norm_clean) == 0:
+        continue
+
+    daily_rows.append({
+        'date': dt,
+        'activity_index': float(np.mean(norm_clean)),
+        'activity_median': float(np.median(norm_clean)),
+        'meteor_median': float(np.median(abs_clean)),  # keep for backward compat
+        'meteor_mean': float(np.mean(abs_clean)),
+        'n_observers': len(norm_clean),
+        'n_rejected': int(len(norm_vals) - len(norm_clean)),
+    })
+
+df_rmob = pd.DataFrame(daily_rows)
 df_rmob['date'] = pd.to_datetime(df_rmob['date'])
 df_rmob = df_rmob.set_index('date')
 
-print(f"\n  Daily meteor index: {len(df_rmob)} days ({df_rmob.index.min().date()} to {df_rmob.index.max().date()})")
+print(f"  Daily meteor index: {len(df_rmob)} days ({df_rmob.index.min().date()} to {df_rmob.index.max().date()})")
 print(f"  Observers per day: median={df_rmob['n_observers'].median():.0f}, "
       f"max={df_rmob['n_observers'].max():.0f}")
+print(f"  Mean activity index: {df_rmob['activity_index'].mean():.3f} (should be ~1.0)")
+print(f"  Outliers rejected: {df_rmob['n_rejected'].sum()} total across all days")
 
 # ============================================================
 # Load NUFORC data
@@ -251,15 +307,20 @@ df_good['day_of_year'] = df_good.index.dayofyear
 # ============================================================
 print("\nDetrending...")
 
-# Monthly means for seasonal detrending
-for col in ['meteor_median', 'uap_count']:
+# Primary metric is now activity_index (already normalized per-observer)
+# Also deseason the raw median and UAP count for comparison
+for col in ['activity_index', 'meteor_median', 'uap_count']:
     monthly_mean = df_good.groupby('month')[col].transform('mean')
+    # Avoid division by zero
+    monthly_mean = monthly_mean.replace(0, np.nan)
     df_good[f'{col}_deseason'] = df_good[col] / monthly_mean
 
 # Year-by-year means for long-term detrending
-for col in ['meteor_median', 'uap_count']:
+for col in ['activity_index', 'meteor_median', 'uap_count']:
     yearly_mean = df_good.groupby('year')[col].transform('mean')
-    df_good[f'{col}_detrend'] = df_good[f'{col}_deseason'] / yearly_mean * yearly_mean.mean()
+    yearly_mean = yearly_mean.replace(0, np.nan)
+    deseason_col = f'{col}_deseason'
+    df_good[f'{col}_detrend'] = df_good[deseason_col] / yearly_mean * yearly_mean.mean()
 
 # ============================================================
 # Correlation analysis
@@ -268,46 +329,52 @@ print("\n" + "="*60)
 print("CORRELATION RESULTS")
 print("="*60)
 
-# 1. Raw daily correlation
-r_raw, p_raw = stats.pearsonr(df_good['meteor_median'], df_good['uap_count'])
-rho_raw, p_rho_raw = stats.spearmanr(df_good['meteor_median'], df_good['uap_count'])
-print(f"\n1. Raw daily correlation (N={len(df_good)}):")
+# 1. Raw daily correlation — activity_index (normalized) vs UAP count
+r_raw, p_raw = stats.pearsonr(df_good['activity_index'], df_good['uap_count'])
+rho_raw, p_rho_raw = stats.spearmanr(df_good['activity_index'], df_good['uap_count'])
+print(f"\n1. Raw daily correlation — activity_index (N={len(df_good)}):")
 print(f"   Pearson  r = {r_raw:+.4f} (p = {p_raw:.2e})")
 print(f"   Spearman ρ = {rho_raw:+.4f} (p = {p_rho_raw:.2e})")
 
+# Also report raw median for comparison
+r_raw_med, p_raw_med = stats.pearsonr(df_good['meteor_median'], df_good['uap_count'])
+print(f"   (raw median for comparison: r = {r_raw_med:+.4f}, p = {p_raw_med:.2e})")
+
 # 2. Deseasonalized
-r_ds, p_ds = stats.pearsonr(df_good['meteor_median_deseason'], df_good['uap_count_deseason'])
-rho_ds, p_ds_rho = stats.spearmanr(df_good['meteor_median_deseason'], df_good['uap_count_deseason'])
-print(f"\n2. Deseasonalized daily correlation:")
+r_ds, p_ds = stats.pearsonr(df_good['activity_index_deseason'], df_good['uap_count_deseason'])
+rho_ds, p_ds_rho = stats.spearmanr(df_good['activity_index_deseason'], df_good['uap_count_deseason'])
+print(f"\n2. Deseasonalized daily correlation (activity_index):")
 print(f"   Pearson  r = {r_ds:+.4f} (p = {p_ds:.2e})")
 print(f"   Spearman ρ = {rho_ds:+.4f} (p = {p_ds_rho:.2e})")
 
 # 3. Monthly aggregation
 monthly = df_good.resample('ME').agg({
+    'activity_index': 'mean',
     'meteor_median': 'mean',
     'uap_count': 'sum',
     'n_observers': 'mean',
 }).dropna()
 monthly = monthly[monthly['n_observers'] >= 5]
 
-r_monthly, p_monthly = stats.pearsonr(monthly['meteor_median'], monthly['uap_count'])
-rho_monthly, p_monthly_rho = stats.spearmanr(monthly['meteor_median'], monthly['uap_count'])
-print(f"\n3. Monthly aggregated (N={len(monthly)}):")
+r_monthly, p_monthly = stats.pearsonr(monthly['activity_index'], monthly['uap_count'])
+rho_monthly, p_monthly_rho = stats.spearmanr(monthly['activity_index'], monthly['uap_count'])
+print(f"\n3. Monthly aggregated — activity_index (N={len(monthly)}):")
 print(f"   Pearson  r = {r_monthly:+.4f} (p = {p_monthly:.2e})")
 print(f"   Spearman ρ = {rho_monthly:+.4f} (p = {p_monthly_rho:.2e})")
 
 # 4. Year-by-year correlation
-print(f"\n4. Year-by-year monthly correlation:")
+print(f"\n4. Year-by-year monthly correlation (activity_index):")
 yearly_results = []
 for yr in sorted(df_good['year'].unique()):
     yr_data = df_good[df_good['year'] == yr]
     yr_monthly = yr_data.resample('ME').agg({
+        'activity_index': 'mean',
         'meteor_median': 'mean',
         'uap_count': 'sum',
     }).dropna()
     if len(yr_monthly) >= 8:
-        r, p = stats.pearsonr(yr_monthly['meteor_median'], yr_monthly['uap_count'])
-        rho, p_rho = stats.spearmanr(yr_monthly['meteor_median'], yr_monthly['uap_count'])
+        r, p = stats.pearsonr(yr_monthly['activity_index'], yr_monthly['uap_count'])
+        rho, p_rho = stats.spearmanr(yr_monthly['activity_index'], yr_monthly['uap_count'])
         sig = '*' if p < 0.05 else ' '
         print(f"   {yr}: r={r:+.3f} (p={p:.3f}){sig}  ρ={rho:+.3f}  N_months={len(yr_monthly)}")
         yearly_results.append({'year': yr, 'r': r, 'p': p, 'rho': rho, 'n': len(yr_monthly)})
@@ -320,11 +387,11 @@ if len(sig_years) > 0:
 
 # 5. Lag analysis: NUFORC reports might lag meteors by 0-7 days
 #    (transport time from mesosphere)
-print(f"\n5. Lag analysis (deseasonalized):")
+print(f"\n5. Lag analysis (deseasonalized activity_index):")
 lags = range(-3, 15)
 lag_results = []
 for lag in lags:
-    shifted = df_good['meteor_median_deseason'].shift(lag)
+    shifted = df_good['activity_index_deseason'].shift(lag)
     mask = shifted.notna() & df_good['uap_count_deseason'].notna()
     if mask.sum() > 100:
         r, p = stats.pearsonr(shifted[mask], df_good.loc[mask, 'uap_count_deseason'])
@@ -361,14 +428,14 @@ for shower, (m1, d1, m2, d2) in showers.items():
     if len(in_shower) > 30 and len(out_shower) > 100:
         uap_in = in_shower['uap_count'].mean()
         uap_out = out_shower['uap_count'].mean()
-        met_in = in_shower['meteor_median'].mean()
-        met_out = out_shower['meteor_median'].mean()
+        act_in = in_shower['activity_index'].mean()
+        act_out = out_shower['activity_index'].mean()
         enhancement = uap_in / max(uap_out, 0.01)
-        met_enh = met_in / max(met_out, 0.01)
+        act_enh = act_in / max(act_out, 0.01)
         t, p = stats.ttest_ind(in_shower['uap_count'], out_shower['uap_count'])
         sig = '*' if p < 0.05 else ' '
         print(f"   {shower:15s}: UAP {enhancement:.2f}x (p={p:.3f}){sig}  "
-              f"meteor {met_enh:.2f}x  N_in={len(in_shower)}")
+              f"activity {act_enh:.2f}x  N_in={len(in_shower)}")
 
 # ============================================================
 # Figures
@@ -381,12 +448,13 @@ fig.suptitle('Radio Meteor (RMOB) × NUFORC UAP Report Correlation\n'
              f'N={len(df_good)} days',
              fontsize=14, fontweight='bold')
 
-# (a) Time series: meteor rate
+# (a) Time series: normalized activity index
 ax = axes[0, 0]
-weekly_meteor = df_good['meteor_median'].resample('W').mean()
-ax.plot(weekly_meteor.index, weekly_meteor.values, 'C0-', linewidth=0.8, alpha=0.7)
-ax.set_ylabel('Median Meteor Rate\n(counts/day)')
-ax.set_title('(a) RMOB Weekly Meteor Rate')
+weekly_activity = df_good['activity_index'].resample('W').mean()
+ax.plot(weekly_activity.index, weekly_activity.values, 'C0-', linewidth=0.8, alpha=0.7)
+ax.axhline(1.0, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+ax.set_ylabel('Activity Index\n(1.0 = baseline)')
+ax.set_title('(a) RMOB Weekly Meteor Activity (normalized)')
 ax.set_xlim(df_good.index.min(), df_good.index.max())
 
 # (b) Time series: UAP counts
@@ -404,28 +472,27 @@ ax.bar(monthly_obs.index, monthly_obs.values, width=25, color='C2', alpha=0.6)
 ax.set_ylabel('Mean Observers/Day')
 ax.set_title('(c) RMOB Observer Coverage')
 
-# (d) Scatter: daily correlation
+# (d) Scatter: daily correlation (activity_index)
 ax = axes[1, 0]
-# Downsample for visibility
-ax.scatter(df_good['meteor_median'], df_good['uap_count'],
+ax.scatter(df_good['activity_index'], df_good['uap_count'],
           s=3, alpha=0.15, c='C0')
-ax.set_xlabel('Daily Median Meteor Rate')
+ax.set_xlabel('Daily Activity Index (normalized)')
 ax.set_ylabel('Daily UAP Reports')
 ax.set_title(f'(d) Daily Scatter (r={r_raw:+.3f}, p={p_raw:.1e})')
 # Add trend line
-z = np.polyfit(df_good['meteor_median'], df_good['uap_count'], 1)
-x_fit = np.linspace(df_good['meteor_median'].min(), df_good['meteor_median'].max(), 100)
+z = np.polyfit(df_good['activity_index'], df_good['uap_count'], 1)
+x_fit = np.linspace(df_good['activity_index'].min(), df_good['activity_index'].max(), 100)
 ax.plot(x_fit, np.polyval(z, x_fit), 'r-', linewidth=2, alpha=0.7)
 
-# (e) Monthly scatter
+# (e) Monthly scatter (activity_index)
 ax = axes[1, 1]
-ax.scatter(monthly['meteor_median'], monthly['uap_count'],
+ax.scatter(monthly['activity_index'], monthly['uap_count'],
           s=30, alpha=0.5, c='C1', edgecolors='k', linewidth=0.3)
-ax.set_xlabel('Monthly Mean Meteor Rate')
+ax.set_xlabel('Monthly Mean Activity Index')
 ax.set_ylabel('Monthly UAP Report Count')
 ax.set_title(f'(e) Monthly Scatter (r={r_monthly:+.3f}, p={p_monthly:.1e})')
-z = np.polyfit(monthly['meteor_median'], monthly['uap_count'], 1)
-x_fit = np.linspace(monthly['meteor_median'].min(), monthly['meteor_median'].max(), 100)
+z = np.polyfit(monthly['activity_index'], monthly['uap_count'], 1)
+x_fit = np.linspace(monthly['activity_index'].min(), monthly['activity_index'].max(), 100)
 ax.plot(x_fit, np.polyval(z, x_fit), 'r-', linewidth=2, alpha=0.7)
 
 # (f) Year-by-year correlation coefficients
@@ -452,19 +519,20 @@ if len(lag_df) > 0:
 
 # (h) Seasonal cycle comparison
 ax = axes[2, 1]
-monthly_season_met = df_good.groupby('month')['meteor_median'].mean()
+monthly_season_act = df_good.groupby('month')['activity_index'].mean()
 monthly_season_uap = df_good.groupby('month')['uap_count'].mean()
 ax2 = ax.twinx()
-ax.bar(monthly_season_met.index - 0.2, monthly_season_met.values, 0.4,
-      color='C0', alpha=0.6, label='Meteor rate')
+ax.bar(monthly_season_act.index - 0.2, monthly_season_act.values, 0.4,
+      color='C0', alpha=0.6, label='Activity index')
 ax2.bar(monthly_season_uap.index + 0.2, monthly_season_uap.values, 0.4,
        color='C3', alpha=0.6, label='UAP reports')
 ax.set_xlabel('Month')
-ax.set_ylabel('Mean Meteor Rate', color='C0')
+ax.set_ylabel('Mean Activity Index', color='C0')
 ax2.set_ylabel('Mean UAP Reports/day', color='C3')
 ax.set_title('(h) Seasonal Cycles')
 ax.set_xticks(range(1, 13))
 ax.set_xticklabels(['J','F','M','A','M','J','J','A','S','O','N','D'])
+ax.axhline(1.0, color='gray', linestyle=':', linewidth=0.5, alpha=0.5)
 lines1, labels1 = ax.get_legend_handles_labels()
 lines2, labels2 = ax2.get_legend_handles_labels()
 ax.legend(lines1 + lines2, labels1 + labels2, fontsize=8)
@@ -473,7 +541,7 @@ ax.legend(lines1 + lines2, labels1 + labels2, fontsize=8)
 ax = axes[2, 2]
 shower_names = []
 shower_enh = []
-shower_met_enh = []
+shower_act_enh = []
 for shower, (m1, d1, m2, d2) in showers.items():
     in_shower = df_good[
         ((df_good['month'] == m1) & (df_good.index.day >= d1)) |
@@ -484,10 +552,10 @@ for shower, (m1, d1, m2, d2) in showers.items():
     if len(in_shower) > 30:
         shower_names.append(shower.replace(' ', '\n'))
         shower_enh.append(in_shower['uap_count'].mean() / max(out_shower['uap_count'].mean(), 0.01))
-        shower_met_enh.append(in_shower['meteor_median'].mean() / max(out_shower['meteor_median'].mean(), 0.01))
+        shower_act_enh.append(in_shower['activity_index'].mean() / max(out_shower['activity_index'].mean(), 0.01))
 
 x_pos = np.arange(len(shower_names))
-ax.bar(x_pos - 0.2, shower_met_enh, 0.4, color='C0', alpha=0.7, label='Meteor enhancement')
+ax.bar(x_pos - 0.2, shower_act_enh, 0.4, color='C0', alpha=0.7, label='Activity enhancement')
 ax.bar(x_pos + 0.2, shower_enh, 0.4, color='C3', alpha=0.7, label='UAP enhancement')
 ax.axhline(y=1, color='gray', ls='--', lw=0.5)
 ax.set_xticks(x_pos)
@@ -509,9 +577,11 @@ print(f"\n{'='*60}")
 print("SUMMARY")
 print(f"{'='*60}")
 print(f"RMOB data: {len(all_records)} observer-months, {len(df_rmob)} daily records")
+print(f"  Normalization: per-observer monthly median, IQR outlier rejection")
+print(f"  Mean activity index: {df_rmob['activity_index'].mean():.3f} (expected ~1.0)")
 print(f"NUFORC data: {len(nuforc)} reports")
 print(f"Merged: {len(df_good)} days with ≥5 RMOB observers")
-print(f"\nKey results:")
+print(f"\nKey results (using normalized activity_index):")
 print(f"  Raw daily:        r={r_raw:+.4f} (p={p_raw:.2e})")
 print(f"  Deseasonalized:   r={r_ds:+.4f} (p={p_ds:.2e})")
 print(f"  Monthly:          r={r_monthly:+.4f} (p={p_monthly:.2e})")
