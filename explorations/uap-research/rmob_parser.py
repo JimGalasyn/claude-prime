@@ -288,38 +288,80 @@ def build_daily_timeseries(parsed_files: list) -> dict:
     """
     Aggregate all parsed RMOB files into a daily time series.
 
-    For each date, compute:
-    - mean daily count across all observers (using 24h-scaled estimates)
-    - median daily count
-    - number of contributing observers
-    - std deviation across observers
+    Strategy: normalize each observer's daily count by their own monthly
+    median, then average the normalized activity indices across observers.
+    This handles the huge variation in equipment sensitivity.
+
+    Also produces a raw median time series for absolute scale reference.
 
     Returns dict keyed by date with aggregation stats.
     """
-    # Collect all observer estimates for each date
-    date_estimates = defaultdict(list)
-    date_observers = defaultdict(list)
+    # Step 1: Compute each observer's monthly baseline
+    # Key: (observer_name, year, month) -> list of daily 24h-estimated counts
+    observer_monthly = defaultdict(list)
+    # Key: date -> list of (observer_name, estimated_24h)
+    date_raw = defaultdict(list)
 
     for rmob in parsed_files:
+        obs_key = rmob.observer.name or rmob.filepath
         dailies = rmob.daily_totals
         for day, info in dailies.items():
             d = info['date']
-            date_estimates[d].append(info['estimated_24h'])
-            date_observers[d].append(rmob.observer.name)
+            val = info['estimated_24h']
+            if val < 0 or val > 100000:  # Sanity filter
+                continue
+            observer_monthly[(obs_key, d.year, d.month)].append(val)
+            date_raw[d].append((obs_key, val))
 
-    # Build time series
+    # Step 2: Compute monthly medians per observer
+    observer_baselines = {}
+    for key, vals in observer_monthly.items():
+        median_val = np.median(vals)
+        if median_val > 0:
+            observer_baselines[key] = median_val
+
+    # Step 3: Build normalized time series
+    date_normalized = defaultdict(list)
+    date_absolute = defaultdict(list)
+
+    for d, obs_vals in date_raw.items():
+        for obs_name, val in obs_vals:
+            key = (obs_name, d.year, d.month)
+            if key in observer_baselines:
+                baseline = observer_baselines[key]
+                normalized = val / baseline  # 1.0 = typical day for this observer
+                date_normalized[d].append(normalized)
+                date_absolute[d].append(val)
+
+    # Step 4: Aggregate
     timeseries = {}
-    for d in sorted(date_estimates.keys()):
-        vals = date_estimates[d]
-        arr = np.array(vals)
+    for d in sorted(date_normalized.keys()):
+        norm_vals = np.array(date_normalized[d])
+        abs_vals = np.array(date_absolute[d])
+
+        # Use IQR-based outlier rejection on normalized values
+        if len(norm_vals) >= 5:
+            q1, q3 = np.percentile(norm_vals, [25, 75])
+            iqr = q3 - q1
+            mask = (norm_vals >= q1 - 3 * iqr) & (norm_vals <= q3 + 3 * iqr)
+            norm_clean = norm_vals[mask]
+            abs_clean = abs_vals[mask]
+        else:
+            norm_clean = norm_vals
+            abs_clean = abs_vals
+
+        if len(norm_clean) == 0:
+            continue
+
         timeseries[d] = {
             'date': d,
-            'mean': float(np.mean(arr)),
-            'median': float(np.median(arr)),
-            'std': float(np.std(arr)) if len(arr) > 1 else 0.0,
-            'n_observers': len(arr),
-            'min': float(np.min(arr)),
-            'max': float(np.max(arr)),
+            'activity_index': float(np.mean(norm_clean)),  # 1.0 = baseline
+            'activity_median': float(np.median(norm_clean)),
+            'activity_std': float(np.std(norm_clean)) if len(norm_clean) > 1 else 0.0,
+            'raw_median': float(np.median(abs_clean)),
+            'raw_mean': float(np.mean(abs_clean)),
+            'n_observers': len(norm_clean),
+            'n_rejected': int(len(norm_vals) - len(norm_clean)),
         }
 
     return timeseries
@@ -365,11 +407,11 @@ def get_shower_dates(year: int) -> list:
 # ============================================================================
 
 def compute_annual_profile(timeseries: dict) -> dict:
-    """Compute mean meteor flux by day-of-year across all years."""
+    """Compute mean meteor activity index by day-of-year across all years."""
     doy_values = defaultdict(list)
     for d, info in timeseries.items():
         doy = d.timetuple().tm_yday
-        doy_values[doy].append(info['mean'])
+        doy_values[doy].append(info['activity_index'])
 
     profile = {}
     for doy in sorted(doy_values.keys()):
@@ -403,21 +445,22 @@ def plot_results(timeseries: dict, annual_profile: dict, output_dir: str):
     fig, axes = plt.subplots(3, 1, figsize=(16, 12))
 
     dates = sorted(timeseries.keys())
-    means = [timeseries[d]['mean'] for d in dates]
+    activity = [timeseries[d]['activity_index'] for d in dates]
     n_obs = [timeseries[d]['n_observers'] for d in dates]
 
-    # 1a: Raw daily mean
+    # 1a: Normalized activity index
     ax = axes[0]
-    ax.plot(dates, means, linewidth=0.3, color='steelblue', alpha=0.5)
+    ax.plot(dates, activity, linewidth=0.3, color='steelblue', alpha=0.5)
     # 30-day rolling average
-    if len(means) > 30:
+    if len(activity) > 30:
         kernel = np.ones(30) / 30
-        smoothed = np.convolve(means, kernel, mode='valid')
+        smoothed = np.convolve(activity, kernel, mode='valid')
         smooth_dates = dates[15:15 + len(smoothed)]
         ax.plot(smooth_dates, smoothed, linewidth=1.5, color='darkblue',
                 label='30-day rolling mean')
-    ax.set_ylabel('Mean meteor echoes / day')
-    ax.set_title('RMOB Daily Meteor Flux (2000-2020) — Multi-Observer Mean')
+    ax.axhline(1.0, color='gray', linestyle='--', alpha=0.5, label='Baseline (1.0)')
+    ax.set_ylabel('Activity Index (1.0 = monthly baseline)')
+    ax.set_title('RMOB Daily Meteor Activity (2000-2020) — Normalized Multi-Observer Index')
     ax.legend(loc='upper right')
     ax.set_xlim(dates[0], dates[-1])
 
@@ -433,14 +476,15 @@ def plot_results(timeseries: dict, annual_profile: dict, output_dir: str):
     # Use 2015 as representative (good coverage)
     rep_year = 2015
     rep_dates = [d for d in dates if d.year == rep_year]
-    rep_means = [timeseries[d]['mean'] for d in rep_dates]
+    rep_activity = [timeseries[d]['activity_index'] for d in rep_dates]
 
     if rep_dates:
-        ax.plot(rep_dates, rep_means, linewidth=0.5, color='steelblue', alpha=0.7)
+        ax.plot(rep_dates, rep_activity, linewidth=0.5, color='steelblue', alpha=0.7)
+        ax.axhline(1.0, color='gray', linestyle='--', alpha=0.3)
         # 7-day smoothing for single year
-        if len(rep_means) > 7:
+        if len(rep_activity) > 7:
             kernel7 = np.ones(7) / 7
-            sm7 = np.convolve(rep_means, kernel7, mode='valid')
+            sm7 = np.convolve(rep_activity, kernel7, mode='valid')
             sm7_dates = rep_dates[3:3 + len(sm7)]
             ax.plot(sm7_dates, sm7, linewidth=2, color='darkblue')
 
@@ -460,7 +504,7 @@ def plot_results(timeseries: dict, annual_profile: dict, output_dir: str):
             if date(rep_year, 1, 1) <= delayed <= date(rep_year, 12, 31):
                 ax.axvline(delayed, color='red', linestyle=':', alpha=0.5, linewidth=1)
 
-        ax.set_ylabel('Mean meteor echoes / day')
+        ax.set_ylabel('Activity Index')
         ax.set_title(f'{rep_year} Detail — Showers (shaded) + Kostrov 12-day delay (red dotted)')
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
         ax.xaxis.set_major_locator(mdates.MonthLocator())
@@ -498,8 +542,8 @@ def plot_results(timeseries: dict, annual_profile: dict, output_dir: str):
                    fontsize=7, rotation=90, ha='right', va='top', color='darkgreen')
 
     ax.set_xlabel('Day of Year')
-    ax.set_ylabel('Mean meteor echoes / day')
-    ax.set_title('Mean Annual Meteor Profile (2000-2020 average)')
+    ax.set_ylabel('Activity Index (1.0 = baseline)')
+    ax.set_title('Mean Annual Meteor Activity Profile (2000-2020 average)')
     ax.legend()
 
     # 2b: Same profile, delayed by 12 days (Kostrov prediction)
@@ -522,7 +566,7 @@ def plot_results(timeseries: dict, annual_profile: dict, output_dir: str):
                    fontsize=6, rotation=90, ha='right', va='top', color='darkred')
 
     ax.set_xlabel('Day of Year')
-    ax.set_ylabel('Mean meteor echoes / day')
+    ax.set_ylabel('Activity Index')
     ax.set_title('Kostrov Prediction: Dust Settling Delay of 12 Days')
     ax.legend()
 
@@ -550,15 +594,17 @@ def plot_results(timeseries: dict, annual_profile: dict, output_dir: str):
     ax.set_ylabel('Peak # observers in any day')
     ax.set_title('Observer Network Growth')
 
-    # 3b: Distribution of daily counts
+    # 3b: Distribution of activity index
     ax = axes[0, 1]
-    all_means = [timeseries[d]['mean'] for d in dates]
-    ax.hist(all_means, bins=100, color='steelblue', alpha=0.7, edgecolor='none')
-    ax.set_xlabel('Daily mean meteor count')
+    all_activity = [timeseries[d]['activity_index'] for d in dates]
+    ax.hist(all_activity, bins=100, color='steelblue', alpha=0.7, edgecolor='none',
+            range=(0, 5))
+    ax.set_xlabel('Daily Activity Index')
     ax.set_ylabel('Frequency')
-    ax.set_title('Distribution of Daily Meteor Flux')
-    ax.axvline(np.median(all_means), color='red', linestyle='--',
-               label=f'Median: {np.median(all_means):.0f}')
+    ax.set_title('Distribution of Daily Meteor Activity')
+    ax.axvline(np.median(all_activity), color='red', linestyle='--',
+               label=f'Median: {np.median(all_activity):.2f}')
+    ax.axvline(1.0, color='gray', linestyle=':', alpha=0.5, label='Baseline (1.0)')
     ax.legend()
 
     # 3c: Hourly profile (averaged across all data)
@@ -588,7 +634,7 @@ def plot_results(timeseries: dict, annual_profile: dict, output_dir: str):
                         target_doy += 365
                     target_date = date(y, 1, 1) + timedelta(days=target_doy - 1)
                     if target_date in timeseries:
-                        year_vals.append(timeseries[target_date]['mean'])
+                        year_vals.append(timeseries[target_date]['activity_index'])
                 except ValueError:
                     pass
             if year_vals:
@@ -599,8 +645,9 @@ def plot_results(timeseries: dict, annual_profile: dict, output_dir: str):
                     label=shower_name, markersize=4, linewidth=1)
 
     ax.set_xlabel('Year')
-    ax.set_ylabel('Peak daily mean during shower')
+    ax.set_ylabel('Peak Activity Index during shower')
     ax.set_title('Major Shower Intensity by Year')
+    ax.axhline(1.0, color='gray', linestyle=':', alpha=0.5)
     ax.legend()
 
     plt.tight_layout()
@@ -615,8 +662,8 @@ def save_csv(timeseries: dict, output_path: str):
         writer = csv.writer(f)
         writer.writerow([
             'date', 'year', 'month', 'day', 'doy',
-            'mean_echoes', 'median_echoes', 'std_echoes',
-            'min_echoes', 'max_echoes', 'n_observers'
+            'activity_index', 'activity_median', 'activity_std',
+            'raw_median', 'raw_mean', 'n_observers', 'n_rejected'
         ])
         for d in sorted(timeseries.keys()):
             info = timeseries[d]
@@ -624,12 +671,13 @@ def save_csv(timeseries: dict, output_path: str):
                 d.isoformat(),
                 d.year, d.month, d.day,
                 d.timetuple().tm_yday,
-                f"{info['mean']:.1f}",
-                f"{info['median']:.1f}",
-                f"{info['std']:.1f}",
-                f"{info['min']:.1f}",
-                f"{info['max']:.1f}",
+                f"{info['activity_index']:.4f}",
+                f"{info['activity_median']:.4f}",
+                f"{info['activity_std']:.4f}",
+                f"{info['raw_median']:.1f}",
+                f"{info['raw_mean']:.1f}",
                 info['n_observers'],
+                info['n_rejected'],
             ])
     print(f"  Saved: {output_path}")
 
@@ -659,8 +707,8 @@ def save_summary(timeseries: dict, parsed_files: list, output_path: str):
         },
         'files_parsed': len(parsed_files),
         'daily_stats': {
-            'mean_flux_overall': float(np.mean([timeseries[d]['mean'] for d in dates])),
-            'median_flux_overall': float(np.median([timeseries[d]['mean'] for d in dates])),
+            'mean_activity_index': float(np.mean([timeseries[d]['activity_index'] for d in dates])),
+            'median_activity_index': float(np.median([timeseries[d]['activity_index'] for d in dates])),
             'mean_n_observers': float(np.mean([timeseries[d]['n_observers'] for d in dates])),
         },
         'shower_detection': {},
@@ -680,7 +728,7 @@ def save_summary(timeseries: dict, parsed_files: list, output_path: str):
                 'observed_peak_doy_mean': float(peak_val),
                 'baseline': float(baseline),
                 'signal_to_noise': float(snr),
-                'detected': snr > 1.5,
+                'detected': bool(snr > 1.5),
             }
 
     with open(output_path, 'w') as f:
@@ -695,33 +743,36 @@ def save_summary(timeseries: dict, parsed_files: list, output_path: str):
 def main():
     import sys
 
-    base_dir = "/mnt/c/Users/jimga/OneDrive/Documents/Research/UAP/RMOB"
+    # Use local copy if available (much faster than OneDrive mount)
+    local_dir = "/tmp/rmob_data"
+    onedrive_dir = "/mnt/c/Users/jimga/OneDrive/Documents/Research/UAP/RMOB"
+    base_dir = local_dir if os.path.isdir(local_dir) else onedrive_dir
     output_dir = os.path.dirname(os.path.abspath(__file__))
 
-    print("=" * 70)
-    print("RMOB Radio Meteor Data Parser")
-    print("=" * 70)
+    print("=" * 70, flush=True)
+    print("RMOB Radio Meteor Data Parser", flush=True)
+    print("=" * 70, flush=True)
 
     # Find all files
-    print(f"\nScanning: {base_dir}")
+    print(f"\nScanning: {base_dir}", flush=True)
     all_files = find_rmob_files(base_dir)
-    print(f"  Found {len(all_files)} RMOB files")
+    print(f"  Found {len(all_files)} RMOB files", flush=True)
 
     # Parse
-    print(f"\nParsing files...")
+    print(f"\nParsing files...", flush=True)
     parsed = []
     errors = 0
     for i, fp in enumerate(all_files):
         if (i + 1) % 500 == 0:
-            print(f"  ... {i+1}/{len(all_files)}")
+            print(f"  ... {i+1}/{len(all_files)}", flush=True)
         result = parse_rmob_file(fp)
         if result is not None:
             parsed.append(result)
         else:
             errors += 1
 
-    print(f"  Successfully parsed: {len(parsed)}")
-    print(f"  Failed to parse: {errors}")
+    print(f"  Successfully parsed: {len(parsed)}", flush=True)
+    print(f"  Failed to parse: {errors}", flush=True)
 
     # Build time series
     print(f"\nBuilding daily time series...")

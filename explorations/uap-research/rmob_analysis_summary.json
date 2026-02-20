@@ -1,0 +1,140 @@
+{
+  "date_range": {
+    "start": "2000-01-01",
+    "end": "2020-12-31",
+    "total_days": 7671
+  },
+  "observers": {
+    "total_unique": 582,
+    "countries": [
+      "Armenia",
+      "Australia",
+      "Austria",
+      "Belarus",
+      "Belgium",
+      "Brazil",
+      "Canada",
+      "Canada  V2K 5N9",
+      "Canada, Qu\u00e9bec",
+      "China",
+      "Croatia",
+      "Cuba",
+      "Czech Republic",
+      "Czech republic",
+      "England",
+      "Finland",
+      "France",
+      "France ( South )",
+      "France (UTC+1)",
+      "France (UTC+2)",
+      "France BRETAGNE",
+      "Germany",
+      "Great Britain",
+      "Greece",
+      "Hungary",
+      "Iran",
+      "Italy",
+      "Japan",
+      "Kazakhstan",
+      "Liechtenstein",
+      "Malta",
+      "Mexico",
+      "Netherlands",
+      "Norway",
+      "POLAND",
+      "Panama",
+      "Poland",
+      "Portugal",
+      "Puerto Rico",
+      "Romania",
+      "Russian Federation",
+      "Slovakia",
+      "Slovenia",
+      "South Africa",
+      "Spain",
+      "Sweden",
+      "Switzerland",
+      "The Netherlands (Europe)",
+      "UK",
+      "USA",
+      "Ukraine",
+      "United Kingdom",
+      "United States of America",
+      "[Latitude +/-]",
+      "brazil",
+      "korea",
+      "spain"
+    ]
+  },
+  "files_parsed": 7742,
+  "daily_stats": {
+    "mean_activity_index": 1.0167592016479408,
+    "median_activity_index": 0.9931035995160885,
+    "mean_n_observers": 24.63159953070004
+  },
+  "shower_detection": {
+    "Quadrantids": {
+      "expected_zhr": 120,
+      "observed_peak_doy_mean": 1.8119057111617423,
+      "baseline": 0.9939199607568876,
+      "signal_to_noise": 1.8229895592215937,
+      "detected": true
+    },
+    "Lyrids": {
+      "expected_zhr": 18,
+      "observed_peak_doy_mean": 1.2029179050685481,
+      "baseline": 0.9939199607568876,
+      "signal_to_noise": 1.210276433277892,
+      "detected": false
+    },
+    "eta Aquariids": {
+      "expected_zhr": 50,
+      "observed_peak_doy_mean": 1.0958104341172386,
+      "baseline": 0.9939199607568876,
+      "signal_to_noise": 1.102513761050497,
+      "detected": false
+    },
+    "delta Aquariids": {
+      "expected_zhr": 20,
+      "observed_peak_doy_mean": 1.186003072479102,
+      "baseline": 0.9939199607568876,
+      "signal_to_noise": 1.1932581287289368,
+      "detected": false
+    },
+    "Perseids": {
+      "expected_zhr": 100,
+      "observed_peak_doy_mean": 1.7415427324542117,
+      "baseline": 0.9939199607568876,
+      "signal_to_noise": 1.7521961538311355,
+      "detected": true
+    },
+    "Orionids": {
+      "expected_zhr": 20,
+      "observed_peak_doy_mean": 1.0827710518359868,
+      "baseline": 0.9939199607568876,
+      "signal_to_noise": 1.0893946138393653,
+      "detected": false
+    },
+    "Leonids": {
+      "expected_zhr": 15,
+      "observed_peak_doy_mean": 1.2206346496536025,
+      "baseline": 0.9939199607568876,
+      "signal_to_noise": 1.2281015553043804,
+      "detected": false
+    },
+    "Geminids": {
+      "expected_zhr": 150,
+      "observed_peak_doy_mean": 2.1732508725087922,
+      "baseline": 0.9939199607568876,
+      "signal_to_noise": 2.1865451528449267,
+      "detected": true
+    },
+    "Ursids": {
+      "expected_zhr": 10,
+      "observed_peak_doy_mean": 1.0202708204053623,
+      "baseline": 0.9939199607568876,
+      "signal_to_noise": 1.026512053977071,
+      "detected": false
+    }
+  }
+}
