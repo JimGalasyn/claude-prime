@@ -4417,6 +4417,219 @@ def print_gravity_analysis():
     print(f"  Maxwell's equations + toroidal topology + dynamical metric")
     print(f"  = the complete force spectrum of Nature.")
 
+    # ==========================================
+    # Section 11: Gravitons are emergent, not fundamental
+    # ==========================================
+    print(f"\n  11. GRAVITONS ARE EMERGENT, NOT FUNDAMENTAL")
+    print(f"  {'─'*55}")
+
+    print(f"""
+  In standard physics, the graviton is postulated as a fundamental
+  massless spin-2 boson that mediates gravity, analogous to the
+  photon for electromagnetism. Quantizing this field leads to
+  non-renormalizable divergences — the central obstacle of
+  quantum gravity for 90 years.
+
+  In the NWT model, every particle is an EM field mode on a
+  toroidal topology:
+    TM modes → charged particles (electron, quarks)
+    TE modes → dark matter
+    Photon   → unconfined EM radiation (unwound limit)
+
+  But gravity is DIFFERENT. It is not a separate field mode —
+  it is the GEOMETRIC CONSEQUENCE of confined EM energy:
+
+    Torus has mass-energy  →  mass-energy curves spacetime
+    (Einstein's equations) →  curvature IS gravity
+
+  The Kerr-Newman self-consistency is exactly this: the EM field
+  creates the metric, the metric guides the EM field. Gravity is
+  not carried by a particle. It is the shape of spacetime around
+  particles that are made of light.
+
+  What then IS the 'graviton'?
+  ────────────────────────────
+  At the perturbative level, you can decompose the metric
+  perturbation between two tori into a multipole expansion.
+  The spin-2 piece of this expansion is what QFT calls the
+  'graviton'. But it is a DERIVED object — a bookkeeping device
+  for tracking how the metric of one torus perturbs another.
+
+  The graviton is to the metric what a phonon is to a crystal
+  lattice: a useful quasiparticle description of a collective
+  phenomenon, not a fundamental entity.
+
+  Why this dissolves the quantum gravity problem:
+  ───────────────────────────────────────────────
+  The non-renormalizability of quantum gravity arises from
+  treating the graviton as fundamental and trying to quantize
+  it as an independent field. If the graviton is emergent:
+
+    • There is no independent graviton field to quantize
+    • 'Quantum gravity' is inherited from quantized EM modes
+    • The torus topology provides a natural UV cutoff
+    • Non-renormalizability never arises because the question
+      ('how do you quantize the graviton field?') is malformed
+
+  The gravitational interaction between tori is computed from
+  their mutual metric perturbation — a well-defined, finite
+  calculation involving the stress-energy of their EM fields.
+  No separate quantization scheme is needed.""")
+
+    # Compute the graviton 'coupling' for comparison
+    m_e_GeV = m_e * c**2 / (1e9 * eV)
+    alpha_G_e = G_N * m_e**2 / (hbar * c)
+    print(f"\n  Ontological comparison:")
+    print(f"  {'─'*55}")
+    print(f"  {'Entity':<16} {'Standard Model':<26} {'NWT model'}")
+    print(f"  {'─'*16} {'─'*26} {'─'*26}")
+    print(f"  {'Photon':<16} {'Fundamental gauge boson':<26} {'Unconfined EM field'}")
+    print(f"  {'Electron':<16} {'Fundamental fermion':<26} {'(2,1) TM torus mode'}")
+    print(f"  {'Gluon':<16} {'Fundamental gauge boson':<26} {'EM flux between linked tori'}")
+    print(f"  {'W/Z':<16} {'Fundamental gauge bosons':<26} {'Topological transitions'}")
+    print(f"  {'Graviton':<16} {'Fundamental (spin-2)?':<26} {'Emergent metric perturbation'}")
+    print(f"  {'Higgs':<16} {'Fundamental scalar':<26} {'Tube breathing mode'}")
+    print(f"")
+    print(f"  The graviton is the ONLY entry in the Standard Model that")
+    print(f"  the NWT model demotes from fundamental to emergent. This")
+    print(f"  is precisely the entity whose quantization has failed for")
+    print(f"  nine decades.")
+
+    # ==========================================
+    # Section 12: Virtual particles are unnecessary
+    # ==========================================
+    print(f"\n  12. VIRTUAL PARTICLES ARE UNNECESSARY")
+    print(f"  {'─'*55}")
+
+    print(f"""
+  Virtual particles appear in standard QFT as internal lines
+  in Feynman diagrams — terms in a perturbative expansion of
+  the path integral. They are not observable; they are
+  calculational tools for approximating what fields actually do.
+
+  In the NWT model, the EM field on the null worldtube is the
+  fundamental object, and the self-consistent torus solution is
+  the NON-PERTURBATIVE answer. No expansion is needed:""")
+
+    print(f"\n  A. FORCES DON'T NEED MEDIATORS")
+    print(f"  ────────────────────────────────")
+    print(f"  Standard QED: two electrons repel via 'virtual photon exchange'.")
+    print(f"  NWT: two TM tori interact through their overlapping external")
+    print(f"  EM fields — direct field superposition. The Coulomb field of a")
+    print(f"  TM torus IS its external radial E field. No mediator is needed")
+    print(f"  because the field is already there.")
+    print(f"")
+    print(f"  Similarly: gravity between tori is their mutual metric")
+    print(f"  perturbation. No graviton exchange — just geometry responding")
+    print(f"  to mass-energy, as Einstein described.")
+
+    print(f"\n  B. SELF-ENERGY IS ALREADY SOLVED")
+    print(f"  ─────────────────────────────────")
+    print(f"  Standard QED: the electron's self-energy diverges. Virtual")
+    print(f"  electron-positron loops screen the bare charge, requiring")
+    print(f"  renormalization to extract finite predictions.")
+    print(f"")
+    print(f"  NWT: the torus's own field creates its own metric, which")
+    print(f"  confines its own field. The self-consistent solution already")
+    print(f"  includes ALL orders of self-interaction. The 'bare' and")
+    print(f"  'dressed' properties are identical — the torus IS the")
+    print(f"  non-perturbative sum of all self-energy corrections.")
+
+    print(f"\n  C. NO ULTRAVIOLET DIVERGENCES")
+    print(f"  ──────────────────────────────")
+    print(f"  Standard QFT: treating particles as points means integrating")
+    print(f"  to zero distance → divergent loop integrals → renormalization.")
+    print(f"")
+    print(f"  NWT: particles are tori with finite spatial extent.")
+    r_tube_e = alpha * hbar / (m_e * c)
+    print(f"  The tube radius provides a natural UV cutoff:")
+    print(f"    r_tube = α × R = α × ℏ/(mc)")
+    print(f"    Electron: r_tube = {r_tube_e:.3e} m")
+    print(f"    Proton:   r_tube = {alpha * hbar / (m_p * c):.3e} m")
+    print(f"  No point sources → no infinities → no renormalization needed.")
+
+    print(f"\n  D. VACUUM FLUCTUATIONS ARE MODE EFFECTS")
+    print(f"  ────────────────────────────────────────")
+    print(f"  The Casimir effect is often attributed to virtual particle")
+    print(f"  pairs popping in and out of the vacuum. But it can be derived")
+    print(f"  entirely from boundary conditions on EM field modes — no")
+    print(f"  virtual particles required. The NWT model works directly with")
+    print(f"  field modes, making Casimir-type effects straightforward")
+    print(f"  consequences of geometry.")
+
+    print(f"\n  E. LAMB SHIFT AND ANOMALOUS MAGNETIC MOMENT")
+    print(f"  ─────────────────────────────────────────────")
+    print(f"  These QED triumphs are computed via virtual loops in standard")
+    print(f"  theory. In the NWT model, these effects arise from:")
+    print(f"    • Lamb shift: the tube's finite extent means the electron")
+    print(f"      'samples' the nuclear Coulomb field over a region of")
+    print(f"      radius r_tube, not at a point. The s-state energy shift")
+    print(f"      goes as |ψ(0)|² × r_tube² — the Darwin term.")
+    print(f"    • g-2: the torus has internal angular momentum structure")
+    print(f"      from field circulation in the tube. The correction to")
+    print(f"      g = 2 arises from the tube/ring coupling: δg ~ α/π")
+    print(f"      because α = r_tube/R is the geometric ratio controlling")
+    print(f"      how much field energy resides in tube modes vs ring modes.")
+
+    print(f"""
+  THE TWO PIPELINES COMPARED
+  ──────────────────────────────────────────────────────
+
+  Standard QFT:
+    Fields → second quantization → particles (real + virtual)
+    → Feynman diagrams → divergent loop integrals
+    → regularization → renormalization → finite predictions
+    (works brilliantly but requires elaborate mathematical
+     machinery to extract finite answers from infinite sums)
+
+  Null Worldtube:
+    EM field → toroidal topology → self-consistent solutions
+    → direct field interactions → finite predictions
+    (the non-perturbative solution already contains
+     everything that perturbation theory builds up
+     order by order)
+
+  The entire renormalization program — which took Schwinger,
+  Feynman, Tomonaga, and Dyson years to develop, and which
+  remains the most technically demanding part of QFT — may be
+  an elaborate workaround for one wrong assumption:
+
+  ┌──────────────────────────────────────────────────────┐
+  │                                                      │
+  │  THAT PARTICLES ARE POINTS.                          │
+  │                                                      │
+  │  If particles are tori with finite tube radius       │
+  │  r = αℏ/mc, the divergences never arise.             │
+  │  Virtual particles are perturbative artifacts.        │
+  │  Renormalization solves a problem that doesn't exist. │
+  │                                                      │
+  └──────────────────────────────────────────────────────┘""")
+
+    # ==========================================
+    # Section 13: Updated summary
+    # ==========================================
+    print(f"\n  13. COMPLETE PICTURE: GRAVITY AND INTERACTIONS")
+    print(f"  {'─'*55}")
+    print(f"\n  The NWT model accounts for all known interactions with")
+    print(f"  a single ingredient — Maxwell's equations on a torus:")
+    print(f"\n  Forces:")
+    print(f"    EM:      Direct field overlap between TM tori     (α)")
+    print(f"    Strong:  EM flux threading between linked tori    (α_s)")
+    print(f"    Weak:    EM during topological transitions        (α_W)")
+    print(f"    Gravity: Emergent metric from mass-energy         (α_G)")
+    print(f"\n  What is NOT needed:")
+    print(f"    ✗ Gravitons (gravity is geometric, not particulate)")
+    print(f"    ✗ Virtual particles (forces are direct field interactions)")
+    print(f"    ✗ Renormalization (no point particles, no divergences)")
+    print(f"    ✗ Second quantization (topology provides quantization)")
+    print(f"    ✗ Separate quantization of gravity (inherited from EM)")
+    print(f"\n  What IS needed:")
+    print(f"    ✓ Maxwell's equations")
+    print(f"    ✓ Toroidal topology (with winding numbers p, q)")
+    print(f"    ✓ Einstein's equations (metric responds to stress-energy)")
+    print(f"    ✓ Self-consistency (the field creates the geometry that")
+    print(f"      confines the field)")
+
 
 def print_topology_analysis():
     """Survey of alternative topologies for the null worldtube model."""
