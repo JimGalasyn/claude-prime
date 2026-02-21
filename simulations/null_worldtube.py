@@ -7499,6 +7499,301 @@ def print_neutrino_analysis():
   │  (requires Phase 2b frame-dragging, now running)     │
   └──────────────────────────────────────────────────────┘""")
 
+    # ================================================================
+    # Section 10: Visualization
+    # ================================================================
+    import matplotlib
+    matplotlib.use('agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import FancyArrowPatch
+    from pathlib import Path
+
+    output_dir = Path(__file__).resolve().parent / "output"
+    output_dir.mkdir(exist_ok=True)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7),
+                                    gridspec_kw={'width_ratios': [1.1, 1]})
+    fig.patch.set_facecolor('#FAFAFA')
+
+    # Colors
+    C_CHARGED = '#2E7D32'   # green for charged leptons
+    C_NEUTRINO = '#E65100'  # orange for neutrinos
+    C_TARGET = '#C62828'    # red for experimental target
+    C_CURVE = '#1565C0'     # blue for R(θ) curve
+    C_FORBID = '#EF5350'    # light red for forbidden zones
+    C_EXTEND = '#FFF9C4'    # light yellow for extended Koide
+    C_PREDICT = '#1565C0'   # blue for prediction
+    C_EXPT = '#C62828'      # red for experiment
+
+    # ── Panel 1: R(θ) landscape ──────────────────────────────────
+    ax1.set_facecolor('#FAFAFA')
+
+    # Compute R(θ) at high resolution for smooth curve
+    N_plot = 5000
+    th_plot = np.linspace(0, 2 * np.pi, N_plot)
+    R_plot = np.zeros(N_plot)
+    n_neg_plot = np.zeros(N_plot, dtype=int)
+
+    for i in range(N_plot):
+        f = np.array([1 + np.sqrt(2) * np.cos(th_plot[i] + 2 * np.pi * k / 3)
+                       for k in range(3)])
+        n_neg_plot[i] = np.sum(f < 0)
+        f2 = f**2
+        f4 = f2**2
+        idx = np.argsort(f2)
+        f4s = f4[idx]
+        dm21 = f4s[1] - f4s[0]
+        dm31 = f4s[2] - f4s[0]
+        R_plot[i] = dm31 / dm21 if dm21 > 1e-30 else np.inf
+
+    th_deg = np.degrees(th_plot)
+    theta_K_deg = np.degrees(theta_K)
+    theta_nu_deg = np.degrees(theta_nu)
+
+    # Shade forbidden zones (where any mass would be negative in standard Koide)
+    # These are the "extended" regions where n_neg > 0
+    # Find boundaries: where f_i = 0, i.e. cos(θ + 2πk/3) = -1/√2
+    # θ = ±3π/4 - 2πk/3
+    boundaries_rad = []
+    for k in range(3):
+        for sign in [+1, -1]:
+            b = sign * 3 * np.pi / 4 - 2 * np.pi * k / 3
+            boundaries_rad.append(b % (2 * np.pi))
+    boundaries_deg = sorted([np.degrees(b) for b in boundaries_rad])
+
+    # Shade extended Koide zones (one negative √m)
+    in_extended = False
+    for i in range(N_plot - 1):
+        if n_neg_plot[i] > 0 and not in_extended:
+            span_start = th_deg[i]
+            in_extended = True
+        elif n_neg_plot[i] == 0 and in_extended:
+            ax1.axvspan(span_start, th_deg[i], alpha=0.15, color='#CE93D8',
+                        linewidth=0, zorder=0, label='Extended Koide' if span_start < 50 else None)
+            in_extended = False
+    if in_extended:
+        ax1.axvspan(span_start, 360, alpha=0.15, color='#CE93D8',
+                    linewidth=0, zorder=0)
+
+    # Clip R for plotting (avoid infinite spikes)
+    R_clipped = np.clip(R_plot, 1, 2000)
+    R_clipped[R_plot == np.inf] = np.nan
+
+    # Plot R(θ) curve
+    ax1.semilogy(th_deg, R_clipped, color=C_CURVE, linewidth=2, zorder=3,
+                 label=r'$R(\theta) = \Delta m^2_{31}/\Delta m^2_{21}$')
+
+    # Horizontal line at R_exp
+    ax1.axhline(R_exp, color=C_TARGET, linewidth=1.8, linestyle='--', alpha=0.8,
+                zorder=4, label=f'$R_{{\\mathrm{{exp}}}} = {R_exp:.1f}$')
+
+    # Vertical lines at θ_K and θ_ν
+    ax1.axvline(theta_K_deg, color=C_CHARGED, linewidth=2.5, linestyle='--',
+                alpha=0.9, zorder=4,
+                label=r'$\theta_K$ (charged leptons)')
+    ax1.axvline(theta_nu_deg, color=C_NEUTRINO, linewidth=2.5, linestyle='-.',
+                alpha=0.9, zorder=4,
+                label=r'$\theta_\nu$ (neutrinos)')
+
+    # Mark the crossing point
+    ax1.plot(theta_nu_deg, R_exp, 'o', color=C_NEUTRINO, markersize=12,
+             zorder=6, markeredgecolor='white', markeredgewidth=2)
+
+    # Annotate the two angles
+    ax1.annotate(
+        r'$\theta_K = \frac{6\pi+2}{9}$' + f'\n({theta_K_deg:.1f}\u00b0)',
+        xy=(theta_K_deg, 500), fontsize=10, color=C_CHARGED,
+        fontweight='bold', ha='right',
+        xytext=(theta_K_deg - 12, 700),
+        arrowprops=dict(arrowstyle='->', color=C_CHARGED, lw=1.5))
+
+    ax1.annotate(
+        r'$\theta_\nu$' + f' = {theta_nu_deg:.1f}\u00b0'
+        + f'\n$R = {R_exp:.1f}$',
+        xy=(theta_nu_deg, R_exp), fontsize=10, color=C_NEUTRINO,
+        fontweight='bold', ha='left',
+        xytext=(theta_nu_deg + 10, 8),
+        arrowprops=dict(arrowstyle='->', color=C_NEUTRINO, lw=1.5))
+
+    # Mark the shift Δθ
+    shift_deg = np.degrees(shift)
+    y_bracket = 150
+    ax1.annotate('', xy=(theta_nu_deg, y_bracket), xytext=(theta_K_deg, y_bracket),
+                 arrowprops=dict(arrowstyle='<->', color='#5E35B1', lw=2))
+    ax1.text((theta_K_deg + theta_nu_deg) / 2, y_bracket * 1.3,
+             f'$\\Delta\\theta = {shift_deg:.2f}$\u00b0',
+             ha='center', va='bottom', fontsize=10, color='#5E35B1',
+             fontweight='bold')
+
+    # Note about minimum R in all-positive regime
+    # Find minimum R in the all-positive zones
+    mask_pos = n_neg_plot == 0
+    R_pos = R_plot.copy()
+    R_pos[~mask_pos] = np.inf
+    R_pos[R_pos == np.inf] = np.nan
+    R_min_pos = np.nanmin(R_pos)
+    ax1.axhline(R_min_pos, color='#9E9E9E', linewidth=1, linestyle=':',
+                alpha=0.6, zorder=2)
+    ax1.text(5, R_min_pos * 1.15,
+             f'Min $R$ (all-positive) = {R_min_pos:.0f}',
+             fontsize=8, color='#757575', va='bottom')
+
+    ax1.set_xlim(0, 360)
+    ax1.set_ylim(1, 2000)
+    ax1.set_xlabel(r'Koide angle $\theta$ (degrees)', fontsize=12)
+    ax1.set_ylabel(r'$R = \Delta m^2_{31} / \Delta m^2_{21}$', fontsize=12)
+    ax1.set_title('Mass-squared ratio landscape', fontsize=14,
+                  fontweight='bold', pad=12)
+    ax1.legend(loc='upper left', fontsize=8.5, framealpha=0.95)
+    ax1.grid(True, alpha=0.15, which='both')
+
+    # ── Panel 2: Seesaw energy cascade ──────────────────────────
+    ax2.set_facecolor('#FAFAFA')
+
+    # Energy scales (all in eV)
+    Lambda_eV = Lambda_tube_GeV * 1e9        # ~256 GeV in eV
+    m_e_eV = m_e_MeV * 1e6                   # ~511 keV in eV
+    m_e2_over_Lambda = m_e_eV**2 / Lambda_eV  # geometric seesaw ratio
+    alpha_W_over_pi = alpha_W_pred / np.pi
+    A2_pred_val = A2_pred_eV                   # final prediction in eV
+    A2_exp_val = A2_from_exp                   # from experiment in eV
+
+    # Vertical log-scale energy axis (y = log10 eV)
+    # Show energy scales as horizontal markers with connecting arrows
+    log_Lambda = np.log10(Lambda_eV)   # ~11.4
+    log_me = np.log10(m_e_eV)          # ~5.7
+    log_seesaw = np.log10(m_e2_over_Lambda)  # ~0.0
+    log_pred = np.log10(A2_pred_val)   # ~-2.0
+    log_exp = np.log10(A2_exp_val)     # ~-2.0
+
+    # Y-axis is log10(energy/eV), x-axis is schematic position
+    x_bar = 0.5   # center position for bars
+    bw = 0.6      # bar half-width
+
+    # Draw scale bars as thick horizontal lines with labels
+    scales = [
+        (log_Lambda, r'$\Lambda_{\mathrm{tube}}$', f'{Lambda_tube_GeV:.0f} GeV',
+         '#7B1FA2', 'Tube scale\n$\\hbar c/(\\alpha R_p)$'),
+        (log_me, r'$m_e$', f'{m_e_MeV:.3f} MeV',
+         '#1565C0', 'Electron mass'),
+        (log_seesaw, r'$m_e^2/\Lambda$', f'{m_e2_over_Lambda*1e3:.1f} meV',
+         '#00838F', 'Seesaw ratio'),
+        (log_pred, r'$A_\nu^2$ (predicted)', f'{A2_pred_val*1e3:.2f} meV',
+         '#1565C0', None),
+        (log_exp, r'$A_\nu^2$ (from data)', f'{A2_exp_val*1e3:.2f} meV',
+         '#C62828', None),
+    ]
+
+    for i, (log_E, sym, val_str, color, desc) in enumerate(scales):
+        # For the last two (predicted & experimental), offset vertically
+        # so they don't overlap (they're only 0.02 apart on log scale)
+        disp_y = log_E
+        if i == 3:   # predicted — nudge up
+            disp_y = log_E + 0.25
+        elif i == 4:  # experimental — nudge down
+            disp_y = log_E - 0.25
+
+        # Thick horizontal bar
+        ax2.plot([x_bar - bw, x_bar + bw], [disp_y, disp_y],
+                 color=color, linewidth=4, solid_capstyle='round', zorder=3)
+        # Energy value on the right
+        ax2.text(x_bar + bw + 0.08, disp_y, val_str,
+                 fontsize=10, fontweight='bold', va='center', ha='left',
+                 color=color)
+        # Symbol on the left
+        ax2.text(x_bar - bw - 0.08, disp_y, sym,
+                 fontsize=11, va='center', ha='right', color=color)
+        # Description further left
+        if desc:
+            ax2.text(x_bar - bw - 0.08, disp_y - 0.45, desc,
+                     fontsize=8, va='top', ha='right', color='#757575',
+                     style='italic')
+
+    # Connecting arrows showing the seesaw mechanism
+    arrow_x = x_bar + bw + 0.05
+    # Arrow from Λ and m_e converging to seesaw ratio
+    # Use a "V" shape: two arrows meeting at the seesaw point
+    mid_x_L = x_bar - bw - 0.5
+    mid_x_R = x_bar + bw + 1.8
+
+    # Left-side bracket: Λ and m_e → m_e²/Λ
+    ax2.annotate('', xy=(mid_x_L, log_seesaw + 0.3),
+                 xytext=(mid_x_L, log_Lambda - 0.3),
+                 arrowprops=dict(arrowstyle='->', color='#546E7A',
+                                 lw=1.8, linestyle='--'))
+    ax2.annotate('', xy=(mid_x_L, log_seesaw + 0.3),
+                 xytext=(mid_x_L, log_me - 0.3),
+                 arrowprops=dict(arrowstyle='->', color='#546E7A',
+                                 lw=1.8, linestyle='--'))
+    ax2.text(mid_x_L - 0.05, (log_Lambda + log_seesaw) / 2 + 0.7,
+             r'$\div\,\Lambda$', fontsize=9, color='#546E7A',
+             ha='center', va='center', rotation=90)
+    ax2.text(mid_x_L - 0.05, (log_me + log_seesaw) / 2 - 0.3,
+             r'$m_e^2$', fontsize=9, color='#546E7A',
+             ha='center', va='center', rotation=90)
+
+    # Arrow from seesaw ratio down to A² prediction (use display position)
+    ax2.annotate('', xy=(x_bar, log_pred + 0.25 + 0.3),
+                 xytext=(x_bar, log_seesaw - 0.3),
+                 arrowprops=dict(arrowstyle='->', color='#546E7A',
+                                 lw=2, linestyle='-'))
+    ax2.text(x_bar + 0.15, (log_seesaw + log_pred) / 2,
+             r'$\times\;\alpha_W/\pi$' + f'\n= {alpha_W_over_pi:.4f}',
+             fontsize=9, color='#546E7A', ha='left', va='center')
+
+    # Agreement bracket between predicted and experimental (use display positions)
+    agreement_pct = abs(A2_pred_val - A2_exp_val) / A2_exp_val * 100
+    disp_pred = log_pred + 0.25
+    disp_exp = log_exp - 0.25
+    brace_x = mid_x_R
+    ax2.annotate('', xy=(brace_x, disp_exp),
+                 xytext=(brace_x, disp_pred),
+                 arrowprops=dict(arrowstyle='<->', color='#2E7D32', lw=2.5))
+    ax2.text(brace_x + 0.08, (disp_pred + disp_exp) / 2,
+             f'{agreement_pct:.1f}%',
+             fontsize=14, fontweight='bold', color='#2E7D32',
+             va='center', ha='left')
+    ax2.text(brace_x + 0.08, (disp_pred + disp_exp) / 2 - 0.55,
+             'zero free\nparameters',
+             fontsize=9, color='#2E7D32', va='top', ha='left')
+
+    # Formula box at top
+    formula_text = (r'$A_\nu^2 = \frac{\alpha_W}{\pi}'
+                    r'\,\frac{m_e^2}{\Lambda_{\mathrm{tube}}}$')
+    ax2.text(0.97, 0.97, formula_text,
+             transform=ax2.transAxes, fontsize=16,
+             ha='right', va='top',
+             bbox=dict(boxstyle='round,pad=0.5', facecolor='white',
+                       edgecolor='#1565C0', alpha=0.95, linewidth=2))
+
+    # Reference lines for energy decades
+    for decade in range(-3, 13):
+        ax2.axhline(decade, color='#E0E0E0', linewidth=0.5, zorder=0)
+
+    # Energy scale labels on right y-axis
+    decade_labels = {-3: '1 meV', -2: '10 meV', -1: '100 meV',
+                     0: '1 eV', 3: '1 keV', 6: '1 MeV',
+                     9: '1 GeV', 12: '1 TeV'}
+    for decade, label in decade_labels.items():
+        if -3.5 <= decade <= 12.5:
+            ax2.text(x_bar + bw + 1.55, decade, label,
+                     fontsize=7.5, color='#9E9E9E', va='center', ha='left')
+
+    ax2.set_xlim(-1.8, 2.5)
+    ax2.set_ylim(-3.5, 12.5)
+    ax2.set_ylabel('Energy (log$_{10}$ eV)', fontsize=12)
+    ax2.set_title('Seesaw mass scale', fontsize=14,
+                  fontweight='bold', pad=12)
+    ax2.set_xticks([])
+    ax2.yaxis.set_label_position('right')
+    ax2.yaxis.tick_right()
+
+    plt.tight_layout(w_pad=3)
+    save_path = output_dir / "neutrino_analysis.png"
+    plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='#FAFAFA')
+    plt.close(fig)
+    print(f"\n  Figure saved: {save_path}")
+
 
 def main():
     parser = argparse.ArgumentParser(description='Closed null worldtube analysis')
