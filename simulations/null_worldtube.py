@@ -1716,6 +1716,157 @@ def print_hydrogen_analysis():
     print(f"  Everything Bohr couldn't explain, the torus model derives")
     print(f"  from the geometry of a photon on a closed path.")
 
+    # ==========================================
+    # Section 10: Relativistic corrections
+    # ==========================================
+    print(f"\n{'='*60}")
+    print(f"  10. RELATIVISTIC CORRECTIONS: TWO VELOCITY SCALES")
+    print(f"{'='*60}")
+
+    print(f"""
+  The electron torus has TWO distinct velocity scales:
+
+    INTERNAL:  v_int = c  (always — it's a null worldtube)
+               The photon circulates at light speed on the torus.
+               This is what MAKES it a particle.
+
+    ORBITAL:   v_orb = αc/n  (the torus orbiting the nucleus)
+               Ground state: v₁ = αc = c/{1/alpha:.0f} ≈ {alpha * c:.0f} m/s
+
+  Ratio: v_orb / v_int = α/n ≈ 1/{1/alpha:.0f}
+
+  The orbit is {1/alpha:.0f}× slower than the internal dynamics.
+  The torus barely 'notices' it's orbiting — which is why the
+  non-relativistic Bohr model works so well as a first approximation.""")
+
+    # Orbital velocity table for hydrogen
+    print(f"\n  Orbital velocities for hydrogen (Z=1):")
+    print(f"  {'n':>3} {'v/c':>12} {'v (km/s)':>12} {'γ-1':>14} {'ΔE_rel/E_n':>14}")
+    print(f"  " + "─" * 58)
+    for n in range(1, 7):
+        v_over_c = alpha / n
+        v_kms = v_over_c * c / 1e3
+        gamma_minus_1 = 1.0 / np.sqrt(1 - v_over_c**2) - 1
+        dE_rel = alpha**2 / n**2  # relative correction ~ (v/c)²
+        print(f"  {n:3d} {v_over_c:12.6f} {v_kms:12.1f} {gamma_minus_1:14.2e} {dE_rel:14.2e}")
+
+    print(f"""
+  For hydrogen, γ - 1 ≈ {0.5 * alpha**2:.1e} — a tiny correction.
+  But this IS the fine structure. The α² corrections come in
+  three geometric flavors in the torus model:""")
+
+    print(f"\n  A. RELATIVISTIC MASS (Lorentz contraction of torus)")
+    print(f"  ───────────────────────────────────────────────────")
+    print(f"  The orbiting torus is Lorentz-contracted along its")
+    print(f"  direction of motion. For v = αc, the contraction is:")
+    gamma_1 = 1.0 / np.sqrt(1 - alpha**2)
+    print(f"    γ = {gamma_1:.10f}")
+    print(f"    Contraction: {(1 - 1/gamma_1)*100:.4f}% along orbital direction")
+    print(f"  The torus deforms from circular to slightly elliptical")
+    print(f"  cross-section. Its effective mass increases as γm_e,")
+    print(f"  shifting the energy levels by:")
+    print(f"    ΔE_rel = -E_n × (α/n)² × [n/(j+½) - ¾] / n")
+
+    print(f"\n  B. SPIN-ORBIT COUPLING (torus spin in orbital B field)")
+    print(f"  ─────────────────────────────────────────────────────")
+    print(f"  The electron torus has spin-½ from its (2,1) winding.")
+    print(f"  In its rest frame, the orbiting proton creates a")
+    print(f"  magnetic field:")
+    B_orbit = m_e * c * alpha**3 / (e_charge * a_0)  # approximate B at Bohr radius
+    print(f"    B_orbit ≈ {B_orbit:.1f} T  (at the Bohr orbit)")
+    print(f"  This field exerts a torque on the torus's magnetic")
+    print(f"  moment, coupling spin to orbital angular momentum.")
+    print(f"  The Thomas precession factor of ½ arises from the")
+    print(f"  non-inertial rest frame of the orbiting torus.")
+    dE_so_eV = 13.6 * alpha**2 / 4  # rough spin-orbit for n=2
+    print(f"    ΔE_SO ≈ {dE_so_eV*1e6:.1f} μeV  (n=2 splitting)")
+
+    print(f"\n  C. DARWIN TERM (finite torus extent)")
+    print(f"  ─────────────────────────────────────")
+    r_tube_e = alpha * R_torus
+    print(f"  The electron torus has tube radius r_tube = αR:")
+    print(f"    r_tube = {r_tube_e*1e15:.2f} fm = {r_tube_e:.3e} m")
+    print(f"  For s-states (l=0), the torus passes through the")
+    print(f"  nucleus — and its tube 'samples' the Coulomb field")
+    print(f"  over a volume of radius r_tube, not at a point.")
+    print(f"  Energy shift: ΔE_Darwin ~ |ψ(0)|² × r_tube²")
+    print(f"")
+    print(f"  In standard QED, this is attributed to 'zitterbewegung'")
+    print(f"  (mysterious trembling motion of the electron).")
+    print(f"  In the torus model: the electron literally has finite")
+    print(f"  size. There is no mystery — the Darwin term measures")
+    print(f"  how much of the nucleus fits inside the tube.")
+
+    # Heavy atoms
+    print(f"\n  HEAVY ATOMS: WHERE RELATIVITY DOMINATES")
+    print(f"  ─────────────────────────────────────────")
+    print(f"  For inner electrons of heavy atoms, v = Zαc/n:")
+    print(f"")
+    print(f"  {'Element':>10} {'Z':>4} {'v/c (1s)':>10} {'γ':>8} {'Contraction':>12}")
+    print(f"  " + "─" * 48)
+
+    heavy_atoms = [
+        ('Iron', 26), ('Silver', 47), ('Gold', 79),
+        ('Mercury', 80), ('Lead', 82), ('Uranium', 92),
+    ]
+    for name, Z in heavy_atoms:
+        v_oc = Z * alpha
+        if v_oc >= 1.0:
+            v_oc = 0.999  # cap for display
+        gam = 1.0 / np.sqrt(1 - v_oc**2)
+        contraction = (1 - 1/gam) * 100
+        print(f"  {name:>10} {Z:4d} {v_oc:10.4f} {gam:8.3f} {contraction:11.1f}%")
+
+    print(f"""
+  Gold (Z=79): inner electrons orbit at 0.58c with γ ≈ 1.23.
+  The 1s orbital contracts by ~19%, pulling all outer orbitals
+  inward. This shifts the 5d→6s transition energy into the
+  blue, making gold absorb blue light instead of reflecting it.
+  GOLD IS GOLD-COLORED BECAUSE OF RELATIVITY.
+
+  In the NWT model: the inner electron tori of gold are
+  severely Lorentz-contracted — their circular cross-sections
+  become ellipses with axis ratio 1:0.81. The self-consistent
+  torus geometry is fundamentally altered by the orbital speed.
+  Mercury's anomalously low melting point, lead's chemical
+  inertness, and gold's color all trace to the same effect:
+  inner tori orbiting at substantial fractions of c.
+
+  THE DEEP POINT: SELF-CONSISTENCY AT RELATIVISTIC SPEED
+  ──────────────────────────────────────────────────────
+
+  A torus derived at rest (the free electron solution) gets
+  placed in an orbit at v = Zαc. At low Z, the perturbation
+  is small (α² corrections). At high Z, the torus geometry
+  must be re-solved self-consistently at relativistic speed.
+
+  This is why heavy-element quantum chemistry is hard — and
+  why the Dirac equation (which handles this exactly for
+  point particles) was such a triumph. The NWT equivalent
+  would be solving for torus self-consistency on a Kerr-Newman
+  background that includes the orbital Lorentz boost.
+
+  For hydrogen, the orbital velocity is gentle enough that
+  perturbation theory works beautifully — the three fine
+  structure terms (relativistic mass, spin-orbit, Darwin)
+  capture the physics at order α². The torus model gives
+  each term a concrete geometric meaning:
+
+  ┌──────────────────────────────────────────────────────┐
+  │  FINE STRUCTURE = RELATIVISTIC TORUS MECHANICS       │
+  │                                                      │
+  │  • Relativistic mass: torus Lorentz-contracted       │
+  │  • Spin-orbit: torus spin in orbital B field         │
+  │  • Darwin term: tube has finite radius r = αR        │
+  │                                                      │
+  │  Internal velocity:  c     (always — null worldtube) │
+  │  Orbital velocity:   αc/n  (Bohr orbit)              │
+  │  Ratio:              α/n ≈ 1/{1/alpha:.0f} per shell          │
+  │                                                      │
+  │  The non-relativistic Bohr model works because the   │
+  │  orbit is {1/alpha:.0f}× slower than the internal dynamics. │
+  └──────────────────────────────────────────────────────┘""")
+
 
 # =========================================================================
 # PHOTON TRANSITIONS: Emission and absorption in the torus model
