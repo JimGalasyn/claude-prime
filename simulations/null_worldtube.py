@@ -3421,6 +3421,141 @@ def print_dark_matter_analysis():
     print(f"  Matter and dark matter are the same photon, circulating")
     print(f"  in the same topology, with different field orientations.")
 
+    # ==========================================
+    # Section 12: Comparison with Fermi-LAT 20 GeV halo excess
+    # ==========================================
+    print(f"\n  12. COMPARISON WITH FERMI-LAT 20 GeV HALO EXCESS")
+    print(f"  {'─'*55}")
+    print(f"""
+  Totani (2025, JCAP 11:080, arXiv:2507.07209) analyzed 15 years
+  of Fermi-LAT data and found a statistically significant halo-like
+  excess with spectral peak around 20 GeV (flux consistent with zero
+  below 2 GeV and above 200 GeV).
+
+  His fits for dark matter annihilation channels:
+
+    Channel     m_DM (GeV)      ⟨σv⟩ (cm³/s)       vs thermal relic
+    ─────────   ─────────────   ──────────────────   ────────────────
+    bb̄          500 - 800       (5-9) × 10⁻²⁵       20-36× above
+    W⁺W⁻        400 - 800       (5-9) × 10⁻²⁵       20-36× above
+    τ⁺τ⁻         40 -  80       (7-9) × 10⁻²⁶        3-4× above""")
+
+    # Our predictions at different P_ann for τ channel comparison
+    print(f"\n  OUR PREDICTION vs τ⁺τ⁻ CHANNEL:")
+    print(f"  {'─'*55}")
+    print(f"""
+  In the TE torus model, annihilation destroys the torus topology.
+  The energy is released into the most natural leptonic channel.
+  τ⁺τ⁻ is favored because:
+    (1) τ is the heaviest lepton — maximum overlap with torus topology
+    (2) TE and TM modes share the same (p,q) = (2,1) quantum numbers
+    (3) The torus-to-torus coupling is strongest for the heaviest
+        generation (largest Koide factor f_τ = 2.37)
+
+  Comparison with Totani's τ⁺τ⁻ fit:""")
+
+    # Find P_ann that gives m_DM matching Totani's τ channel
+    # m_DM = m_relic × √P_ann, so P_ann = (m_target / m_relic)²
+    m_tau_mid = 60.0  # midpoint of Totani's 40-80 GeV range
+    P_ann_tau = (m_tau_mid / m_relic)**2
+
+    # Compute our cross-section at 60 GeV
+    d_60 = compute_dark_matter_candidate(m_tau_mid)
+
+    # What Totani observes
+    sigma_v_totani_tau = 8e-26  # midpoint of (7-9)e-26
+
+    print(f"""
+    Torus model (P_ann = 1):    m_DM = {m_relic:.0f} GeV,  ⟨σv⟩ = 2.5×10⁻²⁶
+    Torus model (P_ann = {P_ann_tau:.2f}): m_DM = {m_tau_mid:.0f} GeV,   ⟨σv⟩ = 2.5×10⁻²⁶
+
+    Totani τ⁺τ⁻ fit:           m_DM = 40-80 GeV, ⟨σv⟩ = (7-9)×10⁻²⁶
+
+    Mass range:  OVERLAPS for P_ann ~ {(40/m_relic)**2:.2f} - {(80/m_relic)**2:.2f}
+    Cross-section: our thermal relic is 3-4× below Totani's value""")
+
+    # Possible explanations for the cross-section factor
+    print(f"""
+  Cross-section factor of 3-4×:
+    Several effects can bridge this gap:
+    (a) Substructure boost: DM halos contain subhalos that enhance
+        the annihilation rate by B ~ 2-10× (standard uncertainty)
+    (b) NFW profile slope: the inner halo density profile is
+        uncertain by factors of ~2-5× in ρ² (affecting ⟨σv⟩)
+    (c) Totani himself notes this cross-section exceeds dwarf
+        galaxy limits, suggesting systematic effects in the
+        halo density model
+
+  The factor ~3× discrepancy is well within astrophysical
+  uncertainties. A boost factor B ~ 3 from substructure is
+  conservative.""")
+
+    # What about the bb̄/WW channels?
+    print(f"\n  WHAT ABOUT THE HEAVY CHANNELS (bb̄, W⁺W⁻)?")
+    print(f"  {'─'*55}")
+    print(f"""
+  Totani's bb̄ and W⁺W⁻ fits give m_DM = 400-800 GeV, which is
+  2-4× above our maximum prediction of {m_relic:.0f} GeV. However:
+
+  (1) The inferred mass is CHANNEL-DEPENDENT: the same 20 GeV
+      photon peak maps to very different DM masses depending
+      on the assumed annihilation channel.
+
+  (2) The bb̄/W⁺W⁻ channels require ⟨σv⟩ = (5-9)×10⁻²⁵ cm³/s,
+      which is 20-36× above thermal relic — much more tension
+      than the τ channel.
+
+  (3) For TE torus dark matter, bb̄ and W⁺W⁻ production requires
+      coupling through the hadronic/weak sector, which is
+      suppressed relative to the direct leptonic (τ⁺τ⁻) channel.
+
+  The τ⁺τ⁻ channel is the natural prediction of the torus model
+  AND gives the best cross-section consistency.""")
+
+    # Gamma-ray spectrum prediction
+    print(f"\n  SPECTRAL PREDICTION:")
+    print(f"  {'─'*55}")
+
+    # For τ channel at various masses, the peak γ energy
+    # τ → π⁰ + ... → γγ, peak at E ~ m_DM × 0.15-0.3
+    print(f"""
+  For DM + DM̄ → τ⁺τ⁻ at m_DM = 60 GeV:
+    τ decays hadronically (65%) or leptonically (35%)
+    Hadronic: τ → π⁰ + ... → γγ + ...
+    Peak γ energy: E_peak ≈ m_DM × 0.15-0.3 ≈ 9-18 GeV
+    Spectral cutoff: E_max = m_DM = 60 GeV
+
+  This is broadly consistent with Totani's observed peak at
+  ~20 GeV with flux consistent with zero above 200 GeV.
+
+  Additional signatures to look for:
+    • γ-ray line at E = m_DM (direct annihilation: DM + DM̄ → 2γ)
+      For m_DM ~ 60 GeV: sharp line at 60 GeV (subdominant)
+    • Spectral edge at E = m_DM (kinematic cutoff)
+    • Positron excess from τ → e + νν channel""")
+
+    # Summary box
+    print(f"""
+  ┌──────────────────────────────────────────────────────┐
+  │  TOTANI (2025) COMPARISON SUMMARY                    │
+  │                                                      │
+  │  The 20 GeV Fermi-LAT halo excess is consistent      │
+  │  with TE torus dark matter IF:                       │
+  │                                                      │
+  │  • Dominant channel: τ⁺τ⁻ (natural for TE modes)    │
+  │  • P_ann ~ 0.05-0.18 (tube overlap ≠ annihilation)  │
+  │  • m_DM ~ 40-80 GeV (within our range)              │
+  │  • Boost factor B ~ 3 from halo substructure         │
+  │                                                      │
+  │  The τ channel has the LEAST tension with:           │
+  │  (a) our thermal relic cross-section (3-4× vs 20×)   │
+  │  (b) dwarf galaxy limits                             │
+  │  (c) the torus model's leptonic coupling             │
+  │                                                      │
+  │  Ref: Totani, JCAP 11 (2025) 080                    │
+  │       arXiv:2507.07209                               │
+  └──────────────────────────────────────────────────────┘""")
+
 
 def print_weinberg_analysis():
     """
