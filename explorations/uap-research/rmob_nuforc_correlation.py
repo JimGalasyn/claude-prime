@@ -457,38 +457,84 @@ shower_properties = {
     'Geminids':      {'v_entry': 35.0, 'parent': '3200 Phaethon',  'type': 'asteroid',      'zhr': 150, 'density': 'high'},
 }
 
-# Compute deseasonalized UAP enhancement for each shower
-# This controls for the outdoor activity confound
+# Use WITHIN-SEASON control: compare shower peak to adjacent ±30 days
+# in the same season. This controls for outdoor activity while preserving
+# the meteor-driven signal (unlike monthly deseasonalization which is
+# too aggressive and removes both confound and signal simultaneously).
+from datetime import timedelta
+
+# Define shower peak dates using approximate day-of-year
+shower_peaks = {
+    'Quadrantids':   {'peak_doy': 3,   'half_width': 3},
+    'Lyrids':        {'peak_doy': 112, 'half_width': 5},
+    'Eta Aquariids': {'peak_doy': 126, 'half_width': 10},
+    'Perseids':      {'peak_doy': 224, 'half_width': 10},
+    'Orionids':      {'peak_doy': 294, 'half_width': 7},
+    'Leonids':       {'peak_doy': 321, 'half_width': 5},
+    'Geminids':      {'peak_doy': 347, 'half_width': 7},
+}
+
 shower_analysis = []
+print(f"\n   Within-season control: shower peak vs ±30 day adjacent baseline")
+print(f"   (same season = same outdoor activity, different meteor flux)\n")
+
 for shower, (m1, d1, m2, d2) in showers.items():
     in_shower = df_good[
         ((df_good['month'] == m1) & (df_good.index.day >= d1)) |
         ((df_good['month'] == m2) & (df_good.index.day <= d2)) |
         ((df_good['month'] > m1) & (df_good['month'] < m2))
     ]
-    out_shower = df_good.drop(in_shower.index)
 
-    if len(in_shower) > 30 and len(out_shower) > 100:
-        # Raw UAP enhancement
-        uap_enh = in_shower['uap_count'].mean() / max(out_shower['uap_count'].mean(), 0.01)
+    # Within-season control: ±30 days around shower, excluding shower window
+    peak_info = shower_peaks.get(shower, {})
+    peak_doy = peak_info.get('peak_doy', 0)
+    hw = peak_info.get('half_width', 5)
 
-        # Deseasonalized UAP enhancement (controls for summer outdoor bias)
-        uap_deseason_in = in_shower['uap_count_deseason'].mean()
-        uap_deseason_out = out_shower['uap_count_deseason'].mean()
-        uap_enh_deseason = uap_deseason_in / max(uap_deseason_out, 0.01)
+    # Build control window: 30 days before and after shower, same season
+    control_mask = pd.Series(False, index=df_good.index)
+    shower_mask = pd.Series(False, index=df_good.index)
 
-        # Activity enhancement
-        act_enh = in_shower['activity_index'].mean() / max(out_shower['activity_index'].mean(), 0.01)
+    for yr in df_good['year'].unique():
+        try:
+            from datetime import date as dt_date
+            peak_date = dt_date(yr, 1, 1) + timedelta(days=peak_doy - 1)
+            shower_start = peak_date - timedelta(days=hw)
+            shower_end = peak_date + timedelta(days=hw)
+            control_start = shower_start - timedelta(days=30)
+            control_end = shower_end + timedelta(days=30)
 
-        # Excess UAP enhancement = UAP enhancement / activity enhancement
-        # (controls for "more meteors = more outdoor interest")
-        excess_enh = uap_enh / max(act_enh, 0.01)
+            yr_shower = (df_good.index.date >= shower_start) & (df_good.index.date <= shower_end)
+            yr_control_before = (df_good.index.date >= control_start) & (df_good.index.date < shower_start)
+            yr_control_after = (df_good.index.date > shower_end) & (df_good.index.date <= control_end)
 
-        # t-test on deseasonalized UAP counts
-        t_ds, p_ds_shower = stats.ttest_ind(
-            in_shower['uap_count_deseason'].dropna(),
-            out_shower['uap_count_deseason'].dropna()
+            shower_mask = shower_mask | yr_shower
+            control_mask = control_mask | yr_control_before | yr_control_after
+        except (ValueError, OverflowError):
+            pass
+
+    in_peak = df_good[shower_mask]
+    in_control = df_good[control_mask]
+
+    if len(in_peak) > 20 and len(in_control) > 40:
+        uap_peak = in_peak['uap_count'].mean()
+        uap_control = in_control['uap_count'].mean()
+        act_peak = in_peak['activity_index'].mean()
+        act_control = in_control['activity_index'].mean()
+
+        within_enh = uap_peak / max(uap_control, 0.01)
+        act_enh = act_peak / max(act_control, 0.01)
+        excess_within = within_enh / max(act_enh, 0.01)
+
+        # Mann-Whitney U test (non-parametric, handles skewed distributions)
+        u_stat, p_within = stats.mannwhitneyu(
+            in_peak['uap_count'], in_control['uap_count'],
+            alternative='two-sided'
         )
+
+        # Also raw global enhancement for comparison
+        out_shower = df_good.drop(in_shower.index)
+        uap_enh_global = in_shower['uap_count'].mean() / max(out_shower['uap_count'].mean(), 0.01)
+        act_enh_global = in_shower['activity_index'].mean() / max(out_shower['activity_index'].mean(), 0.01)
 
         props = shower_properties.get(shower, {})
         shower_analysis.append({
@@ -497,42 +543,45 @@ for shower, (m1, d1, m2, d2) in showers.items():
             'parent_type': props.get('type', 'unknown'),
             'parent': props.get('parent', ''),
             'zhr': props.get('zhr', 0),
-            'uap_enh_raw': uap_enh,
-            'uap_enh_deseason': uap_enh_deseason,
+            'uap_enh_raw': uap_enh_global,
+            'uap_enh_within': within_enh,
             'act_enh': act_enh,
-            'excess_enh': excess_enh,
-            'p_deseason': p_ds_shower,
-            'n_in': len(in_shower),
+            'act_enh_global': act_enh_global,
+            'excess_enh': excess_within,
+            'p_within': p_within,
+            'n_peak': len(in_peak),
+            'n_control': len(in_control),
         })
 
 shower_df = pd.DataFrame(shower_analysis)
 
-print(f"\n   {'Shower':15s} {'Parent':20s} {'Type':14s} v(km/s)  UAP_raw  UAP_dsn  Act    Excess  p_dsn")
-print(f"   {'-'*115}")
+print(f"\n   {'Shower':15s} {'Parent':20s} {'Type':14s} v(km/s)  UAP_raw  Within   Act_w   Excess  p_within  N_pk/ctrl")
+print(f"   {'-'*125}")
 for _, row in shower_df.sort_values('v_entry', ascending=False).iterrows():
-    sig = '*' if row['p_deseason'] < 0.05 else ' '
+    sig = '*' if row['p_within'] < 0.05 else ' '
     print(f"   {row['name']:15s} {row['parent']:20s} {row['parent_type']:14s} "
-          f"{row['v_entry']:5.1f}    {row['uap_enh_raw']:.3f}    {row['uap_enh_deseason']:.3f}    "
-          f"{row['act_enh']:.3f}   {row['excess_enh']:.3f}   {row['p_deseason']:.3f}{sig}")
+          f"{row['v_entry']:5.1f}    {row['uap_enh_raw']:.3f}    {row['uap_enh_within']:.3f}    "
+          f"{row['act_enh']:.3f}   {row['excess_enh']:.3f}   {row['p_within']:.4f}{sig}  "
+          f"{row['n_peak']}/{row['n_control']}")
 
 # Correlation: entry velocity vs UAP enhancement
 if len(shower_df) >= 4:
     r_vel, p_vel = stats.pearsonr(shower_df['v_entry'], shower_df['uap_enh_raw'])
-    r_vel_ds, p_vel_ds = stats.pearsonr(shower_df['v_entry'], shower_df['uap_enh_deseason'])
+    r_vel_within, p_vel_within = stats.pearsonr(shower_df['v_entry'], shower_df['uap_enh_within'])
     r_vel_excess, p_vel_excess = stats.pearsonr(shower_df['v_entry'], shower_df['excess_enh'])
     print(f"\n   Entry velocity vs UAP enhancement:")
-    print(f"     Raw:           r={r_vel:+.3f} (p={p_vel:.3f})")
-    print(f"     Deseasonalized: r={r_vel_ds:+.3f} (p={p_vel_ds:.3f})")
-    print(f"     Excess (UAP/activity): r={r_vel_excess:+.3f} (p={p_vel_excess:.3f})")
+    print(f"     Raw (global):     r={r_vel:+.3f} (p={p_vel:.3f})")
+    print(f"     Within-season:    r={r_vel_within:+.3f} (p={p_vel_within:.3f})")
+    print(f"     Excess (UAP/act): r={r_vel_excess:+.3f} (p={p_vel_excess:.3f})")
 
     # Cometary vs asteroidal/extinct
     cometary = shower_df[shower_df['parent_type'] == 'comet']
     non_cometary = shower_df[shower_df['parent_type'] != 'comet']
     if len(cometary) >= 2 and len(non_cometary) >= 1:
-        print(f"\n   Cometary showers (N={len(cometary)}):  mean UAP enh = {cometary['uap_enh_raw'].mean():.3f}, "
-              f"mean deseason = {cometary['uap_enh_deseason'].mean():.3f}")
-        print(f"   Non-cometary (N={len(non_cometary)}):    mean UAP enh = {non_cometary['uap_enh_raw'].mean():.3f}, "
-              f"mean deseason = {non_cometary['uap_enh_deseason'].mean():.3f}")
+        print(f"\n   Cometary showers (N={len(cometary)}):  mean within-season enh = {cometary['uap_enh_within'].mean():.3f}, "
+              f"mean excess = {cometary['excess_enh'].mean():.3f}")
+        print(f"   Non-cometary (N={len(non_cometary)}):    mean within-season enh = {non_cometary['uap_enh_within'].mean():.3f}, "
+              f"mean excess = {non_cometary['excess_enh'].mean():.3f}")
 
 # ============================================================
 # Figures
@@ -710,25 +759,27 @@ if len(shower_df) >= 4:
     ax.text(34, ax.get_ylim()[0] + 0.02, 'Melt\nspraying', fontsize=7, color='red', ha='center', style='italic')
     ax.text(63, ax.get_ylim()[0] + 0.02, 'Complete\nvaporization', fontsize=7, color='blue', ha='center', style='italic')
 
-    # (b) Deseasonalized UAP enhancement vs entry velocity
+    # (b) Within-season UAP enhancement vs entry velocity
     ax = axes[0, 1]
     for _, row in shower_df.iterrows():
         color = 'C0' if row['parent_type'] == 'comet' else ('C2' if row['parent_type'] == 'extinct_comet' else 'C3')
         marker = 'o' if row['parent_type'] == 'comet' else ('s' if row['parent_type'] == 'extinct_comet' else 'D')
-        ax.scatter(row['v_entry'], row['uap_enh_deseason'], c=color, marker=marker,
-                  s=max(40, row['zhr']), edgecolors='k', linewidth=0.5, zorder=5)
-        ax.annotate(row['name'], (row['v_entry'], row['uap_enh_deseason']),
+        edge = 'red' if row['p_within'] < 0.05 else 'k'
+        lw = 1.5 if row['p_within'] < 0.05 else 0.5
+        ax.scatter(row['v_entry'], row['uap_enh_within'], c=color, marker=marker,
+                  s=max(40, row['zhr']), edgecolors=edge, linewidth=lw, zorder=5)
+        ax.annotate(row['name'], (row['v_entry'], row['uap_enh_within']),
                    textcoords="offset points", xytext=(5, 5), fontsize=7)
 
     ax.axhline(1.0, color='gray', linestyle='--', linewidth=0.5)
-    z_ds = np.polyfit(shower_df['v_entry'], shower_df['uap_enh_deseason'], 1)
-    ax.plot(x_fit, np.polyval(z_ds, x_fit), 'r-', linewidth=1.5, alpha=0.5)
-    r_v_ds = stats.pearsonr(shower_df['v_entry'], shower_df['uap_enh_deseason'])
+    z_ws = np.polyfit(shower_df['v_entry'], shower_df['uap_enh_within'], 1)
+    ax.plot(x_fit, np.polyval(z_ws, x_fit), 'r-', linewidth=1.5, alpha=0.5)
+    r_v_ws = stats.pearsonr(shower_df['v_entry'], shower_df['uap_enh_within'])
     ax.set_xlabel('Entry Velocity (km/s)')
-    ax.set_ylabel('Deseasonalized UAP Enhancement')
-    ax.set_title(f'(b) Deseasonalized (controls seasonal bias)\n(r={r_v_ds[0]:+.3f}, p={r_v_ds[1]:.3f})')
+    ax.set_ylabel('Within-Season UAP Enhancement')
+    ax.set_title(f'(b) Within-season control (±30d baseline)\n(r={r_v_ws[0]:+.3f}, p={r_v_ws[1]:.3f})')
 
-    # (c) Bar chart: raw vs deseasonalized enhancement, sorted by velocity
+    # (c) Bar chart: raw vs within-season enhancement, sorted by velocity
     ax = axes[1, 0]
     sorted_df = shower_df.sort_values('v_entry', ascending=False)
     x_pos = np.arange(len(sorted_df))
@@ -736,15 +787,19 @@ if len(shower_df) >= 4:
                   for t in sorted_df['parent_type']]
 
     bars1 = ax.bar(x_pos - 0.2, sorted_df['uap_enh_raw'], 0.35,
-                   color=bar_colors, alpha=0.6, edgecolor='k', linewidth=0.3, label='Raw')
-    bars2 = ax.bar(x_pos + 0.2, sorted_df['uap_enh_deseason'], 0.35,
-                   color=bar_colors, alpha=1.0, edgecolor='k', linewidth=0.3, label='Deseasonalized')
+                   color=bar_colors, alpha=0.6, edgecolor='k', linewidth=0.3, label='Raw (global)')
+    bars2 = ax.bar(x_pos + 0.2, sorted_df['uap_enh_within'], 0.35,
+                   color=bar_colors, alpha=1.0, edgecolor='k', linewidth=0.3, label='Within-season (±30d)')
+    # Mark significant within-season results
+    for i, (_, row) in enumerate(sorted_df.iterrows()):
+        if row['p_within'] < 0.05:
+            ax.text(i + 0.2, row['uap_enh_within'] + 0.01, '*', fontsize=14, ha='center', fontweight='bold', color='red')
     ax.axhline(1.0, color='gray', linestyle='--', linewidth=0.5)
     labels = [f"{row['name']}\n({row['v_entry']:.0f} km/s)" for _, row in sorted_df.iterrows()]
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels, fontsize=6.5)
     ax.set_ylabel('UAP Enhancement Factor')
-    ax.set_title('(c) Showers Sorted by Entry Velocity\n(fastest → slowest)')
+    ax.set_title('(c) Showers Sorted by Entry Velocity\n(fastest → slowest, * = p<0.05 within-season)')
     ax.legend(fontsize=8)
 
     # (d) Ablation physics schematic: velocity → particle size → plasma formation
