@@ -12,14 +12,20 @@ At G_N the metric correction is ~10^-44 (flat to 44 decimal places).
 The key scientific output is a G_eff scan: at what effective gravitational
 coupling does confinement appear?
 
-Architecture: subclasses AxiSymMaxwellFDTD from Phase 0.  Overrides only
-the E-field updates (Ampere's law gets lapse modification).  Everything
-else -- grid, B-field updates, Mur ABCs, diagnostics -- is inherited.
+Architecture: subclasses AxiSymMaxwellFDTD from Phase 0.  Overrides
+E-field updates (Ampere: alpha^2 * c^2) and B-field updates (Faraday:
+alpha * E in curl).  With --frame-dragging, shift vector beta^phi
+couples TE and TM modes via Lie derivative terms.
+
+Phase 2a: lapse-only (alpha in both Ampere and Faraday)
+Phase 2b: lapse + frame-dragging (beta^phi shift coupling)
 
 Usage:
     python nwt_fdtd_kn.py --test                          # validation
     python nwt_fdtd_kn.py --single --g-ratio 1e44         # single run
+    python nwt_fdtd_kn.py --single --g-ratio 1.5e43 --frame-dragging
     python nwt_fdtd_kn.py --scan                          # G_eff sweep
+    python nwt_fdtd_kn.py --scan --frame-dragging         # Phase 2b scan
     python nwt_fdtd_kn.py --dynamic                       # dynamic G_eff
     python nwt_fdtd_kn.py --metric-viz --g-ratio 3e44     # lapse plot
 
@@ -186,18 +192,20 @@ class KerrNewmanFDTD(AxiSymMaxwellFDTD):
     """FDTD solver on Kerr-Newman background.
 
     The lapse alpha modifies the local wave speed: c_eff(x) = alpha(x) * c.
-    In the FDTD, Ampere's law gets c^2 -> alpha^2(x) * c^2.
+    In the FDTD, both Ampere's and Faraday's laws get lapse corrections.
 
-    B-field updates (Faraday) are inherited unchanged -- Faraday is the
-    geometric identity dF = 0.
+    When frame_dragging=True, the shift vector beta^phi couples TE and TM
+    modes via Lie derivative terms, creating an angular momentum barrier.
     """
 
     def __init__(self, gp: GridParams, G_eff: float = G_N,
-                 sigma_floor_frac: float = 0.01):
+                 sigma_floor_frac: float = 0.01,
+                 frame_dragging: bool = False):
         super().__init__(gp)
 
         self.G_eff = G_eff
         self.sigma_floor_frac = sigma_floor_frac
+        self.frame_dragging = frame_dragging
 
         # Compute KN parameters
         M_geom, a, Q_geom, a_over_M = electron_kn_params(G_eff)
@@ -209,14 +217,14 @@ class KerrNewmanFDTD(AxiSymMaxwellFDTD):
 
         sigma_floor = sigma_floor_frac * a
 
-        # --- Precompute lapse at cell centers ---
+        # --- Precompute lapse and shift at cell centers ---
         r_ax = gp.r_axis   # (Nr,)
         z_ax = gp.z_axis   # (Nz,)
         RHO, ZZ = np.meshgrid(r_ax, z_ax, indexing='ij')  # (Nr, Nz)
 
         r_bl, cos_th = cyl_to_bl(RHO, ZZ, a)
-        alpha_center, _ = compute_kn_metric(r_bl, cos_th, M_geom, a,
-                                            Q_geom, sigma_floor)
+        alpha_center, beta_phi_center = compute_kn_metric(
+            r_bl, cos_th, M_geom, a, Q_geom, sigma_floor)
         self.alpha_center = alpha_center  # shape (Nr, Nz)
 
         # --- alpha^2 interpolated to staggered E-field positions ---
@@ -239,6 +247,20 @@ class KerrNewmanFDTD(AxiSymMaxwellFDTD):
         self.alpha_sq_Ez[:, :-1] = 0.5 * (alpha_sq[:, :-1] + alpha_sq[:, 1:])
         self.alpha_sq_Ez[:, -1] = alpha_sq[:, -1]  # boundary: copy last
 
+        # --- Alpha at staggered positions (unclipped, for Faraday) ---
+        # alpha at E_r position (i+1/2, j)
+        self.alpha_at_Er = np.zeros_like(alpha_center)
+        self.alpha_at_Er[:-1, :] = 0.5 * (alpha_center[:-1, :] + alpha_center[1:, :])
+        self.alpha_at_Er[-1, :] = alpha_center[-1, :]
+
+        # alpha at E_z position (i, j+1/2)
+        self.alpha_at_Ez = np.zeros_like(alpha_center)
+        self.alpha_at_Ez[:, :-1] = 0.5 * (alpha_center[:, :-1] + alpha_center[:, 1:])
+        self.alpha_at_Ez[:, -1] = alpha_center[:, -1]
+
+        # --- Frame-dragging arrays ---
+        self._precompute_frame_dragging(beta_phi_center)
+
         # Track max deviation from flat
         self.max_alpha_deviation = float(np.max(np.abs(alpha_center - 1.0)))
 
@@ -250,6 +272,83 @@ class KerrNewmanFDTD(AxiSymMaxwellFDTD):
                 print(f"WARNING: max(alpha)={max_alpha:.4f} > 1, "
                       f"CFL may be violated. Consider reducing courant to "
                       f"<= {needed_courant:.4f}")
+
+    def _precompute_frame_dragging(self, beta_phi_center):
+        """Precompute beta^phi gradients for frame-dragging terms.
+
+        When max|beta^phi| is below a threshold (1e-20), all shift arrays
+        are zeroed.  At G_N, beta_phi ~ 10^-31 is physically zero but
+        numerically nonzero; the c^2 amplification in Ampere's law would
+        convert these rounding-level gradients into exponentially growing
+        TM fields.  The threshold eliminates this artifact.
+        """
+        Nr, Nz = self.gp.Nr, self.gp.Nz
+        dr = self.gp.dr
+        dz = self.gp.dz
+
+        # Threshold: if beta_phi is negligibly small, zero everything
+        beta_phi_max = float(np.max(np.abs(beta_phi_center)))
+        if beta_phi_max < 1e-20:
+            self.beta_phi_center = np.zeros((Nr, Nz))
+            self.dbeta_dr = np.zeros((Nr - 1, Nz))
+            self.dbeta_dz = np.zeros((Nr, Nz - 1))
+            self.dbeta_dz_at_Bphi = np.zeros((Nr - 1, Nz))
+            return
+
+        self.beta_phi_center = beta_phi_center  # (Nr, Nz)
+
+        # d_r(beta^phi) at (i+1/2, j) -- natural for E_r and B_phi positions
+        self.dbeta_dr = np.zeros((Nr - 1, Nz))
+        self.dbeta_dr[:, :] = (beta_phi_center[1:, :] - beta_phi_center[:-1, :]) / dr
+
+        # d_z(beta^phi) at (i, j+1/2) -- natural for E_z position
+        self.dbeta_dz = np.zeros((Nr, Nz - 1))
+        self.dbeta_dz[:, :] = (beta_phi_center[:, 1:] - beta_phi_center[:, :-1]) / dz
+
+        # d_z(beta^phi) at B_phi position (i+1/2, j):
+        # centered diff at cell centers: (beta[i,j+1]-beta[i,j-1])/(2*dz)
+        # then average in r to (i+1/2, j)
+        dbdz_center = np.zeros((Nr, Nz))
+        dbdz_center[:, 1:-1] = (beta_phi_center[:, 2:] - beta_phi_center[:, :-2]) / (2.0 * dz)
+        # Boundary: one-sided at j=0 and j=Nz-1
+        dbdz_center[:, 0] = (beta_phi_center[:, 1] - beta_phi_center[:, 0]) / dz
+        dbdz_center[:, -1] = (beta_phi_center[:, -1] - beta_phi_center[:, -2]) / dz
+        # Average to (i+1/2, j)
+        self.dbeta_dz_at_Bphi = 0.5 * (dbdz_center[:-1, :] + dbdz_center[1:, :])
+
+        # Stability clipping: the explicit shift coupling dB_phi/dt ~ B * dbeta/dx
+        # requires |dt * dbeta/dx| << 1 to prevent exponential blowup.
+        # The TE→TM coupling feeds through the Ampere c^2 amplification,
+        # so the effective stability limit is more restrictive than CFL alone.
+        # Analogous to the alpha CFL clipping for wave speed.
+        dt = self.gp.dt
+        max_safe_grad = 0.05 / dt
+        self.dbeta_dr = np.clip(self.dbeta_dr, -max_safe_grad, max_safe_grad)
+        self.dbeta_dz = np.clip(self.dbeta_dz, -max_safe_grad, max_safe_grad)
+        self.dbeta_dz_at_Bphi = np.clip(self.dbeta_dz_at_Bphi,
+                                         -max_safe_grad, max_safe_grad)
+
+    def _update_B_te(self):
+        """Override: B_r, B_z update with Faraday lapse correction.
+
+        dB_r/dt = d_z(alpha * E_phi)
+        dB_z/dt = -(1/r) d_r(r * alpha * E_phi)
+        """
+        dt = self.gp.dt
+        dr = self.gp.dr
+        dz = self.gp.dz
+
+        # alpha * E_phi at cell centers
+        aE = self.alpha_center * self.E_phi
+
+        # B_r at (i, j+1/2): dB_r/dt = d_z(alpha * E_phi)
+        self.B_r[:, :-1] += dt / dz * (aE[:, 1:] - aE[:, :-1])
+
+        # B_z at (i+1/2, j+1/2): dB_z/dt = -(1/r) d_r(r * alpha * E_phi)
+        raE = self.r_c_2d * aE
+        r_half = self.r_e_2d[1:-1]  # (Nr-1, 1)
+        inv_r_half = np.where(r_half > 0, 1.0 / r_half, 2.0 / dr)
+        self.B_z[:-1, :-1] -= dt * inv_r_half * (raE[1:, :-1] - raE[:-1, :-1]) / dr
 
     def _update_E_te(self):
         """Override: E_phi update with lapse modification.
@@ -271,11 +370,56 @@ class KerrNewmanFDTD(AxiSymMaxwellFDTD):
         self.E_phi[1:, :-1] -= ac2[1:, :-1] * dt / dr * (
             self.B_z[1:, :-1] - self.B_z[:-1, :-1])
 
-    def _update_E_tm(self):
-        """Override: E_r, E_z update with lapse modification.
+    def _update_B_tm(self):
+        """Override: B_phi update with Faraday lapse + shift coupling.
 
-        dE_r/dt = -alpha^2 * c^2 * dB_phi/dz
-        dE_z/dt =  alpha^2 * c^2 * (1/r) d(r B_phi)/dr
+        B_phi lives at (i+½, j+½) — the Yee-correct stagger that ensures
+        centered differences for both dE_r/dz and dE_z/dr, preserving the
+        discrete energy conservation property.
+
+        Lapse: dB_phi/dt = -alpha * [d_z(E_r) - d_r(E_z)]
+        Shift: dB_phi/dt += -(B_r * d_r(beta^phi) + B_z * d_z(beta^phi))
+        """
+        dt = self.gp.dt
+        dr = self.gp.dr
+        dz = self.gp.dz
+
+        # Lapse-corrected curl: use alpha at E_r and E_z positions
+        aEr = self.alpha_at_Er * self.E_r
+        aEz = self.alpha_at_Ez * self.E_z
+
+        # B_phi at (i+½, j+½):
+        # d(alpha*E_r)/dz centered at j+½: (aEr[j+1] - aEr[j]) / dz
+        self.B_phi[:-1, :-1] -= dt / dz * (aEr[:-1, 1:] - aEr[:-1, :-1])
+
+        # d(alpha*E_z)/dr centered at i+½: (aEz[i+1] - aEz[i]) / dr
+        self.B_phi[:-1, :-1] += dt / dr * (aEz[1:, :-1] - aEz[:-1, :-1])
+
+        # Shift coupling: dB_phi/dt += -(B_r * d_r(beta^phi) + B_z * d_z(beta^phi))
+        if self.frame_dragging:
+            # B_r at (i, j+½) → average in r to (i+½, j+½)
+            # B_r valid at j=0..Nz-2, so use :-1 in z
+            B_r_interp = 0.5 * (self.B_r[:-1, :-1] + self.B_r[1:, :-1])  # (Nr-1, Nz-1)
+
+            # B_z already at (i+½, j+½) — no interpolation needed
+            # B_z valid range: [:-1, :-1] = (Nr-1, Nz-1)
+
+            # Interpolate gradients to (i+½, j+½)
+            # dbeta_dr at (i+½, j) → average in z to (i+½, j+½)
+            dbdr = 0.5 * (self.dbeta_dr[:, :-1] + self.dbeta_dr[:, 1:])  # (Nr-1, Nz-1)
+            # dbeta_dz at (i, j+½) → average in r to (i+½, j+½)
+            dbdz = 0.5 * (self.dbeta_dz[:-1, :] + self.dbeta_dz[1:, :])  # (Nr-1, Nz-1)
+
+            self.B_phi[:-1, :-1] -= dt * (
+                B_r_interp * dbdr + self.B_z[:-1, :-1] * dbdz)
+
+    def _update_E_tm(self):
+        """Override: E_r, E_z update with lapse + shift.
+
+        Ampere: dE_r/dt = -alpha^2 * c^2 * dB_phi/dz
+                dE_z/dt =  alpha^2 * c^2 * (1/r) d(r B_phi)/dr
+        Shift:  dE_r/dt += r * E_phi * d_r(beta^phi)
+                dE_z/dt += r * E_phi * d_z(beta^phi)
         """
         dt = self.gp.dt
         dr = self.gp.dr
@@ -294,6 +438,20 @@ class KerrNewmanFDTD(AxiSymMaxwellFDTD):
 
         self.E_z[:, :-1] += ac2_z[:, :-1] * dt / dr * self.inv_r_c_2d * (
             rB[:, :-1] - rB_shifted[:, :-1])
+
+        # Shift coupling terms
+        if self.frame_dragging:
+            # E_r += dt * r * E_phi_interp * d_r(beta^phi)
+            # E_phi at (i,j) -> interpolate to E_r at (i+1/2, j)
+            E_phi_at_Er = 0.5 * (self.E_phi[:-1, :] + self.E_phi[1:, :])
+            r_Er = self.r_e_2d[1:-1]  # r at (i+1/2), shape (Nr-1, 1)
+            self.E_r[:-1, :] += dt * r_Er * E_phi_at_Er * self.dbeta_dr
+
+            # E_z += dt * r * E_phi_interp * d_z(beta^phi)
+            # E_phi at (i,j) -> interpolate to E_z at (i, j+1/2)
+            E_phi_at_Ez = 0.5 * (self.E_phi[:, :-1] + self.E_phi[:, 1:])
+            r_Ez = self.r_c_2d  # r at (i), shape (Nr, 1)
+            self.E_z[:, :-1] += dt * r_Ez * E_phi_at_Ez * self.dbeta_dz
 
 
 # ---------------------------------------------------------------------------
@@ -338,8 +496,8 @@ class DynamicGeffFDTD(KerrNewmanFDTD):
         z_ax = self.gp.z_axis
         RHO, ZZ = np.meshgrid(r_ax, z_ax, indexing='ij')
         r_bl, cos_th = cyl_to_bl(RHO, ZZ, a)
-        alpha_center, _ = compute_kn_metric(r_bl, cos_th, M_geom, a,
-                                            Q_geom, sigma_floor)
+        alpha_center, beta_phi_center = compute_kn_metric(
+            r_bl, cos_th, M_geom, a, Q_geom, sigma_floor)
         self.alpha_center = alpha_center
         max_safe_alpha = 0.95 / self.gp.courant
         alpha_cfl = np.clip(alpha_center, 0.0, max_safe_alpha)
@@ -349,6 +507,16 @@ class DynamicGeffFDTD(KerrNewmanFDTD):
         self.alpha_sq_Er[-1, :] = alpha_sq[-1, :]
         self.alpha_sq_Ez[:, :-1] = 0.5 * (alpha_sq[:, :-1] + alpha_sq[:, 1:])
         self.alpha_sq_Ez[:, -1] = alpha_sq[:, -1]
+
+        # Recompute alpha at staggered positions (for Faraday)
+        self.alpha_at_Er[:-1, :] = 0.5 * (alpha_center[:-1, :] + alpha_center[1:, :])
+        self.alpha_at_Er[-1, :] = alpha_center[-1, :]
+        self.alpha_at_Ez[:, :-1] = 0.5 * (alpha_center[:, :-1] + alpha_center[:, 1:])
+        self.alpha_at_Ez[:, -1] = alpha_center[:, -1]
+
+        # Recompute frame-dragging gradients
+        self._precompute_frame_dragging(beta_phi_center)
+
         self.max_alpha_deviation = float(np.max(np.abs(alpha_center - 1.0)))
 
         self.geff_history.append((self.time, G_eff_local))
@@ -377,7 +545,8 @@ class ScanResult:
 
 
 def run_single(G_ratio: float = 1.0, resolution: float = 0.5,
-               n_circulations: int = 5, verbose: bool = True):
+               n_circulations: int = 5, verbose: bool = True,
+               frame_dragging: bool = False):
     """Run a single KN simulation at specified G_eff/G_N ratio.
 
     Returns (fdtd, diagnostics).
@@ -394,8 +563,9 @@ def run_single(G_ratio: float = 1.0, resolution: float = 0.5,
         print(f"  a/M     = {aM:.4e}")
         print(f"  Horizon = {has_horizon(M, a, Q)}")
         print(f"  Grid    = {gp.Nr} x {gp.Nz}")
+        print(f"  Frame-dragging = {frame_dragging}")
 
-    fdtd = KerrNewmanFDTD(gp, G_eff=G_eff)
+    fdtd = KerrNewmanFDTD(gp, G_eff=G_eff, frame_dragging=frame_dragging)
 
     if verbose:
         print(f"  max|alpha-1| = {fdtd.max_alpha_deviation:.6e}")
@@ -447,7 +617,7 @@ def run_single(G_ratio: float = 1.0, resolution: float = 0.5,
 def run_geff_scan(n_points: int = 50, resolution: float = 0.5,
                   n_circulations: int = 5,
                   G_min_ratio: float = 1.0, G_max_ratio: float = 1e46,
-                  verbose: bool = True):
+                  verbose: bool = True, frame_dragging: bool = False):
     """Scan G_eff from G_N to 10^46 G_N.
 
     Returns list of ScanResult.
@@ -459,8 +629,9 @@ def run_geff_scan(n_points: int = 50, resolution: float = 0.5,
     confinement_radius = 3 * gp.r_minor
     T_circ = gp.T_circ
 
+    phase_label = "Phase 2b (lapse+shift)" if frame_dragging else "Phase 2a (lapse-only)"
     print("=" * 70)
-    print("G_eff Scan: Maxwell FDTD on Kerr-Newman Background")
+    print(f"G_eff Scan: {phase_label}")
     print("=" * 70)
     print(f"  Points:        {n_points}")
     print(f"  G range:       {G_min_ratio:.0e} - {G_max_ratio:.0e} G_N")
@@ -468,6 +639,7 @@ def run_geff_scan(n_points: int = 50, resolution: float = 0.5,
     print(f"  Circulations:  {n_circulations}")
     print(f"  Grid:          {gp.Nr} x {gp.Nz}")
     print(f"  Steps/point:   ~{n_circulations * gp.steps_per_circ}")
+    print(f"  Frame-dragging: {frame_dragging}")
 
     # Extremal transition
     # a/M = 1 when G_eff = a * c^2 / m_e = hbar c / (2 m_e^2)
@@ -492,7 +664,8 @@ def run_geff_scan(n_points: int = 50, resolution: float = 0.5,
         t0 = time.time()
 
         try:
-            fdtd = KerrNewmanFDTD(gp, G_eff=G_eff)
+            fdtd = KerrNewmanFDTD(gp, G_eff=G_eff,
+                                    frame_dragging=frame_dragging)
             init_em_wave_torus(fdtd, amplitude=1.0)
 
             diag = Diagnostics()
@@ -639,8 +812,10 @@ def plot_metric(G_ratio: float, resolution: float = 0.5,
 
 
 def plot_scan_results(results: List[ScanResult],
-                      save_path: Optional[str] = None):
-    """4-panel scan summary plot."""
+                      save_path: Optional[str] = None,
+                      comparison_results: Optional[List[ScanResult]] = None,
+                      comparison_label: str = "Phase 2a (lapse-only)"):
+    """4-panel scan summary plot with optional comparison overlay."""
     import matplotlib.pyplot as plt
 
     G_ratios = np.array([r.G_ratio for r in results])
@@ -649,6 +824,13 @@ def plot_scan_results(results: List[ScanResult],
                            else np.nan for r in results])
     alpha_devs = np.array([r.max_alpha_deviation for r in results])
     a_over_Ms = np.array([r.a_over_M for r in results])
+
+    # Comparison data (Phase 2a overlay)
+    if comparison_results is not None:
+        comp_G = np.array([r.G_ratio for r in comparison_results])
+        comp_conf = np.array([r.final_confinement for r in comparison_results])
+        comp_disp = np.array([r.dispersion_time if r.dispersion_time is not None
+                              else np.nan for r in comparison_results])
 
     # Extremal transition line
     a = hbar / (2.0 * m_e * c)
@@ -663,7 +845,11 @@ def plot_scan_results(results: List[ScanResult],
 
     # Panel 1: Confinement vs G_eff/G_N
     ax = axes[0, 0]
-    ax.semilogx(G_ratios, confinements, 'b.-', linewidth=1.5, markersize=4)
+    ax.semilogx(G_ratios, confinements, 'b.-', linewidth=1.5, markersize=4,
+                label='Current')
+    if comparison_results is not None:
+        ax.semilogx(comp_G, comp_conf, 'c--', linewidth=1, markersize=3,
+                    alpha=0.7, label=comparison_label)
     ax.axhline(y=baseline_conf, color='gray', linestyle='--', alpha=0.5,
                label=f'Phase 0 baseline ({baseline_conf:.3f})')
     ax.axvline(x=G_extremal_ratio, color='red', linestyle=':', alpha=0.7,
@@ -679,7 +865,13 @@ def plot_scan_results(results: List[ScanResult],
     valid = ~np.isnan(disp_times)
     if np.any(valid):
         ax.semilogx(G_ratios[valid], disp_times[valid], 'g.-',
-                     linewidth=1.5, markersize=4)
+                     linewidth=1.5, markersize=4, label='Current')
+    if comparison_results is not None:
+        valid_comp = ~np.isnan(comp_disp)
+        if np.any(valid_comp):
+            ax.semilogx(comp_G[valid_comp], comp_disp[valid_comp], 'c--',
+                        linewidth=1, markersize=3, alpha=0.7,
+                        label=comparison_label)
     ax.axvline(x=G_extremal_ratio, color='red', linestyle=':', alpha=0.7,
                label='Extremal')
     ax.set_xlabel(r'$G_{\rm eff} / G_N$')
@@ -892,6 +1084,191 @@ def test_energy_not_degraded(verbose: bool = True) -> bool:
     return passed
 
 
+def test_flat_recovery_frame_dragging(verbose: bool = True) -> bool:
+    """Test: G_eff=G_N with frame_dragging=True matches Phase 0.
+
+    At G_N, beta^phi ~ 0 and alpha ~ 1, so frame-dragging terms vanish.
+    """
+    if verbose:
+        print("  [test_flat_recovery_frame_dragging] ", end="", flush=True)
+
+    gp = GridParams.for_electron(resolution=0.5)
+
+    # Phase 0 reference
+    from nwt_fdtd import AxiSymMaxwellFDTD as FlatFDTD
+    flat = FlatFDTD(gp)
+    init_em_wave_torus(flat, amplitude=1.0)
+
+    # Phase 2b at G_N with frame-dragging enabled
+    kn_fd = KerrNewmanFDTD(gp, G_eff=G_N, frame_dragging=True)
+    init_em_wave_torus(kn_fd, amplitude=1.0)
+
+    n_steps = 100
+    for _ in range(n_steps):
+        flat.step_forward()
+        kn_fd.step_forward()
+
+    # Compare E_phi fields
+    diff = np.max(np.abs(kn_fd.E_phi - flat.E_phi))
+    max_field = max(np.max(np.abs(flat.E_phi)), 1e-30)
+    rel_diff = diff / max_field
+
+    # Also check that TM fields didn't appear (beta^phi ~ 0 at G_N)
+    tm_amplitude = max(np.max(np.abs(kn_fd.B_phi)),
+                       np.max(np.abs(kn_fd.E_r)),
+                       np.max(np.abs(kn_fd.E_z)))
+
+    passed = rel_diff < 1e-10 and tm_amplitude < 1e-30
+
+    if verbose:
+        status = "PASS" if passed else "FAIL"
+        print(f"{status} (field diff={rel_diff:.2e}, "
+              f"TM amplitude={tm_amplitude:.2e})")
+
+    return passed
+
+
+def test_shift_symmetry(verbose: bool = True) -> bool:
+    """Test: beta^phi(rho,z) = beta^phi(rho,-z) and gradients antisymmetric."""
+    if verbose:
+        print("  [test_shift_symmetry] ", end="", flush=True)
+
+    a = hbar / (2.0 * m_e * c)
+    G_eff = 1e44 * G_N
+    M, _, Q, _ = electron_kn_params(G_eff)
+    sigma_floor = 0.01 * a
+
+    rho_vals = np.linspace(0.1 * a, 5 * a, 30)
+    z_vals = np.linspace(0.01 * a, 3 * a, 20)
+
+    max_beta_asymmetry = 0.0
+    for rho in rho_vals:
+        for z in z_vals:
+            r_p, ct_p = cyl_to_bl(rho, z, a)
+            r_m, ct_m = cyl_to_bl(rho, -z, a)
+            _, bp_p = compute_kn_metric(r_p, ct_p, M, a, Q, sigma_floor)
+            _, bp_m = compute_kn_metric(r_m, ct_m, M, a, Q, sigma_floor)
+            diff = abs(float(bp_p) - float(bp_m))
+            max_beta_asymmetry = max(max_beta_asymmetry, diff)
+
+    # Also verify dbeta_dz is antisymmetric in z via the precomputed arrays
+    gp = GridParams.for_electron(resolution=0.5)
+    fdtd = KerrNewmanFDTD(gp, G_eff=G_eff, frame_dragging=True)
+
+    # beta_phi_center should be symmetric: beta(i, j) == beta(i, Nz-1-j)
+    bp = fdtd.beta_phi_center
+    bp_mirror = bp[:, ::-1]
+    bp_max = max(float(np.max(np.abs(bp))), 1e-50)
+    # Use relative asymmetry: near the ring singularity, sigma_floor
+    # regularization creates O(dr/sigma_floor) relative differences
+    beta_grid_asymmetry = float(np.max(np.abs(bp - bp_mirror))) / bp_max
+
+    passed = max_beta_asymmetry < 1e-12 and beta_grid_asymmetry < 1e-6
+
+    if verbose:
+        status = "PASS" if passed else "FAIL"
+        print(f"{status} (beta asymmetry={max_beta_asymmetry:.2e}, "
+              f"grid rel asymmetry={beta_grid_asymmetry:.2e})")
+
+    return passed
+
+
+def test_energy_stability_frame_dragging(verbose: bool = True) -> bool:
+    """Test: frame-dragging doesn't cause numerical blowup.
+
+    Uses G_eff=1e37 G_N where the shift coupling is naturally within the
+    explicit scheme's stability range (dt * max|dbeta/dr| ~ 0.008).
+    Frame-dragging physically transfers coordinate energy between TE/TM
+    modes, so we only check for NaN/Inf and gross energy blowup, not
+    strict conservation.
+    """
+    if verbose:
+        print("  [test_energy_stability_frame_dragging] ", end="", flush=True)
+
+    gp = GridParams.for_electron(resolution=0.5)
+    n_steps = 200
+
+    # Use G_eff where shift coupling is naturally within stable range
+    G_eff = 1e37 * G_N
+    kn_fd = KerrNewmanFDTD(gp, G_eff=G_eff, frame_dragging=True)
+    init_em_wave_torus(kn_fd, amplitude=1.0)
+
+    diag = Diagnostics()
+    diag.record(kn_fd)
+
+    stable = True
+    for step_i in range(n_steps):
+        kn_fd.step_forward()
+        if step_i % 50 == 0:
+            en = kn_fd.compute_energy()
+            if np.isnan(en['total']) or np.isinf(en['total']):
+                stable = False
+                break
+    diag.record(kn_fd)
+
+    energy_change = diag.energy_conservation()
+    # At 1e37, coupling is weak (dt*grad ~ 0.008); coordinate energy
+    # change should be comparable to lapse-only (~10% ABC loss)
+    passed = stable and energy_change < 0.20
+
+    if verbose:
+        status = "PASS" if passed else "FAIL"
+        print(f"{status} (stable={stable}, dE/E={energy_change:.4f})")
+
+    return passed
+
+
+def test_mode_coupling(verbose: bool = True) -> bool:
+    """Test: pure TE init generates TM fields when frame_dragging=True at strong G_eff."""
+    if verbose:
+        print("  [test_mode_coupling] ", end="", flush=True)
+
+    gp = GridParams.for_electron(resolution=0.5)
+
+    # Strong G_eff where beta^phi gradients are significant
+    G_eff = 1e43 * G_N
+    kn_fd = KerrNewmanFDTD(gp, G_eff=G_eff, frame_dragging=True)
+
+    # Pure TE initialization: only E_phi, B_r, B_z
+    init_em_wave_torus(kn_fd, amplitude=1.0)
+
+    # Verify TM fields start at zero
+    assert np.max(np.abs(kn_fd.B_phi)) == 0.0
+    assert np.max(np.abs(kn_fd.E_r)) == 0.0
+    assert np.max(np.abs(kn_fd.E_z)) == 0.0
+
+    # Evolve
+    n_steps = 50
+    for _ in range(n_steps):
+        kn_fd.step_forward()
+
+    # Check TM fields appeared
+    tm_max = max(np.max(np.abs(kn_fd.B_phi)),
+                 np.max(np.abs(kn_fd.E_r)),
+                 np.max(np.abs(kn_fd.E_z)))
+
+    # Also run without frame-dragging as control
+    kn_no_fd = KerrNewmanFDTD(gp, G_eff=G_eff, frame_dragging=False)
+    init_em_wave_torus(kn_no_fd, amplitude=1.0)
+    for _ in range(n_steps):
+        kn_no_fd.step_forward()
+    tm_max_control = max(np.max(np.abs(kn_no_fd.B_phi)),
+                         np.max(np.abs(kn_no_fd.E_r)),
+                         np.max(np.abs(kn_no_fd.E_z)))
+
+    # Frame-dragging should generate much more TM than control
+    # Control may have tiny TM from Faraday lapse asymmetry, but frame-dragging
+    # should produce orders of magnitude more
+    passed = tm_max > 1e-20 and (tm_max_control < 1e-30 or tm_max > 100 * tm_max_control)
+
+    if verbose:
+        status = "PASS" if passed else "FAIL"
+        print(f"{status} (TM with FD={tm_max:.2e}, "
+              f"TM without={tm_max_control:.2e})")
+
+    return passed
+
+
 def run_validation(verbose: bool = True) -> bool:
     """Run all Phase 2 validation tests."""
     print("=" * 60)
@@ -899,10 +1276,18 @@ def run_validation(verbose: bool = True) -> bool:
     print("=" * 60)
 
     results = []
+    # Phase 2a tests
     results.append(("Coordinate roundtrip", test_coordinate_roundtrip(verbose)))
     results.append(("Flat recovery (G_N)", test_flat_recovery(verbose)))
     results.append(("Metric symmetry", test_metric_symmetry(verbose)))
     results.append(("Energy conservation", test_energy_not_degraded(verbose)))
+
+    # Phase 2b tests
+    print("  --- Phase 2b (frame-dragging) ---")
+    results.append(("Flat recovery (FD)", test_flat_recovery_frame_dragging(verbose)))
+    results.append(("Shift symmetry", test_shift_symmetry(verbose)))
+    results.append(("Energy stability (FD)", test_energy_stability_frame_dragging(verbose)))
+    results.append(("Mode coupling", test_mode_coupling(verbose)))
 
     print("-" * 60)
     n_pass = sum(1 for _, p in results if p)
@@ -1049,6 +1434,8 @@ def main():
                         help='Number of circulation periods (default: 5)')
     parser.add_argument('--n-points', type=int, default=50,
                         help='Number of scan points (default: 50)')
+    parser.add_argument('--frame-dragging', action='store_true',
+                        help='Enable frame-dragging (Phase 2b)')
     parser.add_argument('--quiet', action='store_true',
                         help='Suppress progress output')
 
@@ -1061,7 +1448,8 @@ def main():
         print("  python nwt_fdtd_kn.py --test")
         print("  python nwt_fdtd_kn.py --single --g-ratio 1")
         print("  python nwt_fdtd_kn.py --single --g-ratio 3e44")
-        print("  python nwt_fdtd_kn.py --scan --n-points 20")
+        print("  python nwt_fdtd_kn.py --single --g-ratio 1.5e43 --frame-dragging")
+        print("  python nwt_fdtd_kn.py --scan --n-points 20 --frame-dragging")
         print("  python nwt_fdtd_kn.py --metric-viz --g-ratio 3e44")
         print("  python nwt_fdtd_kn.py --dynamic")
         return
@@ -1078,6 +1466,7 @@ def main():
             resolution=args.resolution,
             n_circulations=args.n_circulations,
             verbose=not args.quiet,
+            frame_dragging=args.frame_dragging,
         )
         try:
             plot_fields(fdtd,
@@ -1094,14 +1483,34 @@ def main():
             print("  (matplotlib not available, skipping plots)")
 
     if args.scan:
+        comparison = None
+        if args.frame_dragging:
+            # Run Phase 2a (lapse-only) comparison first
+            print("\n--- Phase 2a (lapse-only) comparison scan ---")
+            comparison = run_geff_scan(
+                n_points=args.n_points,
+                resolution=args.resolution,
+                n_circulations=args.n_circulations,
+                verbose=not args.quiet,
+                frame_dragging=False,
+            )
+            print("\n--- Phase 2b (lapse+shift) main scan ---")
+
         results = run_geff_scan(
             n_points=args.n_points,
             resolution=args.resolution,
             n_circulations=args.n_circulations,
             verbose=not args.quiet,
+            frame_dragging=args.frame_dragging,
         )
         try:
-            plot_scan_results(results)
+            sim_dir = os.path.dirname(os.path.abspath(__file__))
+            suffix = "_fd" if args.frame_dragging else ""
+            plot_scan_results(
+                results,
+                save_path=os.path.join(sim_dir, f"nwt_fdtd_kn_scan{suffix}.png"),
+                comparison_results=comparison,
+            )
         except ImportError:
             print("  (matplotlib not available, skipping plots)")
 
