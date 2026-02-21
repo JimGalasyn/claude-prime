@@ -2394,6 +2394,157 @@ def print_hydrogen_analysis():
   │  a definite but non-trivial trajectory geometry.     │
   └──────────────────────────────────────────────────────┘""")
 
+    # --- Helium visualization ---
+    try:
+        import matplotlib
+        matplotlib.use('agg')
+        import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d import Axes3D
+        from pathlib import Path
+
+        output_dir = Path(__file__).resolve().parent / "output"
+        output_dir.mkdir(exist_ok=True)
+
+        fig = plt.figure(figsize=(18, 6))
+        fig.patch.set_facecolor('white')
+        fig.suptitle('Helium Ground State: NWT Torus Trajectory Calculation',
+                     fontsize=14, fontweight='bold', y=1.02)
+
+        # === Panel 1: 3D orbits at matching angle ===
+        ax1 = fig.add_subplot(131, projection='3d')
+
+        theta_opt = np.radians(he['theta_match_deg'])
+        phi_orbit = np.linspace(0, 2 * np.pi, 300)
+        r_orbit = 1.0  # unit radius for visualization
+
+        # Electron 1: xy-plane
+        x1 = r_orbit * np.cos(phi_orbit)
+        y1 = r_orbit * np.sin(phi_orbit)
+        z1 = np.zeros_like(phi_orbit)
+
+        # Electron 2: tilted plane, phase offset pi
+        phase2 = phi_orbit + np.pi
+        x2 = r_orbit * np.cos(phase2)
+        y2 = r_orbit * np.sin(phase2) * np.cos(theta_opt)
+        z2 = r_orbit * np.sin(phase2) * np.sin(theta_opt)
+
+        ax1.plot(x1, y1, z1, color='#2196F3', linewidth=2.0, label='e$^-$ orbit 1 (xy)')
+        ax1.plot(x2, y2, z2, color='#F44336', linewidth=2.0, label='e$^-$ orbit 2 (tilted)')
+
+        # Nucleus at origin
+        ax1.scatter([0], [0], [0], color='#FF9800', s=120, zorder=5,
+                    edgecolors='black', linewidths=0.5)
+        ax1.text(0, 0, 0.15, 'He$^{2+}$', ha='center', fontsize=9, fontweight='bold')
+
+        # Electron markers (at phi=0)
+        ax1.scatter([x1[0]], [y1[0]], [z1[0]], color='#2196F3', s=60, zorder=5,
+                    edgecolors='black', linewidths=0.5)
+        ax1.scatter([x2[0]], [y2[0]], [z2[0]], color='#F44336', s=60, zorder=5,
+                    edgecolors='black', linewidths=0.5)
+
+        # Light orbital plane discs
+        phi_disc = np.linspace(0, 2 * np.pi, 50)
+        r_disc = np.linspace(0, r_orbit, 10)
+        PHI, R = np.meshgrid(phi_disc, r_disc)
+
+        # Plane 1 (xy)
+        X_d1 = R * np.cos(PHI)
+        Y_d1 = R * np.sin(PHI)
+        Z_d1 = np.zeros_like(X_d1)
+        ax1.plot_surface(X_d1, Y_d1, Z_d1, alpha=0.06, color='#2196F3')
+
+        # Plane 2 (tilted)
+        X_d2 = R * np.cos(PHI)
+        Y_d2 = R * np.sin(PHI) * np.cos(theta_opt)
+        Z_d2 = R * np.sin(PHI) * np.sin(theta_opt)
+        ax1.plot_surface(X_d2, Y_d2, Z_d2, alpha=0.06, color='#F44336')
+
+        ax1.set_xlim(-1.3, 1.3)
+        ax1.set_ylim(-1.3, 1.3)
+        ax1.set_zlim(-1.3, 1.3)
+        ax1.set_xlabel('x / a₀', fontsize=8, labelpad=2)
+        ax1.set_ylabel('y / a₀', fontsize=8, labelpad=2)
+        ax1.set_zlabel('z / a₀', fontsize=8, labelpad=2)
+        ax1.set_title(f'Two Electron Tori (θ = {he["theta_match_deg"]:.0f}°)',
+                      fontsize=11, fontweight='bold', pad=10)
+        ax1.legend(fontsize=7, loc='upper left')
+        ax1.view_init(elev=25, azim=-60)
+        ax1.tick_params(labelsize=6)
+
+        # === Panel 2: Energy vs theta ===
+        ax2 = fig.add_subplot(132)
+
+        theta_deg_arr = np.degrees(he['theta_arr'])
+        ax2.plot(theta_deg_arr, he['E_scan_eV'], color='#2196F3', linewidth=2.0,
+                 label='NWT torus energy')
+
+        # Reference lines
+        ax2.axhline(y=he['E_exp_eV'], color='#4CAF50', linewidth=1.5, linestyle='--',
+                    label=f'Experiment ({he["E_exp_eV"]:.1f} eV)')
+        ax2.axhline(y=he['E_qm_var_eV'], color='#9C27B0', linewidth=1.2, linestyle=':',
+                    label=f'QM variational ({he["E_qm_var_eV"]:.1f} eV)')
+        ax2.axhline(y=he['E_indep_eV'], color='#FF9800', linewidth=1.0, linestyle='-.',
+                    alpha=0.6, label=f'Independent ({he["E_indep_eV"]:.1f} eV)')
+
+        # Mark matching angle
+        ax2.axvline(x=he['theta_match_deg'], color='#4CAF50', linewidth=0.8,
+                    linestyle=':', alpha=0.5)
+        ax2.plot(he['theta_match_deg'], he['E_match_eV'], 'o', color='#4CAF50',
+                 markersize=8, zorder=5)
+        ax2.annotate(f'θ = {he["theta_match_deg"]:.0f}°\nE = {he["E_match_eV"]:.1f} eV',
+                     xy=(he['theta_match_deg'], he['E_match_eV']),
+                     xytext=(he['theta_match_deg'] + 20, he['E_match_eV'] + 3),
+                     fontsize=8, ha='left',
+                     arrowprops=dict(arrowstyle='->', color='#4CAF50', lw=1.2))
+
+        # Mark named configs
+        for cfg in he['configs']:
+            ax2.plot(cfg['theta_deg'], cfg['E_eV'], 's', color='#F44336',
+                     markersize=6, zorder=5)
+
+        ax2.set_xlabel('Inter-plane angle θ (degrees)', fontsize=10)
+        ax2.set_ylabel('Ground-state energy (eV)', fontsize=10)
+        ax2.set_title('Energy vs. Orbital Geometry', fontsize=11, fontweight='bold')
+        ax2.legend(fontsize=7, loc='upper right')
+        ax2.set_xlim(0, 180)
+        ax2.grid(True, alpha=0.3)
+        ax2.tick_params(labelsize=8)
+
+        # === Panel 3: Geometric factor f vs theta ===
+        ax3 = fig.add_subplot(133)
+
+        ax3.plot(theta_deg_arr, he['best_f_scan'], color='#F44336', linewidth=2.0,
+                 label='f(θ) — optimal δ')
+
+        # Reference lines
+        ax3.axhline(y=0.5, color='#2196F3', linewidth=1.2, linestyle='--',
+                    label='f = 1/2 (coplanar opposed)')
+        ax3.axhline(y=5.0/8.0, color='#9C27B0', linewidth=1.2, linestyle=':',
+                    label='f = 5/8 (QM spherical avg)')
+        ax3.axhline(y=he['f_match_analytic'], color='#4CAF50', linewidth=1.2,
+                    linestyle='--', label=f'f = {he["f_match_analytic"]:.4f} (experiment)')
+
+        # Mark matching point
+        ax3.plot(he['theta_match_deg'], he['f_match'], 'o', color='#4CAF50',
+                 markersize=8, zorder=5)
+
+        ax3.set_xlabel('Inter-plane angle θ (degrees)', fontsize=10)
+        ax3.set_ylabel('Geometric factor f(θ, δ*)', fontsize=10)
+        ax3.set_title('Electron-Electron Repulsion Factor', fontsize=11, fontweight='bold')
+        ax3.legend(fontsize=7, loc='upper left')
+        ax3.set_xlim(0, 180)
+        ax3.grid(True, alpha=0.3)
+        ax3.tick_params(labelsize=8)
+
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        helium_path = output_dir / "helium_ground_state.png"
+        plt.savefig(helium_path, dpi=150, bbox_inches='tight',
+                    facecolor='white', edgecolor='none')
+        plt.close(fig)
+        print(f"\n  [Helium visualization saved to {helium_path}]")
+    except Exception as exc:
+        print(f"\n  (matplotlib not available for helium plot: {exc})")
+
 
 # =========================================================================
 # PHOTON TRANSITIONS: Emission and absorption in the torus model
