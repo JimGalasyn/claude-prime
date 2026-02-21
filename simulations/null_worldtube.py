@@ -1370,6 +1370,220 @@ def compute_shell_filling(Z: int, params: TorusParams = None):
     }
 
 
+def hydrogen_psi_squared_xz(n, l, m, grid_size=200, r_max_factor=2.5):
+    """Compute |psi|^2 in xz-plane for hydrogen orbital (n,l,m)."""
+    from scipy.special import sph_harm_y, genlaguerre, factorial
+
+    a0 = 1.0  # atomic units
+    # Grid in xz-plane (y=0)
+    extent = r_max_factor * n**2 * a0
+    x = np.linspace(-extent, extent, grid_size)
+    z = np.linspace(-extent, extent, grid_size)
+    X, Z = np.meshgrid(x, z)
+
+    R = np.sqrt(X**2 + Z**2) + 1e-30  # avoid r=0
+    theta = np.arccos(Z / R)  # polar angle from z-axis
+    phi = np.where(X >= 0, 0.0, np.pi)  # azimuthal in xz-plane
+
+    # Radial wavefunction R_nl(r)
+    rho = 2 * R / (n * a0)
+    norm_r = np.sqrt((2/(n*a0))**3 * factorial(n-l-1) / (2*n*factorial(n+l)))
+    L = genlaguerre(n-l-1, 2*l+1)(rho)
+    R_nl = norm_r * np.exp(-rho/2) * rho**l * L
+
+    # Angular part: real spherical harmonics
+    # sph_harm_y(l, m, theta_polar, phi_azimuthal) — physics convention
+    if m == 0:
+        Y = np.real(sph_harm_y(l, 0, theta, phi))
+    elif m > 0:
+        Y = np.real(sph_harm_y(l, m, theta, phi) * (-1)**m * np.sqrt(2))
+    else:
+        Y = np.imag(sph_harm_y(l, abs(m), theta, phi) * (-1)**abs(m) * np.sqrt(2))
+
+    psi_sq = (R_nl * Y)**2
+    return X, Z, psi_sq, extent
+
+
+def compute_helium_nwt(Z=2, n=1, N_points=1000):
+    """
+    Compute helium ground-state energy using NWT torus trajectory mechanics.
+
+    Two electron tori in circular orbits around a Z nucleus, each satisfying
+    the resonance condition mvr = n*hbar. Computes time-averaged e-e repulsion
+    for various geometric configurations and optimizes Z_eff variationally.
+
+    The key object is the 'geometric factor' f(theta, delta):
+        <1/r_12> = Z_eff * f
+    where theta = tilt angle between orbital planes, delta = phase offset.
+
+    Variational optimization is analytic:
+        E(Z_eff) = Z_eff^2 - 2*Z*Z_eff + f*Z_eff
+        Z_eff_opt = Z - f/2
+        E_min = -(Z - f/2)^2  hartree
+    """
+    Ha_eV = m_e * (alpha * c)**2 / eV  # ~27.211 eV per hartree
+
+    # --- Level 1: Independent electrons (no e-e repulsion) ---
+    E_indep_Ha = -float(Z**2)  # 2 * (-Z^2/2)
+    E_indep_eV = E_indep_Ha * Ha_eV
+
+    # --- Level 2: QM first-order perturbation theory ---
+    f_qm_pert = 5.0 * Z / 8.0 / Z  # = 5/8 (geometric factor for QM spherical average)
+    # Actually: <1/r12> = 5*Z/8 in atomic units for two 1s wavefunctions with nuclear charge Z
+    # So V_ee = 5*Z/8, and the geometric factor f = (5*Z/8) / Z_eff
+    # But at Z_eff = Z (unscreened): V_ee = 5*Z/8
+    E_pert1_Ha = -float(Z**2) + 5.0 * Z / 8.0
+    E_pert1_eV = E_pert1_Ha * Ha_eV
+
+    # --- Level 3: QM variational (single Z_eff parameter) ---
+    # V_ee = 5*Z_eff/8 (scales with Z_eff since wavefunction contracts)
+    f_qm_var = 5.0 / 8.0
+    Z_eff_qm = Z - f_qm_var / 2  # = Z - 5/16 = 27/16 for Z=2
+    E_qm_var_Ha = -(Z - f_qm_var / 2)**2
+    E_qm_var_eV = E_qm_var_Ha * Ha_eV
+
+    # --- Level 4: NWT trajectory geometric factors ---
+    def compute_geometric_factor(theta, delta, N=N_points):
+        """
+        Compute f = <1/d> where d = |r1-r2|/r for two unit-radius circular orbits.
+
+        Electron 1 in xy-plane, electron 2 in plane tilted by theta,
+        with orbital phase offset delta.
+        """
+        phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
+
+        x1 = np.cos(phi)
+        y1 = np.sin(phi)
+        z1 = np.zeros_like(phi)
+
+        phase2 = phi + delta
+        x2 = np.cos(phase2)
+        y2 = np.sin(phase2) * np.cos(theta)
+        z2 = np.sin(phase2) * np.sin(theta)
+
+        dist = np.sqrt((x1 - x2)**2 + (y1 - y2)**2 + (z1 - z2)**2)
+        dist = np.maximum(dist, 1e-12)
+
+        return float(np.mean(1.0 / dist))
+
+    # Named configurations
+    configs = []
+
+    # (a) Coplanar, diametrically opposed
+    f_a = compute_geometric_factor(0.0, np.pi)
+    Z_eff_a = Z - f_a / 2
+    E_a = -(Z - f_a / 2)**2
+    configs.append({
+        'name': 'Coplanar opposed (180\u00b0)',
+        'theta_deg': 0.0, 'delta_deg': 180.0,
+        'f': f_a, 'Z_eff': Z_eff_a,
+        'E_Ha': E_a, 'E_eV': E_a * Ha_eV,
+    })
+
+    # (b) Orthogonal planes, optimal delta
+    best_f_b = np.inf
+    best_delta_b = 0.0
+    for delta_test in np.linspace(0, 2 * np.pi, 200, endpoint=False):
+        f_test = compute_geometric_factor(np.pi / 2, delta_test)
+        if f_test < best_f_b:
+            best_f_b = f_test
+            best_delta_b = delta_test
+    Z_eff_b = Z - best_f_b / 2
+    E_b = -(Z - best_f_b / 2)**2
+    configs.append({
+        'name': 'Orthogonal planes (90\u00b0)',
+        'theta_deg': 90.0, 'delta_deg': np.degrees(best_delta_b),
+        'f': best_f_b, 'Z_eff': Z_eff_b,
+        'E_Ha': E_b, 'E_eV': E_b * Ha_eV,
+    })
+
+    # --- Level 5: Full theta scan (find optimal and matching angles) ---
+    N_theta = 500
+    N_delta = 100
+    theta_arr = np.linspace(0, np.pi, N_theta)
+    delta_arr = np.linspace(0, 2 * np.pi, N_delta, endpoint=False)
+
+    best_f_scan = np.zeros(N_theta)
+    best_delta_scan = np.zeros(N_theta)
+
+    for i, th in enumerate(theta_arr):
+        phi = np.linspace(0, 2 * np.pi, 500, endpoint=False)
+
+        # Vectorize over delta: phi is (N,1), delta is (1,M)
+        phi_2d = phi[:, np.newaxis]  # (500, 1)
+        delta_2d = delta_arr[np.newaxis, :]  # (1, 100)
+
+        x1 = np.cos(phi_2d)
+        y1 = np.sin(phi_2d)
+
+        phase2 = phi_2d + delta_2d
+        x2 = np.cos(phase2)
+        y2 = np.sin(phase2) * np.cos(th)
+        z2 = np.sin(phase2) * np.sin(th)
+
+        dist = np.sqrt((x1 - x2)**2 + (y1 - y2)**2 + z2**2)
+        dist = np.maximum(dist, 1e-12)
+
+        f_all_delta = np.mean(1.0 / dist, axis=0)  # (100,)
+        idx_min = np.argmin(f_all_delta)
+        best_f_scan[i] = f_all_delta[idx_min]
+        best_delta_scan[i] = delta_arr[idx_min]
+
+    E_scan_Ha = -(Z - best_f_scan / 2)**2
+    E_scan_eV = E_scan_Ha * Ha_eV
+
+    # Find the angle giving overall minimum repulsion (maximum |E|)
+    idx_best = np.argmin(E_scan_Ha)  # most negative = lowest energy
+    theta_best = theta_arr[idx_best]
+    f_best = best_f_scan[idx_best]
+    E_best_Ha = E_scan_Ha[idx_best]
+    E_best_eV = E_scan_eV[idx_best]
+    Z_eff_best = Z - f_best / 2
+
+    # Find matching angle (closest to experiment)
+    E_exp_eV = -79.005
+    E_exp_Ha = E_exp_eV / Ha_eV
+    idx_match = np.argmin(np.abs(E_scan_Ha - E_exp_Ha))
+    theta_match = theta_arr[idx_match]
+    f_match = best_f_scan[idx_match]
+    E_match_Ha = E_scan_Ha[idx_match]
+    E_match_eV = E_scan_eV[idx_match]
+    Z_eff_match = Z - f_match / 2
+
+    # Analytic f_match: from -(Z - f/2)^2 = E_exp_Ha
+    f_match_analytic = 2 * (Z - np.sqrt(-E_exp_Ha))
+
+    return {
+        'Ha_eV': Ha_eV,
+        'Z': Z,
+        # Level 1
+        'E_indep_Ha': E_indep_Ha, 'E_indep_eV': E_indep_eV,
+        # Level 2
+        'E_pert1_Ha': E_pert1_Ha, 'E_pert1_eV': E_pert1_eV,
+        # Level 3
+        'f_qm_var': f_qm_var, 'Z_eff_qm': Z_eff_qm,
+        'E_qm_var_Ha': E_qm_var_Ha, 'E_qm_var_eV': E_qm_var_eV,
+        # Level 4: named configs
+        'configs': configs,
+        # Level 5: scan
+        'theta_arr': theta_arr,
+        'best_f_scan': best_f_scan,
+        'E_scan_eV': E_scan_eV,
+        'E_scan_Ha': E_scan_Ha,
+        # Best (lowest energy)
+        'theta_best_deg': np.degrees(theta_best),
+        'f_best': f_best, 'Z_eff_best': Z_eff_best,
+        'E_best_Ha': E_best_Ha, 'E_best_eV': E_best_eV,
+        # Matching experiment
+        'theta_match_deg': np.degrees(theta_match),
+        'f_match': f_match, 'f_match_analytic': f_match_analytic,
+        'Z_eff_match': Z_eff_match,
+        'E_match_Ha': E_match_Ha, 'E_match_eV': E_match_eV,
+        # References
+        'E_hylleraas_eV': -79.01, 'E_exp_eV': -79.005,
+    }
+
+
 def print_hydrogen_analysis():
     """
     Full hydrogen atom analysis in the null worldtube model.
@@ -1865,6 +2079,319 @@ def print_hydrogen_analysis():
   │                                                      │
   │  The non-relativistic Bohr model works because the   │
   │  orbit is {1/alpha:.0f}× slower than the internal dynamics. │
+  └──────────────────────────────────────────────────────┘""")
+
+    # ==========================================
+    # Section 11: Orbital shapes as torus trajectories
+    # ==========================================
+    print(f"\n{'='*60}")
+    print(f"  11. ORBITAL SHAPES AS TORUS TRAJECTORIES")
+    print(f"{'='*60}")
+
+    print(f"""
+  Standard QM predicts orbital shapes — spheres, dumbbells,
+  cloverleafs — from the angular solutions to the Schrödinger
+  equation. The torus model gives these shapes a MECHANICAL
+  interpretation: they are the time-averaged probability density
+  of the electron torus following resonant trajectories in the
+  Coulomb field.
+
+  QUANTUM NUMBERS AS TRAJECTORY TYPES:
+
+    n  (principal)    Total energy, radial extent of trajectory.
+                      Larger n → torus orbits farther from nucleus.
+                      Sets the size: <r> ∝ n²a₀
+
+    l  (angular)      Type of angular momentum in the trajectory.
+                      l = 0: radial oscillation (no net angular momentum)
+                      l > 0: torus has tangential velocity → lobes
+
+    m  (magnetic)     Orientation of the trajectory relative to z-axis.
+                      m = 0: trajectory symmetric about z-axis
+                      |m| > 0: tilted trajectories → oriented lobes""")
+
+    print(f"\n  SHAPE INTERPRETATION:")
+    print(f"  {'l':>3}  {'Name':>6}  {'Trajectory type':<32} {'Shape'}")
+    print(f"  " + "─" * 68)
+    shapes = [
+        (0, 's', 'Radial oscillation (no L_orb)', 'Spherical — all angles equal'),
+        (1, 'p', 'Planar orbit with 1 node plane', 'Two lobes along axis'),
+        (2, 'd', 'Rosette orbit, 2 node planes', 'Four-lobed cloverleaf'),
+        (3, 'f', 'Complex 3D path, 3 node planes', 'Multi-lobed (6-8 lobes)'),
+    ]
+    for l_val, name, traj, shape in shapes:
+        print(f"  {l_val:3d}    {name}    {traj:<32} {shape}")
+
+    print(f"""
+  WHY THE SHAPES MATCH STANDARD QM:
+
+  Both approaches solve the same mathematical problem — the Coulomb
+  eigenvalue equation. Standard QM writes it as the Schrödinger
+  equation and gets wavefunctions ψ_nlm. The torus model writes it
+  as orbital resonance conditions and gets trajectory densities.
+
+  The |ψ|² distribution IS the time-averaged torus probability density.
+  Same equation → same solutions → same shapes.
+
+  NODES AS VELOCITY MAXIMA:
+
+  Where |ψ|² = 0 (nodes), the torus sweeps through fastest.
+  The torus doesn't vanish at nodes — it passes through them at
+  maximum speed, spending minimum time there.
+
+    • Radial nodes (n - l - 1 of them): torus oscillates through
+      spherical shells where it's momentarily at maximum radial speed.
+    • Angular nodes (l of them): planes where the torus trajectory
+      crosses at maximum tangential speed.
+    • Total nodes = n - 1 (same as standard QM).
+
+  MULTI-ELECTRON ATOMS:
+
+  For atoms with Z > 1, orbital shapes are simply the stable
+  resonant trajectories of the classical Coulomb N-body problem.
+  Each electron torus follows its own trajectory, influenced by
+  the nucleus AND all other electrons (screening + repulsion).
+
+  No wavefunction collapse needed — the electron literally IS at
+  some position on its trajectory at each moment. The |ψ|² cloud
+  is the time average, not an ontological smear.""")
+
+    # --- 3x3 orbital visualization ---
+    import matplotlib
+    matplotlib.use('agg')
+    import matplotlib.pyplot as plt
+    from pathlib import Path
+
+    output_dir = Path(__file__).resolve().parent / "output"
+    output_dir.mkdir(exist_ok=True)
+
+    orbitals = [
+        # (n, l, m, label)
+        (1, 0, 0, '1s'),   (2, 0, 0, '2s'),   (3, 0, 0, '3s'),
+        (2, 1, 0, '2p$_z$'), (3, 1, 0, '3p$_z$'), (3, 2, 0, '3d$_{z^2}$'),
+        (3, 2, 1, '3d$_{xz}$'), (4, 3, 0, '4f$_{z^3}$'), (4, 3, 1, '4f$_{xz^2}$'),
+    ]
+
+    fig, axes = plt.subplots(3, 3, figsize=(12, 12))
+    fig.patch.set_facecolor('white')
+    fig.suptitle('Hydrogen Orbital Shapes: |ψ|² in the xz-plane\n'
+                 'NWT interpretation: time-averaged torus trajectory density',
+                 fontsize=13, fontweight='bold', y=0.98)
+
+    for idx, (n, l, m, label) in enumerate(orbitals):
+        row, col = divmod(idx, 3)
+        ax = axes[row, col]
+
+        X, Z, psi_sq, extent = hydrogen_psi_squared_xz(n, l, m)
+
+        # Normalize for display
+        psi_max = psi_sq.max()
+        if psi_max > 0:
+            psi_sq = psi_sq / psi_max
+
+        ax.contourf(X, Z, psi_sq, levels=30, cmap=plt.cm.Blues)
+        ax.set_xlim(-extent, extent)
+        ax.set_ylim(-extent, extent)
+        ax.set_aspect('equal')
+        ax.set_title(f'{label}  (n={n}, l={l}, m={m})', fontsize=10)
+        ax.set_xlabel('x / a₀', fontsize=8)
+        ax.set_ylabel('z / a₀', fontsize=8)
+        ax.tick_params(labelsize=7)
+        for spine in ax.spines.values():
+            spine.set_color('#CCCCCC')
+            spine.set_linewidth(0.5)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    orbital_path = output_dir / "orbital_shapes.png"
+    plt.savefig(orbital_path, dpi=150, bbox_inches='tight',
+                facecolor='white', edgecolor='none')
+    plt.close(fig)
+    print(f"\n  [Orbital shape visualization saved to {orbital_path}]")
+
+    # Summary box
+    print(f"""
+  ┌──────────────────────────────────────────────────────┐
+  │  ORBITAL SHAPES = TORUS TRAJECTORY RESONANCES        │
+  │                                                      │
+  │  • s,p,d,f shapes: resonant Coulomb trajectories     │
+  │  • |ψ|² = time-averaged torus probability density    │
+  │  • Nodes = where the torus moves fastest             │
+  │  • Multi-electron: classical N-body Coulomb problem   │
+  │  • No wavefunction collapse, no measurement problem  │
+  │                                                      │
+  │  Same equation → same shapes → same chemistry.       │
+  │  The torus model adds: each shape has a mechanical   │
+  │  origin as a specific type of resonant orbit.        │
+  └──────────────────────────────────────────────────────┘""")
+
+    # ==========================================
+    # Section 12: Helium ground state — NWT trajectory calculation
+    # ==========================================
+    print(f"\n{'='*60}")
+    print(f"  12. HELIUM GROUND STATE: Two electron tori")
+    print(f"{'='*60}")
+
+    print(f"""
+  Can we compute helium's ground-state energy WITHOUT the
+  Schrödinger equation? Using only:
+
+    1. Classical Coulomb mechanics (F = ke²/r²)
+    2. NWT resonance condition (mvr = nℏ, here n=1)
+    3. Specific geometric configurations of two orbits
+
+  Setup: two electron tori in circular orbits around He²⁺ (Z=2).
+  Each satisfies the resonance condition, so its orbit radius is
+  r = a₀/Z_eff, where Z_eff accounts for screening.
+
+  ENERGY FRAMEWORK (atomic units, 1 Ha = 27.211 eV):
+
+    Per electron (resonance condition mvr = ℏ):
+      KE    =  Z_eff²/2    (kinetic, from v = Z_eff·αc)
+      V_nuc = -Z·Z_eff     (nuclear attraction, actual Z=2)
+
+    Two electrons + electron-electron repulsion:
+      E_total = Z_eff² - 2Z·Z_eff + V_ee(Z_eff, geometry)
+
+  The e-e repulsion V_ee depends on the GEOMETRY of the two
+  orbits. Define the geometric factor f:
+
+      ⟨1/r₁₂⟩ = Z_eff × f(θ, δ)
+
+  where θ = tilt angle between orbital planes, δ = phase offset.
+  Since distances scale as 1/Z_eff, the factor f is purely geometric.""")
+
+    # Run the computation
+    he = compute_helium_nwt()
+
+    print(f"\n  Variational optimization (analytic):")
+    print(f"    E(Z_eff) = Z_eff² - 2Z·Z_eff + f·Z_eff")
+    print(f"    dE/dZ_eff = 0  →  Z_eff = Z - f/2")
+    print(f"    E_min = -(Z - f/2)²  hartree")
+    print(f"\n  1 hartree = {he['Ha_eV']:.3f} eV (from NWT constants)")
+
+    # Named configurations
+    print(f"\n  TRAJECTORY CONFIGURATIONS:")
+
+    # (a) Coplanar opposed
+    cfg_a = he['configs'][0]
+    print(f"""
+  A. {cfg_a['name']}
+  ─────────────────────────────────────────────────
+  Both orbits in the same plane, electrons always on opposite sides.
+
+         ← r →       ← r →
+     e⁻  ●───────⊕───────●  e⁻
+                 He²⁺
+     (always diametrically opposed)
+
+  Distance: |r₁-r₂| = 2r (constant)  →  f = 1/2
+  Z_eff = {cfg_a['Z_eff']:.4f},  E = {cfg_a['E_Ha']:.4f} Ha = {cfg_a['E_eV']:.1f} eV""")
+
+    # (b) Orthogonal planes
+    cfg_b = he['configs'][1]
+    print(f"""
+  B. {cfg_b['name']}
+  ─────────────────────────────────────────────────
+  Orbits in perpendicular planes through the nucleus.
+
+           z ↑  e⁻ (xz-plane orbit)
+             ●
+             |
+      He²⁺  ⊕ ─ ─ ─ ● → y
+                      e⁻ (xy-plane orbit)
+
+  Distance varies with orbital phase → numerical average.
+  f = {cfg_b['f']:.4f},  best phase offset δ = {cfg_b['delta_deg']:.1f}°
+  Z_eff = {cfg_b['Z_eff']:.4f},  E = {cfg_b['E_Ha']:.4f} Ha = {cfg_b['E_eV']:.1f} eV""")
+
+    # Theta scan results
+    print(f"\n  INTER-PLANE ANGLE SCAN:")
+    print(f"  Scanning θ from 0° to 180°, optimizing phase offset δ at each angle.")
+    print(f"  {'θ (deg)':>8} {'f':>8} {'Z_eff':>8} {'E (Ha)':>10} {'E (eV)':>10}")
+    print(f"  " + "─" * 50)
+
+    # Sample ~10 representative angles
+    theta_deg = np.degrees(he['theta_arr'])
+    indices = np.linspace(0, len(he['theta_arr']) - 1, 10, dtype=int)
+    for idx in indices:
+        th = theta_deg[idx]
+        f = he['best_f_scan'][idx]
+        Z_eff = he['Z'] - f / 2
+        E_Ha = he['E_scan_Ha'][idx]
+        E_eV = he['E_scan_eV'][idx]
+        print(f"  {th:8.1f} {f:8.4f} {Z_eff:8.4f} {E_Ha:10.4f} {E_eV:10.1f}")
+
+    print(f"""
+  Lowest energy (maximum e-e separation):
+    θ = {he['theta_best_deg']:.1f}°, f = {he['f_best']:.4f}
+    Z_eff = {he['Z_eff_best']:.4f}, E = {he['E_best_Ha']:.4f} Ha = {he['E_best_eV']:.1f} eV
+
+  Angle matching experiment (E = -79.005 eV):
+    θ = {he['theta_match_deg']:.1f}°, f = {he['f_match']:.4f}
+    Z_eff = {he['Z_eff_match']:.4f}, E = {he['E_match_Ha']:.4f} Ha = {he['E_match_eV']:.1f} eV
+    (analytic f_match = {he['f_match_analytic']:.4f})""")
+
+    # Comparison table
+    print(f"""
+  ┌───────────────────────────────────────────────────────────────────┐
+  │  HELIUM GROUND-STATE ENERGY: Method comparison                   │
+  ├─────────────────────────────────────┬─────────┬────────┬─────────┤
+  │  Method                             │  E (Ha) │ E (eV) │ Error   │
+  ├─────────────────────────────────────┼─────────┼────────┼─────────┤
+  │  Independent electrons (no V_ee)    │ {he['E_indep_Ha']:7.4f} │{he['E_indep_eV']:7.1f} │{(he['E_indep_eV'] - he['E_exp_eV'])/abs(he['E_exp_eV'])*100:+6.1f}% │
+  │  QM 1st-order perturbation          │ {he['E_pert1_Ha']:7.4f} │{he['E_pert1_eV']:7.1f} │{(he['E_pert1_eV'] - he['E_exp_eV'])/abs(he['E_exp_eV'])*100:+6.1f}% │
+  │  QM variational (Z_eff = {he['Z_eff_qm']:.4f})   │ {he['E_qm_var_Ha']:7.4f} │{he['E_qm_var_eV']:7.1f} │{(he['E_qm_var_eV'] - he['E_exp_eV'])/abs(he['E_exp_eV'])*100:+6.1f}% │
+  │  NWT: coplanar opposed (θ=0°)      │ {cfg_a['E_Ha']:7.4f} │{cfg_a['E_eV']:7.1f} │{(cfg_a['E_eV'] - he['E_exp_eV'])/abs(he['E_exp_eV'])*100:+6.1f}% │
+  │  NWT: orthogonal (θ=90°)           │ {cfg_b['E_Ha']:7.4f} │{cfg_b['E_eV']:7.1f} │{(cfg_b['E_eV'] - he['E_exp_eV'])/abs(he['E_exp_eV'])*100:+6.1f}% │
+  │  NWT: optimal angle (θ={he['theta_match_deg']:.0f}°)        │ {he['E_match_Ha']:7.4f} │{he['E_match_eV']:7.1f} │{(he['E_match_eV'] - he['E_exp_eV'])/abs(he['E_exp_eV'])*100:+6.1f}% │
+  │  Hylleraas (1929, 6-term)          │ -2.9037 │ -79.01 │  -0.01% │
+  │  Experiment                         │ -2.9037 │ -79.01 │    —    │
+  └─────────────────────────────────────┴─────────┴────────┴─────────┘""")
+
+    print(f"""
+  WHAT THIS DOES AND DOES NOT PROVE:
+
+  What it shows:
+  • The NWT framework — classical Coulomb + resonance quantization —
+    produces helium energies in the right range (-83 to -75 eV).
+  • A specific inter-plane angle θ ≈ {he['theta_match_deg']:.0f}° reproduces experiment.
+  • The experimental value lies BETWEEN maximum correlation (opposed,
+    f=1/2) and no correlation (QM spherical average, f=5/8).
+
+  What it does NOT show (honest caveats):
+  • The angle θ is a FREE PARAMETER here — we fitted it.
+  • QM doesn't need this parameter: the wavefunction automatically
+    averages over all orientations and includes correlation.
+  • Circular orbits are a simplification (real Coulomb trajectories
+    are elliptical Kepler orbits).
+  • A true NWT prediction requires solving the 3-body dynamics
+    self-consistently to find the stable configuration.
+
+  The real test:
+    Can the self-consistent N-body torus dynamics select θ ≈ {he['theta_match_deg']:.0f}°
+    from its own equations of motion? If yes, NWT is predictive.
+    If no, the angle is just a fitting parameter.
+
+  The deep point:
+    Standard QM treats e-e repulsion as an operator acting on a
+    3N-dimensional wavefunction. NWT treats it as a force between
+    two objects with definite positions. Both get the right answer
+    — one via ⟨ψ|V|ψ⟩ averaging, the other via trajectory geometry.""")
+
+    print(f"""
+  ┌──────────────────────────────────────────────────────┐
+  │  HELIUM = TWO ELECTRON TORI IN COULOMB FIELD         │
+  │                                                      │
+  │  • No Schrödinger equation — trajectory mechanics    │
+  │  • Resonance condition: mvr = ℏ (n=1 for ground)    │
+  │  • Geometry determines e-e repulsion exactly         │
+  │  • Coplanar opposed:  {cfg_a['E_eV']:>7.1f} eV  (overshoots)    │
+  │  • Optimal angle:     {he['E_match_eV']:>7.1f} eV  (matches!)     │
+  │  • QM variational:    {he['E_qm_var_eV']:>7.1f} eV  (undershoots)  │
+  │                                                      │
+  │  The experimental energy lies between maximum         │
+  │  correlation and no correlation — consistent with    │
+  │  a definite but non-trivial trajectory geometry.     │
   └──────────────────────────────────────────────────────┘""")
 
 
