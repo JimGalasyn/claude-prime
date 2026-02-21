@@ -3382,12 +3382,13 @@ def print_dark_matter_analysis():
     # ==========================================
     print(f"\n  10. COMPARISON WITH EXPERIMENTS")
     print(f"  {'─'*55}")
-    print(f"  Direct detection (LUX, XENON, PandaX):")
-    print(f"    TE-mode dark matter has ZERO tree-level coupling to")
-    print(f"    ordinary matter (no EM vertex). Scattering occurs only")
-    print(f"    via graviton exchange or TE-field evanescent overlap.")
-    print(f"    σ_scatter ~ α_G² × σ_geom ~ 10⁻⁹⁰ cm² (undetectable)")
-    print(f"    This explains the null results from all direct searches.")
+    print(f"  Direct detection (LUX, XENON, PandaX, LZ):")
+    print(f"    TE-mode dark matter has ZERO tree-level EM coupling.")
+    print(f"    Three scattering channels exist (see Section 13):")
+    print(f"    • Gravitational:    σ ~ 10⁻¹⁰⁰ cm² (negligible)")
+    print(f"    • Polarizability:   σ ~ 10⁻⁵⁶ cm²  (far below limits)")
+    print(f"    • Tube overlap:     σ ~ 10⁻⁵¹ cm²  (dominant, below LZ)")
+    print(f"    All channels below current limits → null results explained.")
     print(f"\n  Indirect detection (Fermi-LAT, HESS, CTA):")
     print(f"    Annihilation produces γ-rays at E = m_DM.")
     print(f"    For m_DM ~ {m_relic:.0f} GeV: look for γ-ray line at {m_relic:.0f} GeV")
@@ -3554,6 +3555,182 @@ def print_dark_matter_analysis():
   │                                                      │
   │  Ref: Totani, JCAP 11 (2025) 080                    │
   │       arXiv:2507.07209                               │
+  └──────────────────────────────────────────────────────┘""")
+
+    # ==========================================
+    # Section 13: Direct Detection Cross-Section
+    # ==========================================
+    print(f"\n  13. DIRECT DETECTION CROSS-SECTION")
+    print(f"  {'─'*55}")
+
+    print(f"""
+  Section 10 noted that TE-mode dark matter is invisible to
+  direct detection. Here we compute σ_SI quantitatively for
+  the three possible DM-nucleon scattering channels.
+
+  The TE torus has NO external EM field — but the internal
+  field decays evanescently outside the tube with range ~ r_tube.
+  A quark passing within r_tube of the tube surface can scatter.""")
+
+    # Physical constants in natural units (GeV-based)
+    # alpha (= 1/137.036) is the module-level fine-structure constant
+    m_N = 0.938       # nucleon mass (GeV)
+    M_Pl = 1.221e19   # Planck mass (GeV)
+    R_p_phys = 4.46   # proton physical radius (GeV⁻¹) = 0.88 fm
+    V_nucleon = (4.0/3.0) * np.pi * R_p_phys**3  # proton volume (GeV⁻³)
+    GeV4_to_cm2 = 3.894e-28  # 1 GeV⁻² = 0.3894 mb; GeV⁻⁴ conversion factor
+
+    print(f"\n  CHANNEL A: GRAVITATIONAL SCATTERING")
+    print(f"  ─────────────────────────────────────")
+    print(f"  DM scatters off nucleons via graviton exchange.")
+    print(f"  Coupling: G_N m_DM m_N = m_DM m_N / M_Pl²")
+    print(f"")
+
+    grav_results = []
+    for m_DM_grav in [40, 60, 100, m_relic]:
+        mu_grav = m_DM_grav * m_N / (m_DM_grav + m_N)
+        # σ ~ (G_N m_DM m_N)² / π = (m_DM m_N / M_Pl²)² / π
+        sigma_grav = (m_DM_grav * m_N / M_Pl**2)**2 / np.pi  # GeV⁻⁴
+        sigma_grav_cm2 = sigma_grav * GeV4_to_cm2
+        grav_results.append((m_DM_grav, sigma_grav_cm2))
+        print(f"    m_DM = {m_DM_grav:6.1f} GeV:  σ_grav ≈ {sigma_grav_cm2:.0e} cm²")
+
+    print(f"")
+    print(f"  This is ~53 orders of magnitude below current limits.")
+    print(f"  Gravitational scattering is completely undetectable.")
+
+    print(f"\n  CHANNEL B: ELECTROMAGNETIC POLARIZABILITY")
+    print(f"  ──────────────────────────────────────────")
+    print(f"  The TE torus is polarizable: external E fields deform")
+    print(f"  the confined mode slightly. The nucleon's internal E")
+    print(f"  field (from quarks) induces a dipole → scattering.")
+    print(f"")
+    print(f"  Static polarizability of a toroidal cavity:")
+    print(f"    α_E ≈ V_tube / ln(8R/r_tube)")
+    print(f"       = 2π²α²/(m³ × ln(8/α))")
+    print(f"  where ln(8/α) = ln(1096) ≈ 7.0")
+    print(f"")
+    print(f"  The DM-nucleon coupling via polarizability:")
+    print(f"    f_pol ~ μ × (α_E/V_N) × 4α/(35 R_p)")
+    print(f"  (nucleon's ⟨E²⟩ acting on the induced dipole)")
+    print(f"")
+
+    ln_8_over_alpha = np.log(8.0 / alpha)
+    pol_results = []
+    for m_DM_pol in [40, 60, 100, m_relic]:
+        mu_pol = m_DM_pol * m_N / (m_DM_pol + m_N)
+        V_tube_pol = 2.0 * np.pi**2 * alpha**2 / m_DM_pol**3  # GeV⁻³
+        alpha_E_pol = V_tube_pol / ln_8_over_alpha
+        f_pol = mu_pol * alpha_E_pol / V_nucleon * 4.0 * alpha / (35.0 * R_p_phys)
+        sigma_pol = 4.0 * mu_pol**2 / np.pi * f_pol**2  # GeV⁻⁴
+        sigma_pol_cm2 = sigma_pol * GeV4_to_cm2
+        pol_results.append((m_DM_pol, sigma_pol_cm2))
+        print(f"    m_DM = {m_DM_pol:6.1f} GeV:  σ_pol ≈ {sigma_pol_cm2:.0e} cm²")
+
+    print(f"")
+    print(f"  About 9-10 orders below current limits.")
+    print(f"  Polarizability scattering is undetectable.")
+
+    print(f"\n  CHANNEL C: TUBE OVERLAP (CONTACT INTERACTION)")
+    print(f"  ──────────────────────────────────────────────")
+    print(f"  When the TE torus passes through a nucleon, a quark")
+    print(f"  can find itself inside the torus tube — briefly exposed")
+    print(f"  to the full TE field. This is the dominant channel.")
+    print(f"")
+    print(f"  The interaction requires the quark to be within the")
+    print(f"  tube volume V_tube = 2π²Rr² = 2π²α²/m_DM³.")
+    print(f"  Probability per encounter: P = V_tube / V_nucleon")
+    print(f"")
+    print(f"  Coupling strength: V₀ = α_EM × m_DM")
+    print(f"  (EM coupling constant × confined field energy scale)")
+    print(f"")
+    print(f"  DM-nucleon amplitude:")
+    print(f"    f_N = N_quarks × V₀ × V_tube / V_nucleon")
+    print(f"    σ_SI = (4μ²/π) × f_N²")
+    print(f"")
+
+    print(f"  {'m_DM (GeV)':>12} {'V_tube/V_N':>14} {'σ_SI (cm²)':>14} {'LZ limit':>14} {'Ratio':>10}")
+    print(f"  {'─'*12} {'─'*14} {'─'*14} {'─'*14} {'─'*10}")
+
+    N_quarks = 3.0  # effective number of quarks participating
+    contact_results = []
+
+    # LZ/XENON approximate limits (from LZ 2024 results)
+    def lz_limit(m):
+        """Approximate LZ 90% CL limit on σ_SI vs mass."""
+        # Minimum near 30-40 GeV at ~1e-47 cm²
+        # Rises at low and high mass
+        if m < 10:
+            return 1e-44
+        elif m < 30:
+            return 1e-47 * (30/m)**2
+        elif m < 100:
+            return 1e-47
+        else:
+            return 1e-47 * (m/100)**0.5
+
+    for m_DM_c in [40, 60, 80, 100, m_relic]:
+        mu_c = m_DM_c * m_N / (m_DM_c + m_N)
+        V_tube_c = 2.0 * np.pi**2 * alpha**2 / m_DM_c**3  # GeV⁻³
+        V_ratio = V_tube_c / V_nucleon
+        V0_c = alpha * m_DM_c  # coupling strength (GeV)
+        f_N_c = N_quarks * V0_c * V_tube_c / V_nucleon  # GeV⁻²
+        sigma_SI = 4.0 * mu_c**2 / np.pi * f_N_c**2  # GeV⁻⁴
+        sigma_SI_cm2 = sigma_SI * GeV4_to_cm2
+        lz_lim = lz_limit(m_DM_c)
+        ratio = sigma_SI_cm2 / lz_lim
+        contact_results.append((m_DM_c, V_ratio, sigma_SI_cm2, lz_lim, ratio))
+        print(f"  {m_DM_c:12.1f} {V_ratio:14.2e} {sigma_SI_cm2:14.2e} {lz_lim:14.1e} {ratio:10.1e}")
+
+    print(f"""
+  The tube overlap channel dominates, yet it is still
+  {1.0/contact_results[-1][4]:.0f}× BELOW current LZ limits at m_DM = {m_relic:.0f} GeV.
+
+  Physical origin of the suppression:
+    V_tube/V_nucleon ~ {contact_results[-1][1]:.1e}
+    The torus tube (r ~ {d_relic['r_m']:.1e} m) is ~10⁵× smaller
+    than the proton (R_p ~ 8.8×10⁻¹⁶ m). The probability of a
+    quark being inside the tube at any moment is vanishingly small.
+
+  SCALING: σ_SI ∝ α⁶ / m_DM⁴
+  ──────────────────────────────
+  The steep 1/m⁴ scaling means lighter DM is more detectable
+  (bigger torus, larger tube volume relative to nucleon):""")
+
+    # DARWIN sensitivity
+    darwin_sensitivity = 1e-49  # approximate DARWIN target
+    print(f"")
+    print(f"  Future experiment sensitivity:")
+    print(f"    LZ (current):   σ_SI ~ 10⁻⁴⁷ cm²")
+    print(f"    DARWIN (future): σ_SI ~ 10⁻⁴⁹ cm²")
+    print(f"")
+
+    for m_c, _, sig_c, _, _ in contact_results:
+        darwin_ratio = sig_c / darwin_sensitivity
+        reachable = "WITHIN REACH" if darwin_ratio > 0.1 else "below"
+        print(f"    m_DM = {m_c:6.1f} GeV:  σ/σ_DARWIN = {darwin_ratio:.1e}  ({reachable})")
+
+    # Summary box
+    sig_relic = f"{contact_results[-1][2]:.0e}"
+    sig_60 = f"{contact_results[1][2]:.0e}"
+    sig_40 = f"{contact_results[0][2]:.0e}"
+    print(f"""
+  ┌──────────────────────────────────────────────────────┐
+  │  DIRECT DETECTION PREDICTION                         │
+  │                                                      │
+  │  Dominant channel: tube overlap (contact interaction) │
+  │  σ_SI ~ α⁶/m_DM⁴ × (4m_N²/π) × 9 / V_N²          │
+  │                                                      │
+  │  m_DM = {m_relic:3.0f} GeV (P_ann=1): σ ≈ {sig_relic:>7s} cm²   │
+  │  m_DM =  60 GeV (Totani):  σ ≈ {sig_60:>7s} cm²   │
+  │  m_DM =  40 GeV (Totani):  σ ≈ {sig_40:>7s} cm²   │
+  │                                                      │
+  │  All predictions BELOW current LZ limits             │
+  │  → Explains null results of direct searches          │
+  │                                                      │
+  │  Lighter end (40-60 GeV) may be within reach of      │
+  │  next-generation experiments (DARWIN, ~10⁻⁴⁹ cm²)   │
+  │  → FALSIFIABLE prediction                            │
   └──────────────────────────────────────────────────────┘""")
 
 
