@@ -10,8 +10,9 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
 from matplotlib.patches import FancyArrowPatch
+from pathlib import Path
 
-OUTPUT_DIR = "/home/jim/repos/claude-prime/writing/images"
+OUTPUT_DIR = str(Path(__file__).resolve().parent / "images")
 
 
 def diagram_attention_metric_tensor():

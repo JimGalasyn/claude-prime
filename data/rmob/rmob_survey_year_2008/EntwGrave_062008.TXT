@@ -1,0 +1,56 @@
+X-Persona: <gmail>
+Delivered-To: csteyaert@gmail.com
+Received: by 10.140.178.7 with SMTP id a7cs2710rvf;
+        Tue, 1 Jul 2008 00:05:04 -0700 (PDT)
+Received: by 10.210.16.11 with SMTP id 11mr4958947ebp.187.1214895902849;
+        Tue, 01 Jul 2008 00:05:02 -0700 (PDT)
+Return-Path: <David@radiometeor.plus.com>
+Received: from fhw-relay07.plus.net (fhw-relay07.plus.net [212.159.14.215])
+        by mx.google.com with ESMTP id z34si7792793ikz.9.2008.07.01.00.05.01;
+        Tue, 01 Jul 2008 00:05:02 -0700 (PDT)
+Received-SPF: neutral (google.com: 212.159.14.215 is neither permitted nor denied by best guess record for domain of David@radiometeor.plus.com) client-ip=212.159.14.215;
+Authentication-Results: mx.google.com; spf=neutral (google.com: 212.159.14.215 is neither permitted nor denied by best guess record for domain of David@radiometeor.plus.com) smtp.mail=David@radiometeor.plus.com
+Received: from [84.92.95.43] (helo=radiometeor.plus.com)
+	 by fhw-relay07.plus.net with esmtp (Exim) id 1KDZvB-0001my-3w
+	for csteyaert@gmail.com; Tue, 01 Jul 2008 08:05:01 +0100
+Message-ID: <cqjKHCBXcdaIFwav@radiometeor.plus.com>
+Date: Tue, 1 Jul 2008 08:04:55 +0100
+To: Christian Steyaert <csteyaert@gmail.com>
+From: David Entwistle <David@radiometeor.plus.com>
+Reply-To: David Entwistle <david@radiometeor.plus.com>
+Subject: Rmob results for June 2008 Entwistle
+MIME-Version: 1.0
+Content-Type: multipart/mixed;boundary="=_Turnpike_C6DND6AWcdaIR45c="
+User-Agent: Turnpike/6.07-M (<ueodsClGxudCBtQ8+JCRvS$Rrg>)
+X-Plusnet-Relay: 17b979131ad90ac70e2ad6db955778df
+
+Hi Chris,
+
+As in previous years, my meteor June counts on 55.25MHz are troubled by sporadic E. The following data should be viewed with caution.
+
+
+
+Content-Type: text/plain
+Content-Disposition: attachment; filename=Entwistle_062008rmob.TXT
+Content-Description: Entwistle_062008rmob.TXT
+Content-MD5: 5Nl2Le59zuhXs9zcNXrcJg==
+
+ Entwistle_062008rmob.TXT 
+
+I operated a second system specifically looking for JBO activity. Target was Graves space surveillance radar, vertical polarization. This system isn't troubled by Es.
+
+The timing of the peak of activity in this data suggests it is largely due to the sporadic background and the Beta Tuarid activity - I don't think I see any significant JBO activity.
+
+
+
+Content-Type: text/plain
+Content-Disposition: attachment; filename=yourname_jun2008rmob_10db.TXT
+Content-Description: yourname_jun2008rmob_10db.TXT
+Content-MD5: WCZZ6jZv8Ka/TCrHQc9uJA==
+
+ yourname_jun2008rmob_10db.TXT 
+
+Best wishes,
+-- 
+David Entwistle
+
