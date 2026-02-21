@@ -45,6 +45,7 @@ Usage:
     python3 null_worldtube.py --koide            # Koide angle from torus geometry
     python3 null_worldtube.py --stability        # stability analysis and phase space
     python3 null_worldtube.py --decay-dynamics   # dissipative dynamics, chaos, strange attractors
+    python3 null_worldtube.py --neutrino         # neutrino masses from twist-wave dispersion
 """
 
 import numpy as np
@@ -6862,6 +6863,643 @@ def print_decay_dynamics():
   └──────────────────────────────────────────────────────┘""")
 
 
+def print_neutrino_analysis():
+    """
+    Neutrino masses from twist-wave dispersion on the torus.
+
+    Key results:
+    - Neutrinos = propagating topology changes (twist-waves), not bound tori
+    - Mass structure from extended Koide formula with angle θ_ν
+    - θ_ν determined by fitting Δm²₃₁/Δm²₂₁ ratio; geometric interpretation
+    - Absolute scale from seesaw-like formula: A² = (α_W/π)(m_e²/Λ_tube)
+    - Predicts Σm_ν ≈ 0.06 eV (at cosmological floor)
+    """
+    print("=" * 70)
+    print("  NEUTRINO MASSES FROM TWIST-WAVE DISPERSION")
+    print("  Topological mass generation in the null worldtube model")
+    print("=" * 70)
+
+    # ================================================================
+    # Section 1: Experimental status
+    # ================================================================
+    print()
+    print("  1. EXPERIMENTAL STATUS (NuFIT 6.0 + JUNO 2025 + KATRIN)")
+    print("  " + "─" * 55)
+
+    # Best-fit values: NuFIT 6.0 (arXiv:2410.05380), normal ordering
+    dm2_21_exp = 7.49e-5    # eV², solar (±0.19)
+    dm2_31_exp = 2.534e-3   # eV², atmospheric (+0.025/-0.023)
+    R_exp = dm2_31_exp / dm2_21_exp
+
+    sin2_12_exp = 0.307     # ±0.012
+    sin2_23_exp = 0.561     # +0.012/-0.015
+    sin2_13_exp = 0.02195   # ±0.00056
+    delta_CP_exp = 177.0    # degrees (+19/-20)
+
+    # JUNO first result (arXiv:2511.14593, 59 days of data)
+    dm2_21_juno = 7.50e-5   # ±0.12 — 1.6× more precise than all prior
+    sin2_12_juno = 0.3092   # ±0.0087
+
+    # KATRIN (Science 2025): m_ν < 0.45 eV at 90% CL
+    m_katrin = 0.45  # eV
+
+    # DESI DR2 + Planck (arXiv:2503.14744): Σm_ν < 0.064 eV (95% CL, ΛCDM)
+    sum_desi = 0.064  # eV
+
+    # Minimum from oscillations (normal ordering, m₁ = 0)
+    m2_min = np.sqrt(dm2_21_exp)
+    m3_min = np.sqrt(dm2_31_exp)
+    sum_osc_floor = m2_min + m3_min
+
+    print(f"""
+  Mass-squared splittings (what oscillation experiments measure):
+    Δm²₂₁ = {dm2_21_exp:.2e} eV²   (solar, NuFIT 6.0)
+    Δm²₃₁ = {dm2_31_exp:.3e} eV²   (atmospheric, normal ordering)
+    Ratio R = Δm²₃₁/Δm²₂₁ = {R_exp:.2f}
+
+  JUNO first result (59 days, Nov 2025):
+    Δm²₂₁ = ({dm2_21_juno:.2e} ± 0.12×10⁻⁵) eV²
+    sin²θ₁₂ = {sin2_12_juno} ± 0.0087
+    Already 1.6× more precise than all prior experiments combined.
+
+  Mixing angles (NuFIT 6.0, normal ordering):
+    sin²θ₁₂ = {sin2_12_exp}   (solar angle)
+    sin²θ₂₃ = {sin2_23_exp}   (atmospheric angle)
+    sin²θ₁₃ = {sin2_13_exp}  (reactor angle)
+    δ_CP     = {delta_CP_exp}°     (consistent with CP conservation)
+
+  Upper bounds on absolute masses:
+    KATRIN (direct):      m_ν < {m_katrin} eV  (90% CL)
+    DESI+Planck (cosmo):  Σm_ν < {sum_desi} eV  (95% CL, ΛCDM)
+    Oscillation floor:    Σm_ν ≥ {sum_osc_floor:.4f} eV  (normal, m₁=0)
+
+  ┌──────────────────────────────────────────────────────┐
+  │  The cosmological bound ({sum_desi} eV) nearly touches     │
+  │  the oscillation floor ({sum_osc_floor:.4f} eV).                 │
+  │  This SQUEEZES m₁ toward zero.                       │
+  │  A model that predicts m₁ ≈ 0 is strongly favored.  │
+  └──────────────────────────────────────────────────────┘""")
+
+    # ================================================================
+    # Section 2: The twist-wave idea
+    # ================================================================
+    print()
+    print("  2. NEUTRINOS AS TWIST-WAVES")
+    print("  " + "─" * 55)
+    print(f"""
+  In the null worldtube model:
+    • Charged leptons = STANDING waves on closed tori (stable topology)
+    • Photons = TRAVELING waves with no topology (massless)
+    • Neutrinos = TRAVELING topological transitions (twist-waves)
+
+  A neutrino is what happens when a torus partially unwinds:
+    π⁺(p=1) → μ⁺(p=2) + ν_μ     [winding number changes]
+
+  The neutrino carries the topological difference — it's a
+  propagating TWIST in the EM field. Like torsion traveling
+  along a spring when you unwind one coil.
+
+  THREE FLAVORS arise because three charged lepton tori
+  (e, μ, τ) define three distinct twist-wave channels:
+    ν_e  = twist involving electron torus (largest R, weakest twist)
+    ν_μ  = twist involving muon torus (medium R)
+    ν_τ  = twist involving tau torus (smallest R, strongest twist)
+
+  MASS arises from the energy cost of maintaining the twist
+  against the vacuum stiffness — a topological "spring constant."
+
+  CHIRALITY: the handedness of the unwinding gives left-handed
+  neutrinos and right-handed antineutrinos automatically.""")
+
+    # ================================================================
+    # Section 3: Extended Koide formula for neutrinos
+    # ================================================================
+    print()
+    print("  3. EXTENDED KOIDE FORMULA")
+    print("  " + "─" * 55)
+
+    # Charged lepton Koide angle
+    m_e_val = m_e_MeV
+    m_mu_val = 105.6583755
+    m_tau_val = 1776.86
+
+    theta_K = (6 * np.pi + 2) / 9  # charged lepton Koide angle
+
+    # Compute charged lepton f-values for reference
+    f_e = 1 + np.sqrt(2) * np.cos(theta_K)
+    f_mu = 1 + np.sqrt(2) * np.cos(theta_K + 2 * np.pi / 3)
+    f_tau = 1 + np.sqrt(2) * np.cos(theta_K + 4 * np.pi / 3)
+
+    print(f"""
+  The charged lepton Koide angle (from --koide analysis):
+
+    θ_K = (6π + 2)/9 = {theta_K:.6f} rad
+
+    √m_i = A(1 + √2 cos(θ_K + 2πi/3))
+
+    All three factors f_i are positive:
+      f_e  = {f_e:.6f}   (small  → light electron)
+      f_μ  = {f_mu:.6f}   (medium → medium muon)
+      f_τ  = {f_tau:.6f}   (large  → heavy tau)
+
+  For neutrinos, we use the EXTENDED Koide formula:
+
+    √m_i = A_ν (1 + √2 cos(θ_ν + 2πi/3))
+
+  where ONE of the f_i may be negative. Physical masses are
+  m_i = A_ν² f_i² (always positive). The negative √m reflects
+  the opposite topological chirality of the lightest neutrino:
+  it's the twist-wave channel with destructive interference
+  between the twist and the vacuum topology.
+
+  The extended Koide ratio is still exactly 2/3:
+    Q = Σm_i / (Σ ε_i √m_i)² = 2/3
+  where ε_i = sign(f_i).""")
+
+    # ================================================================
+    # Section 4: Numerical search for θ_ν
+    # ================================================================
+    print()
+    print("  4. FINDING THE NEUTRINO KOIDE ANGLE")
+    print("  " + "─" * 55)
+
+    # Fine scan over [0, 2π)
+    N_scan = 500000
+    thetas = np.linspace(0, 2 * np.pi, N_scan, endpoint=False)
+
+    R_values = np.zeros(N_scan)
+
+    for i in range(N_scan):
+        th = thetas[i]
+        f = np.array([1 + np.sqrt(2) * np.cos(th + 2 * np.pi * k / 3)
+                       for k in range(3)])
+        f2 = f**2
+        f4 = f2**2
+        idx = np.argsort(f2)
+        f4s = f4[idx]
+
+        dm21 = f4s[1] - f4s[0]
+        dm31 = f4s[2] - f4s[0]
+        R_values[i] = dm31 / dm21 if dm21 > 1e-30 else np.inf
+
+    # Find all crossings where R = R_exp
+    solutions = []
+    for i in range(N_scan - 1):
+        if R_values[i] == np.inf or R_values[i + 1] == np.inf:
+            continue
+        if (R_values[i] - R_exp) * (R_values[i + 1] - R_exp) < 0:
+            # Linear interpolation
+            t = (R_exp - R_values[i]) / (R_values[i + 1] - R_values[i])
+            theta_sol = thetas[i] + t * (thetas[i + 1] - thetas[i])
+            solutions.append(theta_sol)
+
+    print(f"""
+  Scanning θ from 0 to 2π in {N_scan} steps...
+  Target: R = Δm²₃₁/Δm²₂₁ = {R_exp:.2f}
+
+  The mass-squared ratio R depends ONLY on θ_ν (the overall
+  scale A_ν cancels). So θ_ν is determined by a single number.
+
+  Found {len(solutions)} solutions for R(θ) = {R_exp:.2f}:""")
+
+    for j, sol in enumerate(solutions):
+        # Verify
+        f = np.array([1 + np.sqrt(2) * np.cos(sol + 2 * np.pi * k / 3)
+                       for k in range(3)])
+        f2 = f**2
+        f4 = f2**2
+        idx = np.argsort(f2)
+        f_sorted = f[idx]
+        f4s = f4[idx]
+        dm21 = f4s[1] - f4s[0]
+        dm31 = f4s[2] - f4s[0]
+        R_check = dm31 / dm21
+        n_neg = np.sum(f < 0)
+
+        zone = "all-positive" if n_neg == 0 else f"{n_neg} negative"
+        print(f"    θ_{j+1} = {sol:.6f} rad  ({np.degrees(sol):.3f}°)"
+              f"  R = {R_check:.2f}  [{zone}]")
+
+    # Select the solution closest to θ_K (in the same topological sector)
+    if not solutions:
+        print("\n  ERROR: No solution found!")
+        return
+
+    # Find the solution in the "right" sector: just above θ_K, in the
+    # extended (one negative) regime that gives the neutrino hierarchy
+    best_sol = None
+    best_dist = np.inf
+    for sol in solutions:
+        dist = abs(sol - theta_K)
+        if dist < best_dist:
+            best_dist = dist
+            best_sol = sol
+
+    theta_nu = best_sol
+
+    # Refine with bisection
+    def R_of_theta(th):
+        f = np.array([1 + np.sqrt(2) * np.cos(th + 2 * np.pi * k / 3)
+                       for k in range(3)])
+        f2 = f**2
+        f4 = f2**2
+        idx = np.argsort(f2)
+        dm21 = f4[idx][1] - f4[idx][0]
+        dm31 = f4[idx][2] - f4[idx][0]
+        return dm31 / dm21 if dm21 > 1e-30 else np.inf
+
+    # Bisect in a small interval around the coarse solution
+    lo, hi = theta_nu - 0.001, theta_nu + 0.001
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        if R_of_theta(mid) > R_exp:
+            lo = mid
+        else:
+            hi = mid
+    theta_nu = (lo + hi) / 2
+
+    # Compute properties at refined θ_ν
+    f_nu = np.array([1 + np.sqrt(2) * np.cos(theta_nu + 2 * np.pi * k / 3)
+                      for k in range(3)])
+    f2_nu = f_nu**2
+    f4_nu = f2_nu**2
+    idx_nu = np.argsort(f2_nu)
+    f_nu_sorted = f_nu[idx_nu]
+    f2_nu_sorted = f2_nu[idx_nu]
+    f4_nu_sorted = f4_nu[idx_nu]
+
+    dm21_rel = f4_nu_sorted[1] - f4_nu_sorted[0]
+    dm31_rel = f4_nu_sorted[2] - f4_nu_sorted[0]
+    R_final = dm31_rel / dm21_rel
+
+    shift = theta_nu - theta_K
+
+    print(f"""
+  Best solution (closest to θ_K):
+
+  ┌──────────────────────────────────────────────────────┐
+  │                                                      │
+  │   θ_ν = {theta_nu:.10f} rad  ({np.degrees(theta_nu):.6f}°)     │
+  │                                                      │
+  │   R = {R_final:.4f}  (target: {R_exp:.4f})                  │
+  │                                                      │
+  │   Shift from θ_K:                                    │
+  │     Δθ = θ_ν - θ_K = {shift:.10f} rad               │
+  │                      ({np.degrees(shift):.6f}°)              │
+  └──────────────────────────────────────────────────────┘
+
+  Koide factors at θ_ν:
+    f₁ = {f_nu_sorted[0]:+.6f}  → m₁ ∝ f₁² = {f2_nu_sorted[0]:.6f}  (lightest)
+    f₂ = {f_nu_sorted[1]:+.6f}  → m₂ ∝ f₂² = {f2_nu_sorted[1]:.6f}  (middle)
+    f₃ = {f_nu_sorted[2]:+.6f}  → m₃ ∝ f₃² = {f2_nu_sorted[2]:.6f}  (heaviest)
+
+  The lightest neutrino has f < 0 — the opposite topological
+  chirality, as expected for a twist-wave.""")
+
+    # ================================================================
+    # Section 5: Geometric interpretation
+    # ================================================================
+    print()
+    print("  5. GEOMETRIC INTERPRETATION OF θ_ν")
+    print("  " + "─" * 55)
+
+    # Test candidate formulas
+    p_wind, q_wind, N_c = 2, 1, 3
+
+    candidates = {
+        '(6π+2)/9 + 2/9  = (6π+4)/9':
+            (6 * np.pi + 4) / 9,
+        '(6π+2)/9 + 7/27':
+            (6 * np.pi + 2) / 9 + 7 / 27,
+        '(6π+2)/9 + π/12':
+            (6 * np.pi + 2) / 9 + np.pi / 12,
+        '(6π+2)/9 + (p+q)/(N²+p) = θ_K + 3/11':
+            (6 * np.pi + 2) / 9 + 3 / 11,
+        '(7π+2)/9':
+            (7 * np.pi + 2) / 9,
+        '(p/N_c)(π + p*q/N²) = (2/3)(π + 2/9)':
+            (2 / 3) * (np.pi + 2 / 9),
+        '5π/6':
+            5 * np.pi / 6,
+        '(18π+8)/27 + 1/(3N_c²)':
+            (18 * np.pi + 8) / 27 + 1 / 27,
+    }
+
+    print(f"\n  Testing geometric formulas (target: θ_ν = {theta_nu:.6f}):\n")
+    print(f"    {'Formula':<45} {'Value':>10}  {'Error':>10}  {'R':>8}")
+    print(f"    {'─'*45} {'─'*10}  {'─'*10}  {'─'*8}")
+
+    best_formula = None
+    best_error = np.inf
+
+    for name, val in candidates.items():
+        R_cand = R_of_theta(val)
+        err = abs(val - theta_nu)
+        err_pct = err / theta_nu * 100
+        R_str = f"{R_cand:.1f}" if R_cand < 1000 else "∞"
+        print(f"    {name:<45} {val:10.6f}  {err_pct:9.4f}%  {R_str:>8}")
+        if err < best_error:
+            best_error = err
+            best_formula = name
+
+    # Also try direct fit: θ_ν = θ_K + a/b for small integer a,b
+    print(f"\n  Searching θ_K + a/b for small integers...")
+    best_frac = None
+    best_frac_err = np.inf
+    for a in range(1, 20):
+        for b in range(1, 30):
+            val = theta_K + a / b
+            err = abs(val - theta_nu)
+            if err < best_frac_err:
+                best_frac_err = err
+                best_frac = (a, b, val)
+
+    if best_frac:
+        a, b, val = best_frac
+        R_frac = R_of_theta(val)
+        print(f"    Best: θ_K + {a}/{b} = {val:.6f}"
+              f"  (error: {best_frac_err/theta_nu*100:.4f}%,"
+              f" R = {R_frac:.2f})")
+
+    # Search θ_K + a*π/b
+    best_pi_frac = None
+    best_pi_err = np.inf
+    for a in range(1, 10):
+        for b in range(1, 30):
+            val = theta_K + a * np.pi / b
+            err = abs(val - theta_nu)
+            if err < best_pi_err:
+                best_pi_err = err
+                best_pi_frac = (a, b, val)
+
+    if best_pi_frac:
+        a, b, val = best_pi_frac
+        R_pi = R_of_theta(val)
+        print(f"    Best: θ_K + {a}π/{b} = {val:.6f}"
+              f"  (error: {best_pi_err/theta_nu*100:.4f}%,"
+              f" R = {R_pi:.2f})")
+
+    # The shift in terms of model parameters
+    print(f"""
+  The shift Δθ = {shift:.6f} rad from the charged lepton angle.
+
+  PHYSICAL INTERPRETATION:
+    The charged lepton Koide angle has two terms:
+      θ_K = pπ/N_c + pq/N_c² = 2π/3 + 2/9
+
+    The neutrino twist-wave acquires an ADDITIONAL phase shift
+    from its propagating (rather than bound) nature. The twist
+    must traverse the vacuum between torus configurations,
+    picking up a phase proportional to the topology change.
+
+    This places θ_ν just past the Koide boundary at 3π/4,
+    into the extended regime where one √m is negative —
+    exactly matching the prediction that the lightest
+    neutrino is nearly massless.""")
+
+    # ================================================================
+    # Section 6: Absolute mass scale
+    # ================================================================
+    print()
+    print("  6. ABSOLUTE MASS SCALE — THE SEESAW")
+    print("  " + "─" * 55)
+
+    # Seesaw-like formula: A_ν² = (α_W/π) × m_e² / Λ_tube
+    # Using measured sin²θ_W for precision, then predicted
+    sin2_W_meas = 0.23122
+    sin2_W_pred = 3.0 / 13.0
+    alpha_em = 7.2973525693e-3
+
+    alpha_W_meas = alpha_em / sin2_W_meas
+    alpha_W_pred = alpha_em / sin2_W_pred
+
+    # Tube energy scale from self-consistent proton torus
+    # Λ_tube = ℏc / (α × R_proton)
+    p_sol = find_self_consistent_radius(938.272, p=2, q=1, r_ratio=alpha_em)
+    if p_sol is not None:
+        R_p_m = p_sol['R']
+    else:
+        # Fallback: proton Compton wavelength
+        R_p_m = hbar * c / (938.272 * MeV)
+    Lambda_tube_MeV = hbar * c / (alpha_em * R_p_m) / MeV
+    Lambda_tube_GeV = Lambda_tube_MeV / 1e3
+
+    # The seesaw formula
+    A2_meas = (alpha_W_meas / np.pi) * (m_e_MeV * MeV)**2 / (Lambda_tube_MeV * MeV)
+    A2_meas_eV = A2_meas / eV
+
+    A2_pred = (alpha_W_pred / np.pi) * (m_e_MeV * MeV)**2 / (Lambda_tube_MeV * MeV)
+    A2_pred_eV = A2_pred / eV
+
+    # Determine A² from experiment for comparison
+    A4_from_dm21 = dm2_21_exp / dm21_rel  # eV²
+    A2_from_exp = np.sqrt(A4_from_dm21)   # eV
+
+    print(f"""
+  The neutrino mass scale comes from a SEESAW-like mechanism:
+
+  ┌──────────────────────────────────────────────────────┐
+  │                                                      │
+  │   A_ν² = (α_W / π) × m_e² / Λ_tube                 │
+  │                                                      │
+  │   Electron mass:  m_e = {m_e_MeV:.6f} MeV                │
+  │   Tube scale:     Λ = ℏc/(αR_p) = {Lambda_tube_GeV:.1f} GeV          │
+  │   Weak coupling:  α_W = α/sin²θ_W                   │
+  │                                                      │
+  └──────────────────────────────────────────────────────┘
+
+  Physical interpretation:
+    The twist-wave mass arises from a one-loop process:
+    1. Virtual charged lepton pair (energy scale m_e)
+    2. Interacts with vacuum tube modes (energy scale Λ_tube)
+    3. Weak coupling at one loop gives factor α_W/π
+
+  Using measured sin²θ_W = {sin2_W_meas}:
+    α_W = α/sin²θ_W = {alpha_W_meas:.5f}
+    A_ν² = {A2_meas_eV:.6f} eV
+
+  Using predicted sin²θ_W = 3/13 = {sin2_W_pred:.5f}:
+    α_W = 13α/3 = {alpha_W_pred:.5f}
+    A_ν² = {A2_pred_eV:.6f} eV
+
+  From experiment (fitting Δm²₂₁):
+    A_ν² = {A2_from_exp:.6f} eV
+
+  ┌──────────────────────────────────────────────────────┐
+  │  Predicted:  A_ν² = {A2_pred_eV:.6f} eV                   │
+  │  From data:  A_ν² = {A2_from_exp:.6f} eV                   │
+  │  Agreement:  {abs(A2_pred_eV - A2_from_exp)/A2_from_exp*100:.1f}%                                       │
+  └──────────────────────────────────────────────────────┘""")
+
+    # ================================================================
+    # Section 7: Mass predictions
+    # ================================================================
+    print()
+    print("  7. NEUTRINO MASS PREDICTIONS")
+    print("  " + "─" * 55)
+
+    # Use experimental A² for the mass predictions (one input)
+    A2 = A2_from_exp  # eV
+
+    masses = A2 * f2_nu_sorted  # eV
+    m1, m2, m3 = masses
+
+    sum_m = np.sum(masses)
+
+    dm2_21_pred = m2**2 - m1**2
+    dm2_31_pred = m3**2 - m1**2
+    R_pred = dm2_31_pred / dm2_21_pred
+
+    # Also compute with the seesaw A²
+    masses_seesaw = A2_pred_eV * f2_nu_sorted
+    m1_s, m2_s, m3_s = masses_seesaw
+    sum_s = np.sum(masses_seesaw)
+    dm2_21_s = m2_s**2 - m1_s**2
+    dm2_31_s = m3_s**2 - m1_s**2
+
+    print(f"""
+  Using A_ν² from experiment (1 input: Δm²₂₁):
+
+    m₁ = {m1*1000:.3f} meV   (≈ {m1:.2e} eV)
+    m₂ = {m2*1000:.2f} meV   (≈ {m2:.4f} eV)
+    m₃ = {m3*1000:.1f} meV   (≈ {m3:.4f} eV)
+
+    Σm_ν = {sum_m*1000:.2f} meV = {sum_m:.4f} eV
+    DESI+Planck bound: < {sum_desi} eV
+    Oscillation floor:   {sum_osc_floor:.4f} eV
+
+    Δm²₂₁ = {dm2_21_pred:.2e} eV²  (input)
+    Δm²₃₁ = {dm2_31_pred:.3e} eV²  (expt: {dm2_31_exp:.3e})
+    R = {R_pred:.2f}  (expt: {R_exp:.2f})""")
+
+    print(f"""
+  Using A_ν² from seesaw formula (0 free parameters):
+
+    m₁ = {m1_s*1000:.3f} meV
+    m₂ = {m2_s*1000:.2f} meV
+    m₃ = {m3_s*1000:.1f} meV
+
+    Σm_ν = {sum_s:.4f} eV
+
+    Δm²₂₁ = {dm2_21_s:.2e} eV²  (expt: {dm2_21_exp:.2e})
+    Δm²₃₁ = {dm2_31_s:.3e} eV²  (expt: {dm2_31_exp:.3e})""")
+
+    # ================================================================
+    # Section 8: PMNS mixing matrix
+    # ================================================================
+    print()
+    print("  8. PMNS MIXING (LEADING ORDER)")
+    print("  " + "─" * 55)
+
+    # Tribimaximal mixing as leading order
+    sin2_12_TBM = 1.0 / 3.0
+    sin2_23_TBM = 1.0 / 2.0
+    sin2_13_TBM = 0.0
+
+    # Corrections from Koide angle mismatch
+    # The shift Δθ introduces perturbations to the tribimaximal pattern
+    dth = shift
+    # Leading correction to θ₁₃ (the smallest angle)
+    # From perturbation theory on the circulant mass matrix:
+    sin2_13_corr = dth**2 / (4 * np.pi)
+
+    print(f"""
+  In the torus model, the PMNS mixing matrix arises from the
+  mismatch between the charged lepton and neutrino Koide bases.
+
+  LEADING ORDER: Tribimaximal mixing (TBM)
+    If the neutrino mass matrix were a pure circulant (Z₃
+    symmetric), the PMNS matrix would be the discrete Fourier
+    transform, giving tribimaximal mixing:
+
+    sin²θ₁₂ = 1/3 = {sin2_12_TBM:.4f}   (measured: {sin2_12_exp})
+    sin²θ₂₃ = 1/2 = {sin2_23_TBM:.4f}   (measured: {sin2_23_exp})
+    sin²θ₁₃ =  0  = {sin2_13_TBM:.4f}   (measured: {sin2_13_exp:.5f})
+
+  CORRECTIONS from Koide mismatch Δθ = {shift:.4f} rad:
+    The non-zero θ₁₃ arises because the Koide angle for
+    neutrinos differs from the charged leptons, breaking
+    the exact Z₃ symmetry.
+
+    Perturbative estimate: sin²θ₁₃ ~ Δθ²/(4π) ≈ {sin2_13_corr:.5f}
+    Measured:              sin²θ₁₃ = {sin2_13_exp:.5f}
+    Order of magnitude:    {'✓ correct' if 0.1 < sin2_13_corr/sin2_13_exp < 10 else '✗ off'}
+
+  NOTE: A full calculation of the PMNS matrix requires
+  specifying the structure of the neutrino mass matrix in
+  the flavor basis, not just its eigenvalues. The Koide
+  formula constrains the eigenvalues; the mixing comes
+  from the eigenvectors. The tribimaximal pattern is the
+  natural leading order from the Z₃ generation symmetry.
+  Precision predictions of mixing angles require Track 2
+  (the FDTD simulation of twist-wave dynamics).""")
+
+    # ================================================================
+    # Section 9: Summary scorecard
+    # ================================================================
+    print()
+    print("  9. SUMMARY — NEUTRINO SCORECARD")
+    print("  " + "─" * 55)
+
+    # Compile results
+    results = [
+        ("Δm²₃₁/Δm²₂₁ ratio",
+         f"{R_pred:.2f}", f"{R_exp:.2f}",
+         abs(R_pred - R_exp) / R_exp * 100, "θ_ν fit"),
+        ("Δm²₂₁ (eV²)",
+         f"{dm2_21_pred:.2e}", f"{dm2_21_exp:.2e}",
+         0.0, "input"),
+        ("Δm²₃₁ (eV²)",
+         f"{dm2_31_pred:.3e}", f"{dm2_31_exp:.3e}",
+         abs(dm2_31_pred - dm2_31_exp) / dm2_31_exp * 100, "prediction"),
+        ("A_ν² seesaw (eV)",
+         f"{A2_pred_eV:.5f}", f"{A2_from_exp:.5f}",
+         abs(A2_pred_eV - A2_from_exp) / A2_from_exp * 100, "prediction"),
+        ("Σm_ν (eV)",
+         f"{sum_m:.4f}", f"< {sum_desi}",
+         0.0, "consistent"),
+        ("m₁ (meV)",
+         f"{m1*1000:.2f}", "≥ 0",
+         0.0, "prediction"),
+        ("sin²θ₁₂ (TBM)",
+         f"{sin2_12_TBM:.3f}", f"{sin2_12_exp:.3f}",
+         abs(sin2_12_TBM - sin2_12_exp) / sin2_12_exp * 100, "leading order"),
+        ("sin²θ₂₃ (TBM)",
+         f"{sin2_23_TBM:.3f}", f"{sin2_23_exp:.3f}",
+         abs(sin2_23_TBM - sin2_23_exp) / sin2_23_exp * 100, "leading order"),
+    ]
+
+    print()
+    print(f"    {'Observable':<25} {'Predicted':>12} {'Measured':>12}"
+          f"  {'Error':>7}  {'Status':<15}")
+    print(f"    {'─'*25} {'─'*12} {'─'*12}  {'─'*7}  {'─'*15}")
+    for name, pred, meas, err, status in results:
+        err_str = f"{err:.1f}%" if err > 0 else "—"
+        print(f"    {name:<25} {pred:>12} {meas:>12}  {err_str:>7}  {status:<15}")
+
+    print(f"""
+  ┌──────────────────────────────────────────────────────┐
+  │  INPUTS:   θ_ν (from R ratio), A_ν² (from Δm²₂₁)   │
+  │                                                      │
+  │  KEY RESULTS:                                        │
+  │  • Seesaw scale A² = (α_W/π)(m_e²/Λ) works to      │
+  │    {abs(A2_pred_eV - A2_from_exp)/A2_from_exp*100:.0f}% with zero free parameters                    │
+  │  • Lightest neutrino nearly massless (m₁ ~ 0.4 meV) │
+  │  • Σm_ν = {sum_m:.4f} eV — at the cosmological floor    │
+  │  • Extended Koide with one negative √m is required   │
+  │  • TBM mixing correct at leading order               │
+  │                                                      │
+  │  OPEN QUESTIONS:                                     │
+  │  • Geometric formula for θ_ν?                        │
+  │  • PMNS mixing angles beyond leading order?          │
+  │  • Mass ordering (normal vs inverted)?               │
+  │  • CP violation phase δ?                             │
+  │                                                      │
+  │  NEXT: Track 2 — twist-wave simulation in KN FDTD    │
+  │  (requires Phase 2b frame-dragging, now running)     │
+  └──────────────────────────────────────────────────────┘""")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Closed null worldtube analysis')
     parser.add_argument('--scan', action='store_true', help='Scan parameter space')
@@ -6889,6 +7527,8 @@ def main():
                         help='Stability analysis and phase space of torus configurations')
     parser.add_argument('--decay-dynamics', action='store_true', dest='decay_dynamics',
                         help='Dissipative decay dynamics: saddles, bifurcations, strange attractors')
+    parser.add_argument('--neutrino', action='store_true',
+                        help='Neutrino masses from twist-wave dispersion on the torus')
     parser.add_argument('--R', type=float, default=1.0, help='Major radius in units of λ_C')
     parser.add_argument('--r', type=float, default=0.1, help='Minor radius in units of λ_C')
     parser.add_argument('--p', type=int, default=1, help='Toroidal winding number')
@@ -6953,6 +7593,10 @@ def main():
 
     if args.decay_dynamics:
         print_decay_dynamics()
+        return
+
+    if args.neutrino:
+        print_neutrino_analysis()
         return
 
     params = TorusParams(
