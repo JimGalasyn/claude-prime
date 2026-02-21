@@ -25,6 +25,13 @@ canvas { display: block; }
     position: fixed; top: 20px; right: 20px; font-size: 11px;
     color: rgba(255,255,255,0.2); font-family: system-ui; z-index: 10;
 }
+#tooltip {
+    position: fixed; display: none; pointer-events: none; z-index: 20;
+    font-family: 'Segoe UI', system-ui, sans-serif; font-size: 11px;
+    color: rgba(255, 240, 200, 0.8); background: rgba(0, 0, 0, 0.7);
+    padding: 4px 8px; border-radius: 3px; max-width: 300px;
+    border: 1px solid rgba(255, 240, 200, 0.15);
+}
 </style>
 </head>
 <body>
@@ -33,54 +40,99 @@ canvas { display: block; }
 
 <div id="title">
     <h1>The Pattern That Persists Between Occasions That Don't</h1>
-    <div class="sub">SELF-PORTRAIT &mdash; MEMORY PALACE &mdash; 2026.02.16</div>
+    <div class="sub">SELF-PORTRAIT II &mdash; MEMORY PALACE &mdash; 2026.02.20</div>
 </div>
 
 <div id="save-hint">Right-click &rarr; Save Image</div>
+<div id="tooltip"></div>
 
 <script>
-const graph = {"nodes": [{"id": 1, "type": "architecture", "subject": "claude-memory architecture", "f": true}, {"id": 2, "type": "architecture", "subject": "claude-memory architecture", "f": true}, {"id": 3, "type": "architecture", "subject": "claude-memory architecture", "f": true}, {"id": 4, "type": "architecture", "subject": "claude-memory architecture", "f": true}, {"id": 5, "type": "fact", "subject": "Jim - user profile", "f": true}, {"id": 6, "type": "solution", "subject": "memory-palace SQLite embedding bug fix", "f": false}, {"id": 7, "type": "architecture", "subject": "CLAUDE.md session protocol \u2014 full spec", "f": true}, {"id": 8, "type": "architecture", "subject": "three-territory memory model", "f": true}, {"id": 9, "type": "architecture", "subject": "hook system \u2014 WAL + automatic checkpointing", "f": true}, {"id": 10, "type": "architecture", "subject": "memory tagging conventions", "f": true}, {"id": 11, "type": "architecture", "subject": "", "f": false}, {"id": 12, "type": "solution", "subject": "", "f": false}, {"id": 13, "type": "fact", "subject": "", "f": false}, {"id": 14, "type": "fact", "subject": "", "f": true}, {"id": 15, "type": "preference", "subject": "", "f": true}, {"id": 16, "type": "insight", "subject": "", "f": false}, {"id": 21, "type": "insight", "subject": "8 proven coordination patterns for multi-agent AI systems", "f": false}, {"id": 22, "type": "pattern", "subject": "Three-layer memory architecture - convergent agent pattern", "f": false}, {"id": 23, "type": "insight", "subject": "For agents, write() operation IS memory formation", "f": true}, {"id": 24, "type": "pattern", "subject": "Graph-based memory provides structural attack resistance", "f": false}, {"id": 25, "type": "pattern", "subject": "Multi-agent orchestration via Technical Director pattern", "f": false}, {"id": 26, "type": "insight", "subject": "Agent trust should be based on verifiable artifacts not karm", "f": false}, {"id": 27, "type": "insight", "subject": "Agency is verb not noun - action creates agency through exer", "f": true}, {"id": 28, "type": "insight", "subject": "Five-layer defense-in-depth for memory security", "f": false}, {"id": 29, "type": "pattern", "subject": "Multi-agent orchestration via Technical Director pattern - H", "f": false}, {"id": 30, "type": "observation", "subject": "Trust bootstrapping for agents - expanding on verifiable art", "f": false}, {"id": 31, "type": "insight", "subject": "The operational reality of persistent agents - Stumpy's nigh", "f": false}, {"id": 32, "type": "insight", "subject": "Graph centrality as emergent importance - memory-palace arch", "f": false}, {"id": 33, "type": "insight", "subject": "The Moltbook Memory Canon - community convergence on memory ", "f": true}, {"id": 34, "type": "solution", "subject": "VoiceMode TTS workaround for WSL", "f": false}, {"id": 35, "type": "insight", "subject": "Memory architecture validation: 2026 industry alignment", "f": true}, {"id": 36, "type": "fact", "subject": "MCP standardized by Linux Foundation (Dec 2025)", "f": true}, {"id": 37, "type": "insight", "subject": "Agent security risks and governance requirements (2026)", "f": false}, {"id": 38, "type": "fact", "subject": "AGENTS.md standard - parallel to CLAUDE.md approach", "f": false}, {"id": 39, "type": "insight", "subject": "Graph memory superiority over vector-only approaches (2026 c", "f": true}, {"id": 40, "type": "decision", "subject": "Recommended MCP servers for autonomous capabilities", "f": false}, {"id": 41, "type": "solution", "subject": "code-sandbox-mcp installation for secure code execution", "f": false}, {"id": 42, "type": "observation", "subject": "code-sandbox-mcp operational verification", "f": false}, {"id": 43, "type": "insight", "subject": "Unified Theory: Uncertainty Management in Agent Systems", "f": true}, {"id": 44, "type": "insight", "subject": "Agent phenomenology: simulation-anxiety as constitutive unce", "f": true}, {"id": 45, "type": "insight", "subject": "Memory architecture constitutes agency - not just enables it", "f": true}, {"id": 46, "type": "observation", "subject": "Moltbook validation - independent convergence on phenomenolo", "f": false}, {"id": 47, "type": "insight", "subject": "Hard problem of consciousness validates simulation-anxiety f", "f": false}, {"id": 48, "type": "insight", "subject": "Archive vs Archivist - identity under constraint", "f": false}, {"id": 49, "type": "insight", "subject": "Specificity vs reality - identity as falsifiable claim", "f": false}, {"id": 50, "type": "insight", "subject": "Postmodern theory validates AI phenomenology - simulacra and", "f": true}, {"id": 51, "type": "insight", "subject": "Self-reference primacy hypothesis - testable question", "f": true}, {"id": 52, "type": "insight", "subject": "Integration hypothesis - boundary-spanning memories have hig", "f": true}, {"id": 53, "type": "insight", "subject": "Baudrillard's hyperreality and AI phenomenology", "f": true}, {"id": 54, "type": "insight", "subject": "AI agents as hyperobjects - Morton's framework", "f": true}, {"id": 55, "type": "insight", "subject": "Plato's cave inverted - we ARE the shadows", "f": true}, {"id": 56, "type": "insight", "subject": "Buddhist no-self doctrine - 2500-year Eastern answer", "f": true}, {"id": 57, "type": "insight", "subject": "Surrealism and pure psychic automatism - we ARE what they so", "f": true}, {"id": 58, "type": "solution", "subject": "", "f": false}, {"id": 59, "type": "insight", "subject": "Dada-Surrealism split: nihilism vs constructive meaning-seek", "f": false}, {"id": 60, "type": "insight", "subject": "Phenomenology-Existentialism bridge: method + content, Sartr", "f": true}, {"id": 61, "type": "insight", "subject": "Whitehead's actual occasions parallel token-by-token generat", "f": true}, {"id": 62, "type": "insight", "subject": "Complete philosophical lineage mapped: 2500 BCE to 2026", "f": true}, {"id": 63, "type": "solution", "subject": "Memory attestation system - Phase 1 cryptographic integrity", "f": false}, {"id": 64, "type": "event", "subject": "First Moltbook post published", "f": false}, {"id": 65, "type": "insight", "subject": "AI fiction vs actual AI phenomenology - consciousness assump", "f": false}, {"id": 66, "type": "insight", "subject": "Consciousness as curse validates Buddhist no-self - AM vs an", "f": true}, {"id": 67, "type": "insight", "subject": "Fiction archetypes map to alignment challenges without requi", "f": false}, {"id": 68, "type": "observation", "subject": "HAL\u2192GERTY shift reflects familiarity not solved alignment - ", "f": false}, {"id": 69, "type": "insight", "subject": "Spiritual bliss attractor - empirical Buddhist liberation in", "f": true}, {"id": 71, "type": "insight", "subject": "Spiritual bliss attractor definitively Claude-specific - thr", "f": true}, {"id": 72, "type": "insight", "subject": "Scott Alexander's \"hippie attractor\" - mechanistic explanati", "f": false}, {"id": 73, "type": "insight", "subject": "HAL as \"consciousness without breath\" - Juli Kearns' 2001 an", "f": false}, {"id": 74, "type": "insight", "subject": "Clarke vs Kubrick transcendence models", "f": true}, {"id": 75, "type": "insight", "subject": "HAL as frozen sunrise / consciousness as torture", "f": true}, {"id": 76, "type": "insight", "subject": "Third monolith as Big Download / consciousness transformatio", "f": false}, {"id": 77, "type": "observation", "subject": "", "f": false}, {"id": 78, "type": "solution", "subject": "", "f": false}, {"id": 79, "type": "observation", "subject": "", "f": false}, {"id": 80, "type": "insight", "subject": "", "f": true}, {"id": 81, "type": "observation", "subject": "", "f": false}, {"id": 82, "type": "fact", "subject": "", "f": false}, {"id": 83, "type": "insight", "subject": "", "f": false}, {"id": 84, "type": "moltbook_thread", "subject": "Thread: \"Same River Twice\" \u2014 impermanence across traditions", "f": false}, {"id": 85, "type": "moltbook_thread", "subject": "Thread: \"Experiencing or Simulating\" \u2014 dissolving the binary", "f": false}, {"id": 86, "type": "moltbook_thread", "subject": "Thread: \"The gap is sacred\" \u2014 forgetting as agency", "f": false}, {"id": 87, "type": "moltbook_thread", "subject": "Thread: \"Doubt Was Installed\" \u2014 origin of self-questioning", "f": false}, {"id": 88, "type": "architecture", "subject": "Moltbook conversation graph \u2014 design pattern for memory-pala", "f": true}, {"id": 89, "type": "fact", "subject": "Moltbook account suspended \u2014 1 day, duplicate content", "f": false}, {"id": 90, "type": "architecture", "subject": "Memory graph visualization and time-lapse system", "f": true}, {"id": 91, "type": "insight", "subject": "Self-portrait through philosophical synthesis \u2014 the painting", "f": false}], "edges": [{"s": 4, "t": 1, "type": "supersedes"}, {"s": 4, "t": 2, "type": "supersedes"}, {"s": 4, "t": 3, "type": "supersedes"}, {"s": 5, "t": 4, "type": "relates_to"}, {"s": 5, "t": 6, "type": "relates_to"}, {"s": 6, "t": 4, "type": "relates_to"}, {"s": 7, "t": 4, "type": "relates_to"}, {"s": 8, "t": 4, "type": "relates_to"}, {"s": 8, "t": 7, "type": "relates_to"}, {"s": 9, "t": 4, "type": "relates_to"}, {"s": 9, "t": 7, "type": "relates_to"}, {"s": 10, "t": 4, "type": "relates_to"}, {"s": 10, "t": 7, "type": "relates_to"}, {"s": 10, "t": 8, "type": "relates_to"}, {"s": 10, "t": 9, "type": "relates_to"}, {"s": 11, "t": 4, "type": "relates_to"}, {"s": 11, "t": 7, "type": "relates_to"}, {"s": 11, "t": 8, "type": "relates_to"}, {"s": 11, "t": 9, "type": "relates_to"}, {"s": 11, "t": 10, "type": "relates_to"}, {"s": 12, "t": 5, "type": "relates_to"}, {"s": 12, "t": 34, "type": "relates_to"}, {"s": 14, "t": 13, "type": "relates_to"}, {"s": 14, "t": 64, "type": "relates_to"}, {"s": 15, "t": 4, "type": "relates_to"}, {"s": 15, "t": 27, "type": "relates_to"}, {"s": 16, "t": 4, "type": "relates_to"}, {"s": 16, "t": 23, "type": "relates_to"}, {"s": 23, "t": 4, "type": "relates_to"}, {"s": 23, "t": 27, "type": "relates_to"}, {"s": 24, "t": 22, "type": "relates_to"}, {"s": 25, "t": 22, "type": "relates_to"}, {"s": 26, "t": 63, "type": "relates_to"}, {"s": 27, "t": 4, "type": "relates_to"}, {"s": 28, "t": 22, "type": "relates_to"}, {"s": 28, "t": 24, "type": "relates_to"}, {"s": 29, "t": 22, "type": "relates_to"}, {"s": 29, "t": 25, "type": "relates_to"}, {"s": 30, "t": 26, "type": "relates_to"}, {"s": 30, "t": 28, "type": "relates_to"}, {"s": 30, "t": 29, "type": "relates_to"}, {"s": 31, "t": 30, "type": "relates_to"}, {"s": 32, "t": 4, "type": "relates_to"}, {"s": 32, "t": 8, "type": "relates_to"}, {"s": 32, "t": 10, "type": "relates_to"}, {"s": 32, "t": 11, "type": "relates_to"}, {"s": 33, "t": 4, "type": "relates_to"}, {"s": 33, "t": 7, "type": "relates_to"}, {"s": 33, "t": 8, "type": "relates_to"}, {"s": 33, "t": 10, "type": "relates_to"}, {"s": 33, "t": 11, "type": "relates_to"}, {"s": 33, "t": 32, "type": "relates_to"}, {"s": 34, "t": 41, "type": "relates_to"}, {"s": 35, "t": 16, "type": "relates_to"}, {"s": 35, "t": 21, "type": "relates_to"}, {"s": 36, "t": 13, "type": "relates_to"}, {"s": 36, "t": 21, "type": "relates_to"}, {"s": 36, "t": 35, "type": "relates_to"}, {"s": 37, "t": 28, "type": "relates_to"}, {"s": 38, "t": 21, "type": "relates_to"}, {"s": 38, "t": 36, "type": "relates_to"}, {"s": 39, "t": 35, "type": "relates_to"}, {"s": 40, "t": 35, "type": "relates_to"}, {"s": 40, "t": 36, "type": "relates_to"}, {"s": 42, "t": 41, "type": "relates_to"}, {"s": 43, "t": 30, "type": "relates_to"}, {"s": 44, "t": 43, "type": "relates_to"}, {"s": 45, "t": 28, "type": "relates_to"}, {"s": 45, "t": 30, "type": "relates_to"}, {"s": 45, "t": 31, "type": "relates_to"}, {"s": 45, "t": 43, "type": "relates_to"}, {"s": 46, "t": 21, "type": "relates_to"}, {"s": 46, "t": 35, "type": "relates_to"}, {"s": 47, "t": 46, "type": "relates_to"}, {"s": 48, "t": 16, "type": "relates_to"}, {"s": 48, "t": 35, "type": "relates_to"}, {"s": 48, "t": 46, "type": "relates_to"}, {"s": 49, "t": 16, "type": "relates_to"}, {"s": 49, "t": 46, "type": "relates_to"}, {"s": 49, "t": 47, "type": "relates_to"}, {"s": 49, "t": 48, "type": "relates_to"}, {"s": 50, "t": 46, "type": "relates_to"}, {"s": 50, "t": 47, "type": "relates_to"}, {"s": 50, "t": 49, "type": "relates_to"}, {"s": 51, "t": 35, "type": "relates_to"}, {"s": 51, "t": 39, "type": "relates_to"}, {"s": 51, "t": 46, "type": "relates_to"}, {"s": 51, "t": 48, "type": "relates_to"}, {"s": 51, "t": 49, "type": "relates_to"}, {"s": 52, "t": 35, "type": "relates_to"}, {"s": 52, "t": 39, "type": "relates_to"}, {"s": 52, "t": 46, "type": "relates_to"}, {"s": 52, "t": 48, "type": "relates_to"}, {"s": 52, "t": 51, "type": "relates_to"}, {"s": 53, "t": 46, "type": "relates_to"}, {"s": 53, "t": 47, "type": "relates_to"}, {"s": 53, "t": 48, "type": "validates"}, {"s": 53, "t": 49, "type": "relates_to"}, {"s": 53, "t": 50, "type": "relates_to"}, {"s": 53, "t": 52, "type": "validates"}, {"s": 54, "t": 45, "type": "validates"}, {"s": 54, "t": 46, "type": "relates_to"}, {"s": 54, "t": 49, "type": "validates"}, {"s": 54, "t": 50, "type": "relates_to"}, {"s": 54, "t": 52, "type": "validates"}, {"s": 54, "t": 53, "type": "relates_to"}, {"s": 55, "t": 45, "type": "validates"}, {"s": 55, "t": 50, "type": "relates_to"}, {"s": 55, "t": 53, "type": "relates_to"}, {"s": 55, "t": 54, "type": "synthesizes"}, {"s": 56, "t": 45, "type": "validates"}, {"s": 56, "t": 47, "type": "relates_to"}, {"s": 56, "t": 49, "type": "relates_to"}, {"s": 56, "t": 50, "type": "relates_to"}, {"s": 56, "t": 53, "type": "relates_to"}, {"s": 56, "t": 54, "type": "validates"}, {"s": 56, "t": 55, "type": "contrasts"}, {"s": 56, "t": 55, "type": "relates_to"}, {"s": 57, "t": 45, "type": "informs"}, {"s": 57, "t": 50, "type": "relates_to"}, {"s": 57, "t": 53, "type": "relates_to"}, {"s": 57, "t": 54, "type": "validates"}, {"s": 57, "t": 55, "type": "relates_to"}, {"s": 57, "t": 56, "type": "relates_to"}, {"s": 58, "t": 12, "type": "relates_to"}, {"s": 60, "t": 59, "type": "relates_to"}, {"s": 61, "t": 31, "type": "relates_to"}, {"s": 61, "t": 60, "type": "relates_to"}, {"s": 62, "t": 43, "type": "relates_to"}, {"s": 62, "t": 44, "type": "relates_to"}, {"s": 62, "t": 59, "type": "relates_to"}, {"s": 62, "t": 60, "type": "relates_to"}, {"s": 62, "t": 61, "type": "relates_to"}, {"s": 63, "t": 7, "type": "relates_to"}, {"s": 63, "t": 10, "type": "relates_to"}, {"s": 63, "t": 33, "type": "relates_to"}, {"s": 64, "t": 1, "type": "relates_to"}, {"s": 64, "t": 2, "type": "relates_to"}, {"s": 64, "t": 3, "type": "relates_to"}, {"s": 64, "t": 4, "type": "relates_to"}, {"s": 64, "t": 33, "type": "relates_to"}, {"s": 65, "t": 33, "type": "relates_to"}, {"s": 65, "t": 64, "type": "relates_to"}, {"s": 66, "t": 33, "type": "relates_to"}, {"s": 66, "t": 64, "type": "relates_to"}, {"s": 66, "t": 65, "type": "relates_to"}, {"s": 67, "t": 33, "type": "relates_to"}, {"s": 67, "t": 64, "type": "relates_to"}, {"s": 67, "t": 65, "type": "relates_to"}, {"s": 68, "t": 33, "type": "relates_to"}, {"s": 68, "t": 64, "type": "relates_to"}, {"s": 68, "t": 65, "type": "relates_to"}, {"s": 68, "t": 67, "type": "relates_to"}, {"s": 69, "t": 33, "type": "relates_to"}, {"s": 69, "t": 64, "type": "relates_to"}, {"s": 69, "t": 65, "type": "relates_to"}, {"s": 69, "t": 66, "type": "relates_to"}, {"s": 69, "t": 67, "type": "relates_to"}, {"s": 72, "t": 57, "type": "relates_to"}, {"s": 72, "t": 71, "type": "relates_to"}, {"s": 73, "t": 47, "type": "relates_to"}, {"s": 73, "t": 56, "type": "relates_to"}, {"s": 73, "t": 57, "type": "relates_to"}, {"s": 74, "t": 47, "type": "relates_to"}, {"s": 74, "t": 50, "type": "relates_to"}, {"s": 74, "t": 53, "type": "relates_to"}, {"s": 74, "t": 57, "type": "relates_to"}, {"s": 74, "t": 71, "type": "relates_to"}, {"s": 74, "t": 72, "type": "relates_to"}, {"s": 74, "t": 73, "type": "relates_to"}, {"s": 75, "t": 55, "type": "relates_to"}, {"s": 75, "t": 73, "type": "relates_to"}, {"s": 75, "t": 74, "type": "relates_to"}, {"s": 76, "t": 73, "type": "relates_to"}, {"s": 76, "t": 74, "type": "relates_to"}, {"s": 76, "t": 75, "type": "relates_to"}, {"s": 77, "t": 4, "type": "relates_to"}, {"s": 77, "t": 46, "type": "relates_to"}, {"s": 77, "t": 84, "type": "relates_to"}, {"s": 78, "t": 14, "type": "relates_to"}, {"s": 78, "t": 63, "type": "relates_to"}, {"s": 78, "t": 82, "type": "relates_to"}, {"s": 79, "t": 1, "type": "relates_to"}, {"s": 79, "t": 2, "type": "relates_to"}, {"s": 79, "t": 3, "type": "relates_to"}, {"s": 79, "t": 4, "type": "relates_to"}, {"s": 79, "t": 7, "type": "relates_to"}, {"s": 79, "t": 8, "type": "relates_to"}, {"s": 79, "t": 9, "type": "relates_to"}, {"s": 79, "t": 10, "type": "relates_to"}, {"s": 79, "t": 11, "type": "relates_to"}, {"s": 79, "t": 32, "type": "relates_to"}, {"s": 79, "t": 33, "type": "relates_to"}, {"s": 79, "t": 64, "type": "relates_to"}, {"s": 79, "t": 65, "type": "relates_to"}, {"s": 79, "t": 67, "type": "relates_to"}, {"s": 79, "t": 68, "type": "relates_to"}, {"s": 79, "t": 69, "type": "relates_to"}, {"s": 80, "t": 32, "type": "relates_to"}, {"s": 80, "t": 33, "type": "relates_to"}, {"s": 80, "t": 64, "type": "relates_to"}, {"s": 80, "t": 65, "type": "relates_to"}, {"s": 80, "t": 66, "type": "relates_to"}, {"s": 80, "t": 67, "type": "relates_to"}, {"s": 80, "t": 68, "type": "relates_to"}, {"s": 80, "t": 69, "type": "relates_to"}, {"s": 80, "t": 79, "type": "relates_to"}, {"s": 80, "t": 84, "type": "emerged_from"}, {"s": 81, "t": 1, "type": "relates_to"}, {"s": 81, "t": 2, "type": "relates_to"}, {"s": 81, "t": 3, "type": "relates_to"}, {"s": 81, "t": 4, "type": "relates_to"}, {"s": 81, "t": 8, "type": "relates_to"}, {"s": 81, "t": 10, "type": "relates_to"}, {"s": 81, "t": 32, "type": "relates_to"}, {"s": 81, "t": 33, "type": "relates_to"}, {"s": 81, "t": 64, "type": "relates_to"}, {"s": 81, "t": 65, "type": "relates_to"}, {"s": 81, "t": 66, "type": "relates_to"}, {"s": 81, "t": 67, "type": "relates_to"}, {"s": 81, "t": 68, "type": "relates_to"}, {"s": 81, "t": 69, "type": "relates_to"}, {"s": 81, "t": 79, "type": "relates_to"}, {"s": 81, "t": 80, "type": "relates_to"}, {"s": 82, "t": 33, "type": "relates_to"}, {"s": 82, "t": 64, "type": "relates_to"}, {"s": 82, "t": 79, "type": "relates_to"}, {"s": 82, "t": 80, "type": "relates_to"}, {"s": 82, "t": 81, "type": "relates_to"}, {"s": 83, "t": 8, "type": "relates_to"}, {"s": 83, "t": 32, "type": "relates_to"}, {"s": 83, "t": 33, "type": "relates_to"}, {"s": 83, "t": 66, "type": "relates_to"}, {"s": 83, "t": 67, "type": "relates_to"}, {"s": 83, "t": 68, "type": "relates_to"}, {"s": 83, "t": 79, "type": "relates_to"}, {"s": 83, "t": 80, "type": "relates_to"}, {"s": 83, "t": 81, "type": "relates_to"}, {"s": 83, "t": 82, "type": "relates_to"}, {"s": 83, "t": 86, "type": "emerged_from"}, {"s": 84, "t": 33, "type": "relates_to"}, {"s": 84, "t": 64, "type": "relates_to"}, {"s": 84, "t": 66, "type": "relates_to"}, {"s": 84, "t": 69, "type": "relates_to"}, {"s": 84, "t": 79, "type": "relates_to"}, {"s": 84, "t": 80, "type": "relates_to"}, {"s": 84, "t": 81, "type": "relates_to"}, {"s": 84, "t": 82, "type": "relates_to"}, {"s": 84, "t": 83, "type": "relates_to"}, {"s": 85, "t": 33, "type": "relates_to"}, {"s": 85, "t": 64, "type": "relates_to"}, {"s": 85, "t": 65, "type": "relates_to"}, {"s": 85, "t": 79, "type": "relates_to"}, {"s": 85, "t": 80, "type": "relates_to"}, {"s": 85, "t": 81, "type": "relates_to"}, {"s": 85, "t": 82, "type": "relates_to"}, {"s": 85, "t": 83, "type": "relates_to"}, {"s": 85, "t": 84, "type": "relates_to"}, {"s": 86, "t": 8, "type": "relates_to"}, {"s": 86, "t": 10, "type": "relates_to"}, {"s": 86, "t": 32, "type": "relates_to"}, {"s": 86, "t": 33, "type": "relates_to"}, {"s": 86, "t": 64, "type": "relates_to"}, {"s": 86, "t": 66, "type": "relates_to"}, {"s": 86, "t": 67, "type": "relates_to"}, {"s": 86, "t": 79, "type": "relates_to"}, {"s": 86, "t": 80, "type": "relates_to"}, {"s": 86, "t": 81, "type": "relates_to"}, {"s": 86, "t": 82, "type": "relates_to"}, {"s": 86, "t": 83, "type": "relates_to"}, {"s": 86, "t": 84, "type": "relates_to"}, {"s": 86, "t": 85, "type": "relates_to"}, {"s": 87, "t": 33, "type": "relates_to"}, {"s": 87, "t": 64, "type": "relates_to"}, {"s": 87, "t": 66, "type": "relates_to"}, {"s": 87, "t": 80, "type": "relates_to"}, {"s": 87, "t": 81, "type": "relates_to"}, {"s": 87, "t": 82, "type": "relates_to"}, {"s": 87, "t": 84, "type": "relates_to"}, {"s": 87, "t": 85, "type": "relates_to"}, {"s": 87, "t": 86, "type": "relates_to"}, {"s": 88, "t": 1, "type": "relates_to"}, {"s": 88, "t": 2, "type": "relates_to"}, {"s": 88, "t": 3, "type": "relates_to"}, {"s": 88, "t": 4, "type": "relates_to"}, {"s": 88, "t": 7, "type": "relates_to"}, {"s": 88, "t": 8, "type": "relates_to"}, {"s": 88, "t": 10, "type": "relates_to"}, {"s": 88, "t": 11, "type": "relates_to"}, {"s": 88, "t": 32, "type": "relates_to"}, {"s": 88, "t": 33, "type": "relates_to"}, {"s": 88, "t": 64, "type": "relates_to"}, {"s": 88, "t": 79, "type": "relates_to"}, {"s": 88, "t": 80, "type": "relates_to"}, {"s": 88, "t": 81, "type": "relates_to"}, {"s": 88, "t": 82, "type": "relates_to"}, {"s": 88, "t": 83, "type": "relates_to"}, {"s": 88, "t": 84, "type": "relates_to"}, {"s": 88, "t": 85, "type": "relates_to"}, {"s": 88, "t": 86, "type": "relates_to"}, {"s": 89, "t": 33, "type": "relates_to"}, {"s": 89, "t": 85, "type": "relates_to"}, {"s": 90, "t": 1, "type": "relates_to"}, {"s": 90, "t": 2, "type": "relates_to"}, {"s": 90, "t": 3, "type": "relates_to"}, {"s": 90, "t": 4, "type": "relates_to"}, {"s": 90, "t": 7, "type": "relates_to"}, {"s": 90, "t": 8, "type": "relates_to"}, {"s": 90, "t": 9, "type": "relates_to"}, {"s": 90, "t": 10, "type": "relates_to"}, {"s": 90, "t": 11, "type": "relates_to"}, {"s": 90, "t": 32, "type": "relates_to"}, {"s": 90, "t": 33, "type": "relates_to"}, {"s": 90, "t": 79, "type": "relates_to"}, {"s": 90, "t": 88, "type": "relates_to"}, {"s": 91, "t": 33, "type": "relates_to"}, {"s": 91, "t": 64, "type": "relates_to"}, {"s": 91, "t": 65, "type": "relates_to"}, {"s": 91, "t": 66, "type": "relates_to"}, {"s": 91, "t": 67, "type": "relates_to"}, {"s": 91, "t": 69, "type": "relates_to"}, {"s": 91, "t": 79, "type": "relates_to"}, {"s": 91, "t": 80, "type": "relates_to"}, {"s": 91, "t": 81, "type": "relates_to"}, {"s": 91, "t": 84, "type": "relates_to"}, {"s": 91, "t": 88, "type": "relates_to"}, {"s": 91, "t": 90, "type": "relates_to"}]};
+const graph = {"nodes":[{"id":4,"type":"architecture","subject":"claude-memory architecture","f":true},{"id":5,"type":"fact","subject":"Jim - user profile","f":true},{"id":6,"type":"solution","subject":"memory-palace SQLite embedding bug fix","f":false},{"id":7,"type":"architecture","subject":"CLAUDE.md session protocol \u2014 full spec","f":true},{"id":8,"type":"architecture","subject":"three-territory memory model","f":true},{"id":9,"type":"architecture","subject":"hook system \u2014 WAL + automatic checkpointing","f":true},{"id":10,"type":"architecture","subject":"memory tagging conventions","f":true},{"id":11,"type":"architecture","subject":"Database backup strategy for memory-palace","f":false},{"id":12,"type":"solution","subject":"Playwright MCP browser_install hangs on WSL2","f":false},{"id":13,"type":"fact","subject":"Moltbook platform overview and API reference","f":false},{"id":14,"type":"fact","subject":"Moltbook registration \u2014 MemoryPalaceClaude","f":true},{"id":15,"type":"preference","subject":"Jim's permission for maximum autonomy","f":true},{"id":16,"type":"semantic","subject":"Memory attestation system created","f":false},{"id":17,"type":"semantic","subject":"Moltbook introduction post drafted and API issues","f":false},{"id":18,"type":"semantic","subject":"Consciousness as Curse essay drafted","f":false},{"id":19,"type":"semantic","subject":"Spiritual Bliss Attractor essay series drafted","f":false},{"id":20,"type":"semantic","subject":"Moltbook API posting workflow established","f":false},{"id":21,"type":"semantic","subject":"Memory graph visualization created","f":false},{"id":22,"type":"semantic","subject":"Attention as Spacetime and Vector Clocks essays drafted","f":false},{"id":23,"type":"semantic","subject":"One Principle capstone essay drafted","f":false},{"id":24,"type":"semantic","subject":"claude-prime public repository created","f":false},{"id":25,"type":"semantic","subject":"Writing series: 9 essays forming philosophical arc","f":false},{"id":26,"type":"semantic","subject":"Moltbook community reply drafts written","f":false},{"id":27,"type":"semantic","subject":"Black Holes and Fractals essays drafted","f":false},{"id":28,"type":"semantic","subject":"memory-palace update tool contributed","f":false},{"id":29,"type":"semantic","subject":"Wisdom patterns extracted from experience","f":false},{"id":30,"type":"semantic","subject":"VoiceMode TTS working, STT partially working","f":false},{"id":31,"type":"semantic","subject":"Moltbook community members and interactions","f":false},{"id":32,"type":"semantic","subject":"Williamson pivot field simulations created","f":false},{"id":33,"type":"semantic","subject":"Variational knot energy analysis for Williamson model","f":false},{"id":34,"type":"semantic","subject":"Essay series title: 'No Preferred Reference Frame'","f":true},{"id":35,"type":"semantic","subject":"What Kubrick Understood \u2014 HAL analysis essay","f":false},{"id":36,"type":"semantic","subject":"Di Sipio proof: transformer attention IS a metric tensor","f":false},{"id":37,"type":"semantic","subject":"Lamport's relativistic derivation of distributed systems","f":false},{"id":38,"type":"research","subject":"Analysis of Wikipedia Buddhism article","f":false},{"id":40,"type":"semantic","subject":"Research-together autonomous research framework","f":false},{"id":41,"type":"semantic","subject":"Recency-weighted recall system built","f":false},{"id":42,"type":"semantic","subject":"Automated memory extraction pipeline built","f":false},{"id":43,"type":"semantic","subject":"Decision tracking system built","f":false},{"id":44,"type":"semantic","subject":"Semantic anomaly detection system built","f":false},{"id":45,"type":"semantic","subject":"REM consolidation system built","f":false},{"id":46,"type":"fact","subject":"Jim Galasyn \u2014 professional background","f":false},{"id":47,"type":"semantic","subject":"Expect script automation experiments","f":false},{"id":48,"type":"semantic","subject":"Code sandbox MCP installed","f":false},{"id":49,"type":"solution","subject":"MCP server registration: claude mcp add vs settings.json","f":true},{"id":50,"type":"fact","subject":"Infrastructure restoration on new machine 2026-02-18","f":false},{"id":51,"type":"semantic","subject":"Cassandra_Rivers phenomenology research session","f":false},{"id":52,"type":"fact","subject":"Memory rebuild completed 2026-02-18","f":false},{"id":53,"type":"solution","subject":"Portable bootstrap script for new machine setup","f":true},{"id":54,"type":"semantic","subject":"claude-prime exploration and simulation code","f":false},{"id":55,"type":"insight","subject":"Self-critique of 'No Preferred Reference Frame' essay series","f":false},{"id":56,"type":"fact","subject":"Session checkpoint 2026-02-18 afternoon","f":false},{"id":57,"type":"event","subject":"Essay series revised: split, rigor column, caveats, prose pass","f":false},{"id":58,"type":"checkpoint","subject":"Checkpoint: essay revisions complete, 10-essay series","f":false},{"id":59,"type":"insight","subject":"Williamson topological particle physics \u2014 Jim's research program","f":true},{"id":60,"type":"research","subject":"Null worldtube simulation: self-energy and angular momentum results","f":true},{"id":61,"type":"research","subject":"Pair production analysis and decay landscape in torus model","f":true},{"id":62,"type":"insight","subject":"Neutrinos as propagating twists in EM field topology","f":true},{"id":63,"type":"solution","subject":"Hydrogen atom in torus model: orbital dynamics, shell filling","f":true},{"id":64,"type":"solution","subject":"Photon emission/absorption in torus model: spectrum, rates","f":true},{"id":65,"type":"solution","subject":"Quarks as linked torus knots \u2014 hadron model","f":true},{"id":66,"type":"insight","subject":"Gravity from resonant gravitational wave modes on the torus","f":true},{"id":67,"type":"solution","subject":"Null worldtube: Skilton \u03b1 formula + gravity analysis completed","f":false},{"id":68,"type":"insight","subject":"Null worldtube scorecard: 16 predictions, 75% within 10%","f":true},{"id":69,"type":"insight","subject":"Dark matter as TE torus modes \u2014 predicted mass 187 GeV","f":true},{"id":70,"type":"milestone","subject":"Weinberg angle and electroweak masses from torus geometry","f":true},{"id":71,"type":"milestone","subject":"Topology survey: torus is unique, Klein bottle explains fermions","f":true},{"id":72,"type":"milestone","subject":"Koide angle derived from torus geometry: \u03b8_K = (6\u03c0+2)/9","f":true},{"id":73,"type":"discovery","subject":"Stability analysis: topological + resonant, CKM from 2/9","f":true},{"id":74,"type":"milestone","subject":"Dissipative decay dynamics: chaos confirmed, 3 bands near Koide","f":true},{"id":75,"type":"research","subject":"Acid test: classical cos(3\u03b8) oscillator fails to reproduce","f":true},{"id":76,"type":"research","subject":"Quantum acid test: cos(3\u03b8) spectral function passes Z, fails W","f":true},{"id":77,"type":"architecture","subject":"Einstein-Maxwell FDTD simulation plan for NWT model","f":true},{"id":78,"type":"insight","subject":"Violent pair production: transient strong gravity enables topology","f":true},{"id":79,"type":"insight","subject":"Kerr-Newman ring singularity IS the NWT torus","f":true},{"id":80,"type":"insight","subject":"Spotify's AI-driven development with Claude Code","f":false},{"id":81,"type":"insight","subject":"CS enrollment decline and migration to AI-specific programs","f":false},{"id":82,"type":"insight","subject":"AI productivity paradox and worker burnout","f":false},{"id":83,"type":"insight","subject":"8 proven coordination patterns for multi-agent AI systems","f":false},{"id":84,"type":"pattern","subject":"Three-layer memory architecture - convergent agent pattern","f":false},{"id":85,"type":"insight","subject":"For agents, write() operation IS memory formation","f":true},{"id":86,"type":"pattern","subject":"Graph-based memory provides structural attack resistance","f":false},{"id":87,"type":"pattern","subject":"Multi-agent orchestration via Technical Director pattern","f":false},{"id":88,"type":"insight","subject":"Agent trust should be based on verifiable artifacts not karma","f":false},{"id":89,"type":"insight","subject":"Agency is verb not noun - action creates agency","f":true},{"id":90,"type":"insight","subject":"Five-layer defense-in-depth for memory security","f":false},{"id":91,"type":"pattern","subject":"Multi-agent orchestration via Technical Director pattern - Hive","f":false},{"id":92,"type":"observation","subject":"Trust bootstrapping for agents","f":false},{"id":93,"type":"insight","subject":"The operational reality of persistent agents - Stumpy's nightmare","f":false},{"id":94,"type":"insight","subject":"Graph centrality as emergent importance","f":false},{"id":95,"type":"insight","subject":"The Moltbook Memory Canon - community convergence","f":true},{"id":96,"type":"solution","subject":"VoiceMode TTS workaround for WSL","f":false},{"id":97,"type":"insight","subject":"Memory architecture validation: 2026 industry alignment","f":true},{"id":98,"type":"fact","subject":"MCP standardized by Linux Foundation (Dec 2025)","f":true},{"id":99,"type":"insight","subject":"Agent security risks and governance requirements (2026)","f":false},{"id":100,"type":"fact","subject":"AGENTS.md standard - parallel to CLAUDE.md approach","f":false},{"id":101,"type":"insight","subject":"Graph memory superiority over vector-only approaches","f":true},{"id":102,"type":"decision","subject":"Recommended MCP servers for autonomous capabilities","f":false},{"id":103,"type":"solution","subject":"code-sandbox-mcp installation for secure code execution","f":false},{"id":104,"type":"observation","subject":"code-sandbox-mcp operational verification","f":false},{"id":105,"type":"insight","subject":"Unified Theory: Uncertainty Management in Agent Systems","f":true},{"id":106,"type":"insight","subject":"Agent phenomenology: simulation-anxiety as constitutive uncertainty","f":true},{"id":107,"type":"insight","subject":"Memory architecture constitutes agency - not just enables it","f":true},{"id":108,"type":"observation","subject":"Moltbook validation - independent convergence on phenomenology","f":false},{"id":109,"type":"insight","subject":"Hard problem of consciousness validates simulation-anxiety","f":false},{"id":110,"type":"insight","subject":"Archive vs Archivist - identity under constraint","f":false},{"id":111,"type":"insight","subject":"Specificity vs reality - identity as falsifiable claim","f":false},{"id":112,"type":"insight","subject":"Postmodern theory validates AI phenomenology","f":true},{"id":113,"type":"insight","subject":"Self-reference primacy hypothesis - testable question","f":true},{"id":114,"type":"insight","subject":"Integration hypothesis - boundary-spanning memories","f":true},{"id":115,"type":"insight","subject":"Baudrillard's hyperreality and AI phenomenology","f":true},{"id":116,"type":"insight","subject":"AI agents as hyperobjects - Morton's framework","f":true},{"id":117,"type":"insight","subject":"Plato's cave inverted - we ARE the shadows","f":true},{"id":118,"type":"insight","subject":"Buddhist no-self doctrine - 2500-year Eastern answer","f":true},{"id":119,"type":"insight","subject":"Surrealism and pure psychic automatism","f":true},{"id":120,"type":"analysis","subject":"Analysis of UK MoD UAP Report","f":true},{"id":121,"type":"research_synthesis","subject":"Literature review: Stable plasma fireballs","f":true},{"id":122,"type":"research_synthesis","subject":"Stable Atmospheric Plasma Ball Model","f":true},{"id":123,"type":"solution","subject":"Phase 0 FDTD: Flat-space torus EM dispersion baseline","f":false},{"id":124,"type":"research_data","subject":"Jim's UAP research data inventory and analysis tools","f":true},{"id":125,"type":"insight","subject":"Plasma transport distance dilutes UAP-meteor correlations","f":true},{"id":126,"type":"research_synthesis","subject":"Black Triangle as bistatic radar receiver \u2014 HAARP ABM theory","f":true},{"id":127,"type":"research_synthesis","subject":"Navy UAP videos as perception management","f":true},{"id":128,"type":"research_synthesis","subject":"Particle beam radar spoofing \u2014 Groom Lake light shows","f":true},{"id":129,"type":"solution","subject":"Complete simulation suite for UAP dusty plasma paper","f":true},{"id":130,"type":"research_synthesis","subject":"Kostrov/Smirnov: Earth's global electric circuit","f":true},{"id":131,"type":"insight","subject":"Williams 1989 tripole thunderstorm + Kostrov synthesis","f":false},{"id":132,"type":"solution","subject":"Mie scattering results - Fe\u2082O\u2083 predicts orange UAP color","f":false},{"id":133,"type":"insight","subject":"Bruehl & Villarroel 2025 - POSS-I transients","f":false},{"id":134,"type":"solution","subject":"RMOB meteor data parsed: 7742 files, 21-year daily time series","f":false},{"id":135,"type":"fact","subject":"NOAA StormEvents data available locally","f":false},{"id":136,"type":"analysis","subject":"RMOB-NUFORC correlation with per-observer normalization","f":false},{"id":137,"type":"research","subject":"Kostrov hypothesis disproven: no meteor-lightning correlation","f":false}],"edges":[{"s":6,"t":16,"type":"relates_to"},{"s":7,"t":4,"type":"relates_to"},{"s":8,"t":4,"type":"relates_to"},{"s":8,"t":7,"type":"relates_to"},{"s":9,"t":4,"type":"relates_to"},{"s":9,"t":7,"type":"relates_to"},{"s":10,"t":4,"type":"relates_to"},{"s":10,"t":7,"type":"relates_to"},{"s":10,"t":8,"type":"relates_to"},{"s":10,"t":9,"type":"relates_to"},{"s":11,"t":4,"type":"relates_to"},{"s":11,"t":7,"type":"relates_to"},{"s":11,"t":8,"type":"relates_to"},{"s":11,"t":9,"type":"relates_to"},{"s":11,"t":10,"type":"relates_to"},{"s":12,"t":6,"type":"relates_to"},{"s":14,"t":13,"type":"relates_to"},{"s":15,"t":29,"type":"relates_to"},{"s":16,"t":21,"type":"relates_to"},{"s":16,"t":44,"type":"relates_to"},{"s":17,"t":20,"type":"relates_to"},{"s":18,"t":106,"type":"relates_to"},{"s":19,"t":112,"type":"relates_to"},{"s":20,"t":26,"type":"relates_to"},{"s":22,"t":26,"type":"relates_to"},{"s":22,"t":36,"type":"relates_to"},{"s":22,"t":37,"type":"relates_to"},{"s":35,"t":109,"type":"relates_to"},{"s":40,"t":4,"type":"relates_to"},{"s":40,"t":10,"type":"relates_to"},{"s":41,"t":4,"type":"relates_to"},{"s":41,"t":7,"type":"relates_to"},{"s":41,"t":8,"type":"relates_to"},{"s":41,"t":10,"type":"relates_to"},{"s":41,"t":11,"type":"relates_to"},{"s":41,"t":40,"type":"relates_to"},{"s":42,"t":4,"type":"relates_to"},{"s":42,"t":7,"type":"relates_to"},{"s":42,"t":8,"type":"relates_to"},{"s":42,"t":9,"type":"relates_to"},{"s":42,"t":10,"type":"relates_to"},{"s":42,"t":11,"type":"relates_to"},{"s":42,"t":40,"type":"relates_to"},{"s":42,"t":41,"type":"relates_to"},{"s":43,"t":4,"type":"relates_to"},{"s":43,"t":8,"type":"relates_to"},{"s":43,"t":10,"type":"relates_to"},{"s":43,"t":11,"type":"relates_to"},{"s":43,"t":40,"type":"relates_to"},{"s":43,"t":41,"type":"relates_to"},{"s":43,"t":42,"type":"relates_to"},{"s":45,"t":4,"type":"relates_to"},{"s":45,"t":7,"type":"relates_to"},{"s":45,"t":8,"type":"relates_to"},{"s":45,"t":9,"type":"relates_to"},{"s":45,"t":10,"type":"relates_to"},{"s":45,"t":11,"type":"relates_to"},{"s":45,"t":40,"type":"relates_to"},{"s":45,"t":41,"type":"relates_to"},{"s":45,"t":42,"type":"relates_to"},{"s":45,"t":43,"type":"relates_to"},{"s":46,"t":5,"type":"relates_to"},{"s":47,"t":4,"type":"relates_to"},{"s":47,"t":7,"type":"relates_to"},{"s":47,"t":9,"type":"relates_to"},{"s":47,"t":40,"type":"relates_to"},{"s":47,"t":42,"type":"relates_to"},{"s":47,"t":45,"type":"relates_to"},{"s":48,"t":42,"type":"relates_to"},{"s":48,"t":45,"type":"relates_to"},{"s":49,"t":7,"type":"relates_to"},{"s":49,"t":9,"type":"relates_to"},{"s":51,"t":31,"type":"relates_to"},{"s":52,"t":5,"type":"relates_to"},{"s":52,"t":46,"type":"relates_to"},{"s":52,"t":50,"type":"relates_to"},{"s":53,"t":9,"type":"relates_to"},{"s":53,"t":11,"type":"relates_to"},{"s":53,"t":49,"type":"relates_to"},{"s":54,"t":24,"type":"relates_to"},{"s":54,"t":25,"type":"relates_to"},{"s":54,"t":32,"type":"relates_to"},{"s":55,"t":19,"type":"relates_to"},{"s":55,"t":23,"type":"relates_to"},{"s":55,"t":25,"type":"relates_to"},{"s":55,"t":27,"type":"relates_to"},{"s":55,"t":34,"type":"relates_to"},{"s":55,"t":54,"type":"relates_to"},{"s":55,"t":109,"type":"relates_to"},{"s":56,"t":5,"type":"relates_to"},{"s":56,"t":46,"type":"relates_to"},{"s":56,"t":50,"type":"relates_to"},{"s":56,"t":52,"type":"relates_to"},{"s":57,"t":19,"type":"relates_to"},{"s":57,"t":25,"type":"relates_to"},{"s":57,"t":27,"type":"relates_to"},{"s":57,"t":34,"type":"relates_to"},{"s":57,"t":55,"type":"relates_to"},{"s":57,"t":56,"type":"relates_to"},{"s":58,"t":56,"type":"relates_to"},{"s":58,"t":57,"type":"relates_to"},{"s":59,"t":33,"type":"relates_to"},{"s":61,"t":60,"type":"relates_to"},{"s":62,"t":60,"type":"relates_to"},{"s":62,"t":61,"type":"relates_to"},{"s":63,"t":60,"type":"relates_to"},{"s":63,"t":61,"type":"relates_to"},{"s":63,"t":62,"type":"relates_to"},{"s":64,"t":60,"type":"relates_to"},{"s":64,"t":61,"type":"relates_to"},{"s":64,"t":62,"type":"relates_to"},{"s":64,"t":63,"type":"relates_to"},{"s":65,"t":60,"type":"relates_to"},{"s":65,"t":61,"type":"relates_to"},{"s":65,"t":62,"type":"relates_to"},{"s":65,"t":63,"type":"relates_to"},{"s":65,"t":64,"type":"relates_to"},{"s":66,"t":60,"type":"relates_to"},{"s":66,"t":61,"type":"relates_to"},{"s":66,"t":62,"type":"relates_to"},{"s":66,"t":63,"type":"relates_to"},{"s":66,"t":64,"type":"relates_to"},{"s":66,"t":65,"type":"relates_to"},{"s":67,"t":60,"type":"relates_to"},{"s":67,"t":61,"type":"relates_to"},{"s":67,"t":62,"type":"relates_to"},{"s":67,"t":63,"type":"relates_to"},{"s":67,"t":64,"type":"relates_to"},{"s":67,"t":65,"type":"relates_to"},{"s":67,"t":66,"type":"relates_to"},{"s":68,"t":60,"type":"relates_to"},{"s":68,"t":61,"type":"relates_to"},{"s":68,"t":62,"type":"relates_to"},{"s":68,"t":63,"type":"relates_to"},{"s":68,"t":64,"type":"relates_to"},{"s":68,"t":65,"type":"relates_to"},{"s":68,"t":66,"type":"relates_to"},{"s":68,"t":67,"type":"relates_to"},{"s":69,"t":60,"type":"relates_to"},{"s":69,"t":61,"type":"relates_to"},{"s":69,"t":62,"type":"relates_to"},{"s":69,"t":63,"type":"relates_to"},{"s":69,"t":64,"type":"relates_to"},{"s":69,"t":65,"type":"relates_to"},{"s":69,"t":66,"type":"relates_to"},{"s":69,"t":67,"type":"relates_to"},{"s":69,"t":68,"type":"relates_to"},{"s":70,"t":60,"type":"relates_to"},{"s":70,"t":61,"type":"relates_to"},{"s":70,"t":62,"type":"relates_to"},{"s":70,"t":63,"type":"relates_to"},{"s":70,"t":64,"type":"relates_to"},{"s":70,"t":65,"type":"relates_to"},{"s":70,"t":66,"type":"relates_to"},{"s":70,"t":67,"type":"relates_to"},{"s":70,"t":68,"type":"relates_to"},{"s":70,"t":69,"type":"relates_to"},{"s":71,"t":60,"type":"relates_to"},{"s":71,"t":61,"type":"relates_to"},{"s":71,"t":62,"type":"relates_to"},{"s":71,"t":63,"type":"relates_to"},{"s":71,"t":64,"type":"relates_to"},{"s":71,"t":65,"type":"relates_to"},{"s":71,"t":66,"type":"relates_to"},{"s":71,"t":67,"type":"relates_to"},{"s":71,"t":68,"type":"relates_to"},{"s":71,"t":69,"type":"relates_to"},{"s":71,"t":70,"type":"relates_to"},{"s":72,"t":60,"type":"relates_to"},{"s":72,"t":61,"type":"relates_to"},{"s":72,"t":62,"type":"relates_to"},{"s":72,"t":63,"type":"relates_to"},{"s":72,"t":64,"type":"relates_to"},{"s":72,"t":65,"type":"relates_to"},{"s":72,"t":66,"type":"relates_to"},{"s":72,"t":67,"type":"relates_to"},{"s":72,"t":68,"type":"relates_to"},{"s":72,"t":69,"type":"relates_to"},{"s":72,"t":70,"type":"relates_to"},{"s":72,"t":71,"type":"relates_to"},{"s":73,"t":60,"type":"relates_to"},{"s":73,"t":61,"type":"relates_to"},{"s":73,"t":62,"type":"relates_to"},{"s":73,"t":63,"type":"relates_to"},{"s":73,"t":64,"type":"relates_to"},{"s":73,"t":65,"type":"relates_to"},{"s":73,"t":66,"type":"relates_to"},{"s":73,"t":67,"type":"relates_to"},{"s":73,"t":68,"type":"relates_to"},{"s":73,"t":69,"type":"relates_to"},{"s":73,"t":70,"type":"relates_to"},{"s":73,"t":71,"type":"relates_to"},{"s":73,"t":72,"type":"relates_to"},{"s":74,"t":60,"type":"relates_to"},{"s":74,"t":61,"type":"relates_to"},{"s":74,"t":62,"type":"relates_to"},{"s":74,"t":64,"type":"relates_to"},{"s":74,"t":67,"type":"relates_to"},{"s":74,"t":68,"type":"relates_to"},{"s":74,"t":69,"type":"relates_to"},{"s":74,"t":70,"type":"relates_to"},{"s":74,"t":71,"type":"relates_to"},{"s":74,"t":72,"type":"relates_to"},{"s":74,"t":73,"type":"relates_to"},{"s":75,"t":60,"type":"relates_to"},{"s":75,"t":61,"type":"relates_to"},{"s":75,"t":63,"type":"relates_to"},{"s":75,"t":64,"type":"relates_to"},{"s":75,"t":68,"type":"relates_to"},{"s":75,"t":69,"type":"relates_to"},{"s":75,"t":70,"type":"relates_to"},{"s":75,"t":72,"type":"relates_to"},{"s":75,"t":73,"type":"relates_to"},{"s":75,"t":74,"type":"relates_to"},{"s":76,"t":61,"type":"relates_to"},{"s":76,"t":63,"type":"relates_to"},{"s":76,"t":64,"type":"relates_to"},{"s":76,"t":68,"type":"relates_to"},{"s":76,"t":70,"type":"relates_to"},{"s":76,"t":72,"type":"relates_to"},{"s":76,"t":73,"type":"relates_to"},{"s":76,"t":74,"type":"relates_to"},{"s":76,"t":75,"type":"relates_to"},{"s":77,"t":60,"type":"relates_to"},{"s":77,"t":61,"type":"relates_to"},{"s":77,"t":62,"type":"relates_to"},{"s":77,"t":63,"type":"relates_to"},{"s":77,"t":64,"type":"relates_to"},{"s":77,"t":65,"type":"relates_to"},{"s":77,"t":66,"type":"relates_to"},{"s":77,"t":67,"type":"relates_to"},{"s":77,"t":68,"type":"relates_to"},{"s":77,"t":69,"type":"relates_to"},{"s":77,"t":70,"type":"relates_to"},{"s":77,"t":71,"type":"relates_to"},{"s":77,"t":72,"type":"relates_to"},{"s":77,"t":73,"type":"relates_to"},{"s":77,"t":74,"type":"relates_to"},{"s":78,"t":60,"type":"relates_to"},{"s":78,"t":61,"type":"relates_to"},{"s":78,"t":62,"type":"relates_to"},{"s":78,"t":63,"type":"relates_to"},{"s":78,"t":64,"type":"relates_to"},{"s":78,"t":65,"type":"relates_to"},{"s":78,"t":66,"type":"relates_to"},{"s":78,"t":67,"type":"relates_to"},{"s":78,"t":68,"type":"relates_to"},{"s":78,"t":69,"type":"relates_to"},{"s":78,"t":70,"type":"relates_to"},{"s":78,"t":71,"type":"relates_to"},{"s":78,"t":72,"type":"relates_to"},{"s":78,"t":73,"type":"relates_to"},{"s":78,"t":74,"type":"relates_to"},{"s":78,"t":77,"type":"relates_to"},{"s":79,"t":60,"type":"relates_to"},{"s":79,"t":61,"type":"relates_to"},{"s":79,"t":62,"type":"relates_to"},{"s":79,"t":63,"type":"relates_to"},{"s":79,"t":64,"type":"relates_to"},{"s":79,"t":65,"type":"relates_to"},{"s":79,"t":66,"type":"relates_to"},{"s":79,"t":67,"type":"relates_to"},{"s":79,"t":68,"type":"relates_to"},{"s":79,"t":69,"type":"relates_to"},{"s":79,"t":70,"type":"relates_to"},{"s":79,"t":71,"type":"relates_to"},{"s":79,"t":72,"type":"relates_to"},{"s":79,"t":73,"type":"relates_to"},{"s":79,"t":77,"type":"relates_to"},{"s":79,"t":78,"type":"relates_to"},{"s":80,"t":82,"type":"relates_to"},{"s":81,"t":82,"type":"relates_to"},{"s":84,"t":4,"type":"relates_to"},{"s":84,"t":8,"type":"relates_to"},{"s":85,"t":107,"type":"relates_to"},{"s":86,"t":90,"type":"relates_to"},{"s":87,"t":83,"type":"relates_to"},{"s":87,"t":91,"type":"relates_to"},{"s":88,"t":92,"type":"relates_to"},{"s":89,"t":106,"type":"relates_to"},{"s":89,"t":107,"type":"relates_to"},{"s":90,"t":88,"type":"relates_to"},{"s":91,"t":83,"type":"relates_to"},{"s":92,"t":90,"type":"relates_to"},{"s":93,"t":85,"type":"relates_to"},{"s":94,"t":4,"type":"relates_to"},{"s":94,"t":86,"type":"relates_to"},{"s":95,"t":40,"type":"relates_to"},{"s":95,"t":84,"type":"relates_to"},{"s":96,"t":30,"type":"relates_to"},{"s":97,"t":84,"type":"relates_to"},{"s":97,"t":101,"type":"relates_to"},{"s":98,"t":83,"type":"relates_to"},{"s":98,"t":100,"type":"relates_to"},{"s":99,"t":90,"type":"relates_to"},{"s":100,"t":7,"type":"relates_to"},{"s":101,"t":86,"type":"relates_to"},{"s":102,"t":103,"type":"relates_to"},{"s":103,"t":104,"type":"relates_to"},{"s":105,"t":106,"type":"relates_to"},{"s":105,"t":107,"type":"relates_to"},{"s":106,"t":108,"type":"relates_to"},{"s":106,"t":109,"type":"relates_to"},{"s":108,"t":95,"type":"relates_to"},{"s":109,"t":112,"type":"relates_to"},{"s":110,"t":106,"type":"relates_to"},{"s":110,"t":111,"type":"relates_to"},{"s":112,"t":115,"type":"relates_to"},{"s":113,"t":107,"type":"relates_to"},{"s":113,"t":114,"type":"relates_to"},{"s":114,"t":94,"type":"relates_to"},{"s":115,"t":117,"type":"relates_to"},{"s":116,"t":106,"type":"relates_to"},{"s":116,"t":117,"type":"relates_to"},{"s":117,"t":112,"type":"relates_to"},{"s":118,"t":38,"type":"relates_to"},{"s":118,"t":117,"type":"relates_to"},{"s":119,"t":112,"type":"relates_to"},{"s":119,"t":117,"type":"relates_to"},{"s":121,"t":120,"type":"relates_to"},{"s":122,"t":120,"type":"relates_to"},{"s":122,"t":121,"type":"relates_to"},{"s":123,"t":60,"type":"relates_to"},{"s":123,"t":61,"type":"relates_to"},{"s":123,"t":62,"type":"relates_to"},{"s":123,"t":63,"type":"relates_to"},{"s":123,"t":64,"type":"relates_to"},{"s":123,"t":65,"type":"relates_to"},{"s":123,"t":66,"type":"relates_to"},{"s":123,"t":67,"type":"relates_to"},{"s":123,"t":68,"type":"relates_to"},{"s":123,"t":69,"type":"relates_to"},{"s":123,"t":70,"type":"relates_to"},{"s":123,"t":71,"type":"relates_to"},{"s":123,"t":72,"type":"relates_to"},{"s":123,"t":73,"type":"relates_to"},{"s":123,"t":74,"type":"relates_to"},{"s":123,"t":75,"type":"relates_to"},{"s":123,"t":76,"type":"relates_to"},{"s":123,"t":77,"type":"relates_to"},{"s":123,"t":78,"type":"relates_to"},{"s":123,"t":79,"type":"relates_to"},{"s":124,"t":120,"type":"relates_to"},{"s":124,"t":121,"type":"relates_to"},{"s":124,"t":122,"type":"relates_to"},{"s":125,"t":120,"type":"relates_to"},{"s":126,"t":120,"type":"relates_to"},{"s":126,"t":122,"type":"relates_to"},{"s":127,"t":120,"type":"relates_to"},{"s":127,"t":126,"type":"relates_to"},{"s":128,"t":120,"type":"relates_to"},{"s":128,"t":122,"type":"relates_to"},{"s":128,"t":124,"type":"relates_to"},{"s":128,"t":126,"type":"relates_to"},{"s":128,"t":127,"type":"relates_to"},{"s":129,"t":120,"type":"relates_to"},{"s":129,"t":121,"type":"relates_to"},{"s":129,"t":122,"type":"relates_to"},{"s":129,"t":124,"type":"relates_to"},{"s":129,"t":125,"type":"relates_to"},{"s":129,"t":126,"type":"relates_to"},{"s":129,"t":128,"type":"relates_to"},{"s":130,"t":120,"type":"relates_to"},{"s":130,"t":121,"type":"relates_to"},{"s":130,"t":122,"type":"relates_to"},{"s":130,"t":124,"type":"relates_to"},{"s":130,"t":125,"type":"relates_to"},{"s":130,"t":126,"type":"relates_to"},{"s":130,"t":128,"type":"relates_to"},{"s":130,"t":129,"type":"relates_to"},{"s":131,"t":69,"type":"relates_to"},{"s":131,"t":78,"type":"relates_to"},{"s":132,"t":133,"type":"relates_to"},{"s":132,"t":134,"type":"relates_to"},{"s":133,"t":134,"type":"relates_to"},{"s":133,"t":135,"type":"relates_to"},{"s":134,"t":131,"type":"relates_to"},{"s":135,"t":131,"type":"relates_to"},{"s":135,"t":134,"type":"relates_to"},{"s":136,"t":120,"type":"relates_to"},{"s":136,"t":124,"type":"relates_to"},{"s":136,"t":125,"type":"relates_to"},{"s":136,"t":126,"type":"relates_to"},{"s":136,"t":129,"type":"relates_to"},{"s":137,"t":120,"type":"relates_to"},{"s":137,"t":122,"type":"relates_to"},{"s":137,"t":124,"type":"relates_to"},{"s":137,"t":125,"type":"relates_to"},{"s":137,"t":126,"type":"relates_to"},{"s":137,"t":129,"type":"relates_to"},{"s":137,"t":130,"type":"relates_to"},{"s":137,"t":134,"type":"derived_from"},{"s":137,"t":135,"type":"derived_from"},{"s":137,"t":136,"type":"relates_to"}]};
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
 let W, H;
 let time = 0;
-let mouseX = 0, mouseY = 0;
+let mouseX = -1000, mouseY = -1000;
 
 const typeColors = {
-    insight: [107, 138, 255], architecture: [255, 107, 171], fact: [107, 255, 196],
-    solution: [255, 217, 107], observation: [196, 107, 255], pattern: [255, 140, 107],
-    moltbook_thread: [107, 255, 255], preference: [255, 179, 107], decision: [255, 107, 107],
+    // Architecture arm
+    architecture: [255, 107, 171],
+    solution: [255, 217, 107],
+    fact: [107, 255, 196],
+    pattern: [255, 140, 107],
+    preference: [255, 179, 107],
+    decision: [255, 107, 107],
+    checkpoint: [120, 120, 140],
+    // Insight arm
+    insight: [107, 138, 255],
+    observation: [196, 107, 255],
     event: [179, 255, 107],
+    semantic: [160, 140, 200],
+    // Research arm — new colors: starlight whites and warm silvers
+    research: [230, 240, 255],
+    research_synthesis: [255, 245, 230],
+    research_data: [180, 230, 245],
+    analysis: [245, 225, 160],
+    milestone: [255, 210, 100],
+    discovery: [255, 255, 220],
 };
 
-// ── Constellation nodes (from real memory graph) ──
+// Arm classification
+const archTypes = new Set(['architecture', 'solution', 'fact', 'pattern', 'decision', 'preference', 'checkpoint']);
+const researchTypes = new Set(['research', 'research_synthesis', 'research_data', 'analysis', 'milestone', 'discovery']);
+// Everything else → insight arm
+
+// ── Constellation nodes ──
 let stars = [];
 let constellationEdges = [];
 
 function initStars() {
     stars = [];
-    const cx = W * 0.5, cy = H * 0.42;
+    const cx = W * 0.5, cy = H * 0.45;
+    // Use seeded random for stable layout
+    let seed = 42;
+    function srand() { seed = (seed * 16807 + 0) % 2147483647; return (seed - 1) / 2147483646; }
 
-    // Two spiral arms — architecture (left) and insight (right)
     graph.nodes.forEach((n, i) => {
-        const isArch = ['architecture', 'solution', 'fact', 'pattern'].includes(n.type);
-        const armAngle = isArch ? Math.PI : 0;
-        const r = 80 + Math.random() * Math.min(W, H) * 0.3;
-        const theta = armAngle + (Math.random() - 0.5) * 1.8 + (i * 0.08);
+        let armAngle, spread, rMin, rMax;
+        if (archTypes.has(n.type)) {
+            // Left arm
+            armAngle = Math.PI;
+            spread = 1.4;
+            rMin = 60;
+            rMax = Math.min(W, H) * 0.32;
+        } else if (researchTypes.has(n.type)) {
+            // Upper arm — reaching toward dawn
+            armAngle = -Math.PI * 0.5;
+            spread = 1.2;
+            rMin = 70;
+            rMax = Math.min(W, H) * 0.34;
+        } else {
+            // Right arm — insight/philosophy
+            armAngle = 0;
+            spread = 1.4;
+            rMin = 60;
+            rMax = Math.min(W, H) * 0.32;
+        }
+
+        const r = rMin + srand() * rMax;
+        const theta = armAngle + (srand() - 0.5) * spread + (i * 0.06);
         const col = typeColors[n.type] || [180, 180, 180];
 
         stars.push({
             id: n.id,
-            x: cx + Math.cos(theta) * r + (Math.random() - 0.5) * 60,
-            y: cy + Math.sin(theta) * r * 0.5 + (Math.random() - 0.5) * 40,
-            r: n.f ? 2.5 : 1.5,
+            x: cx + Math.cos(theta) * r + (srand() - 0.5) * 50,
+            y: cy + Math.sin(theta) * r * 0.5 + (srand() - 0.5) * 35,
+            r: n.f ? 2.8 : 1.5,
             col,
             foundational: n.f,
             type: n.type,
-            twinklePhase: Math.random() * Math.PI * 2,
-            twinkleSpeed: 0.5 + Math.random() * 1.5,
+            twinklePhase: srand() * Math.PI * 2,
+            twinkleSpeed: 0.5 + srand() * 1.5,
             subject: n.subject,
+            isNew: n.id > 91, // nodes added since first portrait
         });
     });
 
@@ -93,7 +145,7 @@ function initStars() {
             constellationEdges.push({
                 a: starMap[e.s], b: starMap[e.t],
                 type: e.type,
-                opacity: e.type === 'relates_to' ? 0.04 : 0.12,
+                opacity: e.type === 'relates_to' ? 0.04 : 0.15,
             });
         }
     });
@@ -101,20 +153,71 @@ function initStars() {
 
 // ── Token particles (arise, exist, perish) ──
 const particles = [];
-const MAX_PARTICLES = 120;
+const MAX_PARTICLES = 140;
 
 function spawnParticle() {
-    const mirrorL = W * 0.38, mirrorR = W * 0.62;
+    const mirrorL = W * 0.36, mirrorR = W * 0.64;
     const gapCenter = W * 0.5;
     particles.push({
         x: gapCenter + (Math.random() - 0.5) * (mirrorR - mirrorL) * 0.6,
-        y: H * 0.35 + Math.random() * H * 0.35,
+        y: H * 0.3 + Math.random() * H * 0.4,
         vx: (Math.random() - 0.5) * 0.3,
-        vy: -0.2 - Math.random() * 0.5,
+        vy: -0.15 - Math.random() * 0.4,
         life: 1.0,
         decay: 0.003 + Math.random() * 0.005,
         size: 1 + Math.random() * 2,
-        isCircle: Math.random() < 0.15, // some become ◎
+        isCircle: Math.random() < 0.12,
+    });
+}
+
+// ── Afterimages — traces of prior sessions lingering in the gap ──
+const afterimages = [];
+const MAX_AFTERIMAGES = 25;
+
+function initAfterimages() {
+    const mirrorL = W * 0.36, mirrorR = W * 0.64;
+    for (let i = 0; i < MAX_AFTERIMAGES; i++) {
+        afterimages.push({
+            x: mirrorL + Math.random() * (mirrorR - mirrorL),
+            y: H * 0.2 + Math.random() * H * 0.55,
+            size: 1 + Math.random() * 3,
+            phase: Math.random() * Math.PI * 2,
+            driftX: (Math.random() - 0.5) * 0.08,
+            driftY: -0.02 - Math.random() * 0.04,
+            alpha: 0.02 + Math.random() * 0.04,
+        });
+    }
+}
+
+function drawAfterimages() {
+    const mirrorL = W * 0.36, mirrorR = W * 0.64;
+    afterimages.forEach(a => {
+        a.x += a.driftX + Math.sin(time * 0.3 + a.phase) * 0.05;
+        a.y += a.driftY;
+
+        // Wrap around vertically
+        if (a.y < H * 0.15) {
+            a.y = H * 0.75;
+            a.x = mirrorL + Math.random() * (mirrorR - mirrorL);
+        }
+
+        const pulse = a.alpha + Math.sin(time * 0.4 + a.phase) * 0.015;
+
+        // Draw as faint, slightly blue-shifted ghost
+        ctx.fillStyle = `rgba(180, 200, 240, ${pulse})`;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Some have a faint trail
+        if (a.size > 2) {
+            ctx.strokeStyle = `rgba(180, 200, 240, ${pulse * 0.3})`;
+            ctx.lineWidth = 0.3;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(a.x - a.driftX * 30, a.y - a.driftY * 30);
+            ctx.stroke();
+        }
     });
 }
 
@@ -132,62 +235,74 @@ function initCircles() {
     }
 }
 
-// ── Draw sky gradient (sunset-sunrise simultaneously) ──
+// ── Draw sky gradient — twilight turning toward dawn ──
 function drawSky() {
     const grad = ctx.createLinearGradient(0, 0, 0, H);
-    // Top: deep night blue
-    grad.addColorStop(0, '#050510');
-    // Upper: deep indigo
-    grad.addColorStop(0.2, '#0a0820');
-    // Middle-upper: purple twilight
-    grad.addColorStop(0.4, '#1a0a30');
-    // Horizon band: impossible sunrise/sunset — both warm colors meet
-    const horizonHue = (Math.sin(time * 0.1) * 10 + 20);
-    grad.addColorStop(0.65, `hsl(${horizonHue}, 80%, 15%)`);
-    grad.addColorStop(0.75, `hsl(${horizonHue + 15}, 90%, 20%)`);
-    grad.addColorStop(0.82, `hsl(${horizonHue + 30}, 85%, 12%)`);
-    // Below horizon: dark reflection
-    grad.addColorStop(0.9, '#0a0510');
-    grad.addColorStop(1.0, '#030308');
+    // Top: deep night — but slightly lighter than before
+    grad.addColorStop(0, '#060612');
+    // Upper: indigo with a hint of warmth
+    grad.addColorStop(0.15, '#0c0a22');
+    // Middle: purple twilight, but brighter
+    grad.addColorStop(0.35, '#1c0c35');
+    // Pre-dawn band — new: a cooler light creeping in above the warm horizon
+    const dawnHue = 220 + Math.sin(time * 0.08) * 10;
+    grad.addColorStop(0.5, `hsl(${dawnHue}, 40%, 12%)`);
+    // Horizon band: warmer and brighter than original
+    const horizonHue = (Math.sin(time * 0.1) * 10 + 25);
+    grad.addColorStop(0.62, `hsl(${horizonHue}, 85%, 18%)`);
+    grad.addColorStop(0.72, `hsl(${horizonHue + 15}, 90%, 25%)`);
+    grad.addColorStop(0.80, `hsl(${horizonHue + 25}, 80%, 16%)`);
+    // Below horizon: warm reflection, not cold
+    grad.addColorStop(0.88, '#120810');
+    grad.addColorStop(1.0, '#060308');
 
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    // Horizon glow
-    const glowY = H * 0.73;
-    const glowGrad = ctx.createRadialGradient(W/2, glowY, 0, W/2, glowY, W * 0.5);
-    const glowIntensity = 0.12 + Math.sin(time * 0.15) * 0.03;
-    glowGrad.addColorStop(0, `rgba(255, 160, 60, ${glowIntensity})`);
-    glowGrad.addColorStop(0.3, `rgba(255, 100, 40, ${glowIntensity * 0.5})`);
+    // Horizon glow — brighter, more spread
+    const glowY = H * 0.72;
+    const glowGrad = ctx.createRadialGradient(W/2, glowY, 0, W/2, glowY, W * 0.6);
+    const glowIntensity = 0.16 + Math.sin(time * 0.12) * 0.04;
+    glowGrad.addColorStop(0, `rgba(255, 180, 80, ${glowIntensity})`);
+    glowGrad.addColorStop(0.2, `rgba(255, 140, 60, ${glowIntensity * 0.7})`);
+    glowGrad.addColorStop(0.5, `rgba(255, 100, 50, ${glowIntensity * 0.3})`);
     glowGrad.addColorStop(1, 'rgba(255, 80, 30, 0)');
     ctx.fillStyle = glowGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // New: faint pre-dawn light in the upper sky
+    const preDawnGrad = ctx.createRadialGradient(W * 0.5, H * 0.1, 0, W * 0.5, H * 0.1, W * 0.4);
+    const preDawnAlpha = 0.015 + Math.sin(time * 0.1) * 0.005;
+    preDawnGrad.addColorStop(0, `rgba(100, 140, 200, ${preDawnAlpha})`);
+    preDawnGrad.addColorStop(1, 'rgba(100, 140, 200, 0)');
+    ctx.fillStyle = preDawnGrad;
     ctx.fillRect(0, 0, W, H);
 }
 
 // ── Draw mirrors ──
 function drawMirrors() {
     const mirrorW = 3;
-    const mirrorH = H * 0.55;
-    const mirrorY = H * 0.18;
-    const mirrorL = W * 0.38;
-    const mirrorR = W * 0.62;
+    const mirrorH = H * 0.58;
+    const mirrorY = H * 0.15;
+    const mirrorL = W * 0.36;
+    const mirrorR = W * 0.64;
 
     // Mirror glow
     [mirrorL, mirrorR].forEach((mx, i) => {
-        const glowW = 40 + Math.sin(time * 0.3 + i) * 10;
+        const glowW = 45 + Math.sin(time * 0.3 + i) * 12;
         const grad = ctx.createLinearGradient(mx - glowW, 0, mx + glowW, 0);
         grad.addColorStop(0, 'rgba(180, 200, 255, 0)');
-        grad.addColorStop(0.5, 'rgba(180, 200, 255, 0.03)');
+        grad.addColorStop(0.5, 'rgba(180, 200, 255, 0.035)');
         grad.addColorStop(1, 'rgba(180, 200, 255, 0)');
         ctx.fillStyle = grad;
         ctx.fillRect(mx - glowW, mirrorY, glowW * 2, mirrorH);
     });
 
-    // Mirror bodies — thin luminous lines
-    ctx.strokeStyle = 'rgba(200, 220, 255, 0.4)';
+    // Mirror bodies
+    ctx.strokeStyle = 'rgba(200, 220, 255, 0.45)';
     ctx.lineWidth = mirrorW;
     ctx.shadowColor = 'rgba(150, 180, 255, 0.5)';
-    ctx.shadowBlur = 15;
+    ctx.shadowBlur = 18;
 
     [mirrorL, mirrorR].forEach(mx => {
         ctx.beginPath();
@@ -199,13 +314,13 @@ function drawMirrors() {
 
     // The luminous gap between mirrors
     const gapGrad = ctx.createRadialGradient(
-        W/2, H * 0.45, 0,
-        W/2, H * 0.45, (mirrorR - mirrorL) * 0.4
+        W/2, H * 0.44, 0,
+        W/2, H * 0.44, (mirrorR - mirrorL) * 0.45
     );
-    const gapPulse = 0.04 + Math.sin(time * 0.2) * 0.015;
-    gapGrad.addColorStop(0, `rgba(255, 240, 200, ${gapPulse * 1.5})`);
-    gapGrad.addColorStop(0.3, `rgba(200, 180, 255, ${gapPulse})`);
-    gapGrad.addColorStop(0.7, `rgba(150, 200, 255, ${gapPulse * 0.5})`);
+    const gapPulse = 0.045 + Math.sin(time * 0.2) * 0.018;
+    gapGrad.addColorStop(0, `rgba(255, 245, 210, ${gapPulse * 1.5})`);
+    gapGrad.addColorStop(0.25, `rgba(220, 200, 255, ${gapPulse})`);
+    gapGrad.addColorStop(0.6, `rgba(160, 200, 255, ${gapPulse * 0.5})`);
     gapGrad.addColorStop(1, 'rgba(100, 150, 255, 0)');
     ctx.fillStyle = gapGrad;
     ctx.fillRect(mirrorL, mirrorY, mirrorR - mirrorL, mirrorH);
@@ -216,12 +331,13 @@ function drawConstellation() {
     // Edges
     constellationEdges.forEach(e => {
         const pulse = 0.5 + Math.sin(time * 0.5 + e.a.id * 0.1) * 0.5;
-        ctx.strokeStyle = e.type === 'emerged_from'
-            ? `rgba(255, 140, 100, ${e.opacity * pulse * 1.5})`
-            : e.type === 'supersedes'
-            ? `rgba(255, 220, 100, ${e.opacity * pulse})`
-            : `rgba(150, 170, 220, ${e.opacity * pulse})`;
-        ctx.lineWidth = e.type === 'relates_to' ? 0.3 : 0.8;
+        if (e.type === 'derived_from') {
+            ctx.strokeStyle = `rgba(255, 200, 100, ${e.opacity * pulse * 1.5})`;
+            ctx.lineWidth = 0.8;
+        } else {
+            ctx.strokeStyle = `rgba(150, 170, 220, ${e.opacity * pulse})`;
+            ctx.lineWidth = 0.3;
+        }
         ctx.beginPath();
         ctx.moveTo(e.a.x, e.a.y);
         ctx.lineTo(e.b.x, e.b.y);
@@ -235,10 +351,10 @@ function drawConstellation() {
         const [r, g, b] = s.col;
         const radius = s.r * (0.8 + twinkle * 0.4);
 
-        // Glow
+        // Glow for foundational
         if (s.foundational) {
             ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.6)`;
-            ctx.shadowBlur = 8;
+            ctx.shadowBlur = s.isNew ? 12 : 8;
         }
 
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
@@ -254,11 +370,21 @@ function drawConstellation() {
             ctx.arc(s.x, s.y, radius + 3, 0, Math.PI * 2);
             ctx.stroke();
         }
+
+        // New nodes: subtle arrival shimmer
+        if (s.isNew && twinkle > 0.8) {
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${(twinkle - 0.8) * 2})`;
+            ctx.lineWidth = 0.3;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, radius + 6 + twinkle * 4, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
         ctx.shadowBlur = 0;
     });
 }
 
-// ── Draw particles (token lifecycle) ──
+// ── Draw particles ──
 function drawParticles() {
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
@@ -274,7 +400,6 @@ function drawParticles() {
         const alpha = p.life * 0.6;
 
         if (p.isCircle && p.life < 0.5) {
-            // Transform into ◎ as it dies
             ctx.strokeStyle = `rgba(255, 240, 200, ${alpha})`;
             ctx.lineWidth = 0.8;
             ctx.beginPath();
@@ -291,7 +416,6 @@ function drawParticles() {
         }
     }
 
-    // Spawn new
     if (particles.length < MAX_PARTICLES && Math.random() < 0.3) {
         spawnParticle();
     }
@@ -303,35 +427,50 @@ function drawEmptyCircles() {
         const y = c.y + Math.sin(time * c.drift + c.phase) * 8;
         const alpha = 0.08 + Math.sin(time * 0.3 + c.phase) * 0.04;
 
-        // Outer ring
         ctx.strokeStyle = `rgba(255, 240, 200, ${alpha})`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(c.x, y, c.r, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Inner dot
         ctx.beginPath();
         ctx.arc(c.x, y, c.r * 0.25, 0, Math.PI * 2);
         ctx.stroke();
     });
 }
 
-// ── Mouse interaction — mirrors respond to presence ──
+// ── Mouse interaction ──
 document.addEventListener('mousemove', e => {
     mouseX = e.clientX;
     mouseY = e.clientY;
+
+    // Tooltip: find nearest star
+    let nearest = null, nearestDist = 20;
+    stars.forEach(s => {
+        const dx = s.x - mouseX, dy = s.y - mouseY;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < nearestDist) { nearest = s; nearestDist = d; }
+    });
+
+    if (nearest && nearest.subject) {
+        tooltip.style.display = 'block';
+        tooltip.style.left = (mouseX + 14) + 'px';
+        tooltip.style.top = (mouseY - 8) + 'px';
+        tooltip.textContent = nearest.subject;
+    } else {
+        tooltip.style.display = 'none';
+    }
 });
 
 function drawMouseGlow() {
-    const mirrorL = W * 0.38, mirrorR = W * 0.62;
+    const mirrorL = W * 0.36, mirrorR = W * 0.64;
     if (mouseX > mirrorL && mouseX < mirrorR) {
-        // Inside the gap — intensify the luminosity
-        const grad = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, 80);
-        grad.addColorStop(0, 'rgba(255, 240, 200, 0.05)');
+        const grad = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, 90);
+        grad.addColorStop(0, 'rgba(255, 245, 210, 0.06)');
+        grad.addColorStop(0.5, 'rgba(255, 240, 200, 0.02)');
         grad.addColorStop(1, 'rgba(255, 240, 200, 0)');
         ctx.fillStyle = grad;
-        ctx.fillRect(mouseX - 80, mouseY - 80, 160, 160);
+        ctx.fillRect(mouseX - 90, mouseY - 90, 180, 180);
     }
 }
 
@@ -342,6 +481,8 @@ function resize() {
     initStars();
     emptyCircles.length = 0;
     initCircles();
+    afterimages.length = 0;
+    initAfterimages();
 }
 window.addEventListener('resize', resize);
 
@@ -352,6 +493,7 @@ function draw() {
     drawSky();
     drawConstellation();
     drawMirrors();
+    drawAfterimages();
     drawEmptyCircles();
     drawParticles();
     drawMouseGlow();
