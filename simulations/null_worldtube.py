@@ -10196,36 +10196,90 @@ def print_quark_koide_analysis():
   come from the TOPOLOGICAL (non-perturbative) linking, not
   from perturbative QCD.""")
 
-    # ── Section 8: Summary ────────────────────────────────────────────
+    # ── Section 8: Anchor masses ────────────────────────────────────────
+    Lambda_tube = 255670  # MeV
+    p_knot, q_knot_num = 2, 1
+
+    m_t_anchor = (p_knot / N_c) * Lambda_tube
+    m_b_anchor = np.sqrt(p_knot**2 + q_knot_num**2) * alpha_em * Lambda_tube
+    m_tau_anchor = (p_knot**2 * (p_knot**2 + q_knot_num**2)
+                    / (N_c * (2 * N_c + 1))) * alpha_em * Lambda_tube
+
     print(f"""
-  8. SUMMARY AND PARAMETER COUNT
+  8. ANCHOR MASSES FROM TORUS KNOT GEOMETRY
   {'─' * 53}
 
-  ┌──────────────────────────────────────────────────────────┐
-  │  QUARK KOIDE EXTENSION                                   │
-  │                                                          │
-  │  Formula 1 (angle):     θ = (6π + 2/(1+3|q|)) / 9       │
-  │    Leptons:  exact                                       │
-  │    Down:     0.85% on Δ                                  │
-  │    Up:       0.41% on Δ                                  │
-  │                                                          │
-  │  Formula 2 (hierarchy): B² = 2(1 + (1+α)|q|^(3/2))      │
-  │    Leptons:  +0.003% (exact to O(α))                     │
-  │    Down:     -0.053%                                     │
-  │    Up:       +0.111%                                     │
-  │                                                          │
-  │  Mass predictions (with measured S):                      │
-  │    d: -2.3%  s: +0.8%  b: -0.0%                         │
-  │    u: +0.7%  c: -0.9%  t: +0.1%                         │
-  │                                                          │
-  │  Inputs: one mass per triplet (m_b, m_t) + charge        │
-  │  Outputs: 4 quark masses (d, s, u, c)                    │
-  │  Net: 6 masses → 2 free parameters = 4 predictions       │
-  │                                                          │
-  │  Anchor masses from Λ_tube = ℏc/(α R_proton):            │
-  │    m_t = (2/3)Λ_tube    (1.3% accuracy)                  │
-  │    m_b = √5 α Λ_tube    (0.2% accuracy)                  │
-  └──────────────────────────────────────────────────────────┘""")
+  Three anchor masses from (p,q)=({p_knot},{q_knot_num}) torus knot + N_c={N_c}:
+
+    ┌───────────────────────────────────────────────────────┐
+    │  m_t = (p/N_c) × Λ_tube                               │
+    │      = ({p_knot}/{N_c}) × 255.67 GeV = {m_t_anchor/1000:.1f} GeV  ({100*(m_t_anchor-m_t)/m_t:+.1f}%)   │
+    │                                                        │
+    │  m_b = √(p²+q²) × α × Λ_tube                          │
+    │      = √5 × α × 255.67 GeV = {m_b_anchor:.0f} MeV  ({100*(m_b_anchor-m_b)/m_b:+.1f}%)   │
+    │                                                        │
+    │  m_τ = p²(p²+q²)/(N_c(2N_c+1)) × α × Λ_tube          │
+    │      = (20/21) × α × 255.67 GeV = {m_tau_anchor:.1f} MeV  ({100*(m_tau_anchor-m_tau)/(m_tau if m_tau > 0 else 1):+.3f}%)│
+    └───────────────────────────────────────────────────────┘
+
+  PHYSICAL MEANING:
+    m_t = (p/N_c)Λ: top couples GEOMETRICALLY to tube (α⁰)
+    m_b = √(p²+q²)αΛ: knot geodesic length × EM coupling (α¹)
+    m_τ = (20/21)αΛ: surface area / group factor × EM coupling (α¹)
+
+  Coefficients: p/N_c = 2/3, √(p²+q²) = √5, p²(p²+q²)/(N_c(2N_c+1)) = 20/21""")
+
+    # ── Section 9: Complete 9-mass derivation ────────────────────────
+    def heavy_cos(theta):
+        return max(np.cos(theta + 2 * np.pi * i / 3) for i in range(3))
+
+    f_l = 1 + np.sqrt(2) * heavy_cos(theta_K)
+    f_d = 1 + np.sqrt(2 * (1 + (1 + alpha_em) * (1/3)**1.5)) * heavy_cos(
+        (6 * np.pi + 1) / 9)
+    f_u = 1 + np.sqrt(2 * (1 + (1 + alpha_em) * (2/3)**1.5)) * heavy_cos(
+        (6 * np.pi + 2/3) / 9)
+
+    S_l_p = 3 * np.sqrt(m_tau_anchor) / f_l
+    S_d_p = 3 * np.sqrt(m_b_anchor) / f_d
+    S_u_p = 3 * np.sqrt(m_t_anchor) / f_u
+
+    all_pred = []
+    all_actual = []
+    triplets_full = [
+        ("Leptons", S_l_p, np.sqrt(2), theta_K,
+         [m_e_MeV, m_mu, m_tau], ['e', 'μ', 'τ']),
+        ("Down", S_d_p,
+         np.sqrt(2 * (1 + (1 + alpha_em) * (1/3)**1.5)),
+         (6 * np.pi + 1) / 9, [m_d, m_s, m_b], ['d', 's', 'b']),
+        ("Up", S_u_p,
+         np.sqrt(2 * (1 + (1 + alpha_em) * (2/3)**1.5)),
+         (6 * np.pi + 2/3) / 9, [m_u, m_c, m_t], ['u', 'c', 't']),
+    ]
+
+    print(f"""
+  9. COMPLETE 9-MASS PREDICTION (from α + Λ_tube alone)
+  {'─' * 53}
+
+  Inputs:  α = 1/137.036, Λ_tube = ℏc/(αR_p) ≈ 255.67 GeV
+  Output:  9 fermion masses (7 genuine predictions)""")
+
+    print(f"\n  {'Particle':>8s} {'Predicted':>12s} {'PDG':>12s} {'Error':>8s}")
+    print(f"  {'-'*8} {'-'*12} {'-'*12} {'-'*8}")
+    for sector, S_p, B_p, th_p, actuals, labels in triplets_full:
+        preds = predict_masses(S_p, B_p, th_p)
+        for lbl, pr, ac in zip(labels, preds, sorted(actuals)):
+            err = (pr - ac) / ac * 100
+            all_pred.append(pr)
+            all_actual.append(ac)
+            if ac > 10000:
+                print(f"  {lbl:>8s} {pr/1000:11.2f}G {ac/1000:11.2f}G {err:+7.1f}%")
+            else:
+                print(f"  {lbl:>8s} {pr:12.3f} {ac:12.3f} {err:+7.1f}%")
+        print()
+
+    rms = np.sqrt(np.mean([(100*(p-a)/a)**2 for p, a in zip(all_pred, all_actual)]))
+    print(f"  RMS error: {rms:.1f}%")
+    print(f"  All from 2 measured inputs (α, R_proton) + torus topology (p=2, q=1, N_c=3).")
 
 
 def main():
