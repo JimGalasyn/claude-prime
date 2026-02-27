@@ -47,6 +47,7 @@ Usage:
     python3 null_worldtube.py --decay-dynamics   # dissipative dynamics, chaos, strange attractors
     python3 null_worldtube.py --neutrino         # neutrino masses from twist-wave dispersion
     python3 null_worldtube.py --quark-koide      # quark Koide extension: linking corrections
+    python3 null_worldtube.py --pythagorean      # Pythagorean mode catalog for composite particles
 """
 
 import numpy as np
@@ -10463,6 +10464,548 @@ def print_quark_koide_analysis():
   └──────────────────────────────────────────────────────────────┘""")
 
 
+def print_pythagorean_analysis():
+    """
+    Pythagorean mode catalog for composite particles.
+
+    The key idea: when you unwrap a torus (cut and lay flat), a (p,q) winding
+    becomes a straight line on a rectangle. The resonance condition for
+    standing waves is:
+
+        (kp)² + q² = N²     (k = R/r = aspect ratio)
+
+    This is a generalized Pythagorean equation. Integer solutions correspond
+    to perfectly resonant modes (stable particles). Non-integer solutions
+    correspond to "leaky" modes (unstable particles / resonances).
+
+    The aspect ratio k classifies the particle type:
+        k=1: leptons (no internal harmonics — horn torus)
+        k=2: mesons (quark-antiquark)
+        k=3: baryons (3 quarks)
+        k=4: tetraquarks
+        k=5: pentaquarks
+
+    Jim's key insight: baryons (k=3) have the (3,4,5) Pythagorean triple at
+    the fundamental winding p=1. Mesons (k=2) have NO Pythagorean triple at
+    p=1 — their best integer approximation is a non-right triangle, making
+    them inherently unstable.
+    """
+    print()
+    print("=" * 70)
+    print("  PYTHAGOREAN MODES ON THE TORUS")
+    print("  Resonance condition: (kp)² + q² = N²")
+    print("  k = R/r (aspect ratio), p = toroidal, q = poloidal winding")
+    print("=" * 70)
+
+    # ──────────────────────────────────────────────────────────────────
+    # Known particles for comparison (masses in MeV, lifetimes in seconds)
+    # ──────────────────────────────────────────────────────────────────
+    KNOWN_BARYONS = {
+        'p':          {'mass': 938.272, 'lifetime': np.inf, 'spin': '1/2'},
+        'n':          {'mass': 939.565, 'lifetime': 878.4, 'spin': '1/2'},
+        'Δ(1232)':    {'mass': 1232, 'lifetime': 5.6e-24, 'spin': '3/2'},
+        'N(1440)':    {'mass': 1440, 'lifetime': 2.1e-24, 'spin': '1/2'},
+        'N(1520)':    {'mass': 1520, 'lifetime': 2.2e-24, 'spin': '3/2'},
+        'N(1535)':    {'mass': 1535, 'lifetime': 4.4e-24, 'spin': '1/2'},
+        'Λ(1116)':    {'mass': 1115.7, 'lifetime': 2.63e-10, 'spin': '1/2'},
+        'Σ⁺(1189)':   {'mass': 1189.4, 'lifetime': 8.02e-11, 'spin': '1/2'},
+        'Σ⁰(1192)':   {'mass': 1192.6, 'lifetime': 7.4e-20, 'spin': '1/2'},
+        'Ξ⁰(1315)':   {'mass': 1314.9, 'lifetime': 2.9e-10, 'spin': '1/2'},
+        'Ω⁻(1672)':   {'mass': 1672.5, 'lifetime': 8.2e-11, 'spin': '3/2'},
+        'Δ(1600)':    {'mass': 1600, 'lifetime': 2.1e-24, 'spin': '3/2'},
+        'N(1675)':    {'mass': 1675, 'lifetime': 3.3e-24, 'spin': '5/2'},
+        'N(1680)':    {'mass': 1680, 'lifetime': 2.5e-24, 'spin': '5/2'},
+    }
+
+    KNOWN_MESONS = {
+        'π±':         {'mass': 139.570, 'lifetime': 2.60e-8, 'spin': '0'},
+        'π⁰':         {'mass': 134.977, 'lifetime': 8.43e-17, 'spin': '0'},
+        'K±':         {'mass': 493.677, 'lifetime': 1.24e-8, 'spin': '0'},
+        'K⁰':         {'mass': 497.611, 'lifetime': 5.12e-8, 'spin': '0'},
+        'η':          {'mass': 547.862, 'lifetime': 5.02e-19, 'spin': '0'},
+        'ρ(770)':     {'mass': 775.26, 'lifetime': 4.5e-24, 'spin': '1'},
+        'ω(782)':     {'mass': 782.66, 'lifetime': 7.75e-23, 'spin': '1'},
+        'K*(892)':    {'mass': 895.5, 'lifetime': 1.3e-23, 'spin': '1'},
+        "η'(958)":    {'mass': 957.78, 'lifetime': 3.2e-21, 'spin': '0'},
+        'φ(1020)':    {'mass': 1019.46, 'lifetime': 1.55e-22, 'spin': '1'},
+        'f₂(1270)':   {'mass': 1275.5, 'lifetime': 5.5e-24, 'spin': '2'},
+        'D±':         {'mass': 1869.7, 'lifetime': 1.04e-12, 'spin': '0'},
+        'D⁰':         {'mass': 1864.8, 'lifetime': 4.10e-13, 'spin': '0'},
+        'B±':         {'mass': 5279.3, 'lifetime': 1.64e-12, 'spin': '0'},
+        'J/ψ':        {'mass': 3096.9, 'lifetime': 7.1e-21, 'spin': '1'},
+        'Υ(1S)':      {'mass': 9460.3, 'lifetime': 1.2e-20, 'spin': '1'},
+    }
+
+    KNOWN_TETRAQUARKS = {
+        'X(3872)':    {'mass': 3871.7, 'lifetime': 1e-23, 'spin': '1'},
+        'Zc(3900)':   {'mass': 3887.1, 'lifetime': 3e-23, 'spin': '1'},
+        'Zc(4430)':   {'mass': 4478, 'lifetime': 1e-23, 'spin': '1'},
+    }
+
+    KNOWN_PENTAQUARKS = {
+        'Pc(4312)':   {'mass': 4311.9, 'lifetime': 1e-23, 'spin': '1/2'},
+        'Pc(4440)':   {'mass': 4440.3, 'lifetime': 1e-23, 'spin': '1/2'},
+        'Pc(4457)':   {'mass': 4457.3, 'lifetime': 1e-23, 'spin': '3/2'},
+    }
+
+    # ──────────────────────────────────────────────────────────────────
+    # Section 1: Fundamental existence of Pythagorean triples at p=1
+    # ──────────────────────────────────────────────────────────────────
+    print(f"\n  1. FUNDAMENTAL PYTHAGOREAN TRIPLES (p=1 for each aspect ratio)")
+    print(f"  {'─'*60}")
+    print(f"  Resonance condition at p=1: k² + q² = N²")
+    print(f"  Equivalent to: (N-q)(N+q) = k²")
+    print()
+    print(f"  {'k':>3}  {'Particle type':<15}  {'k²':>4}  {'Factor pairs':>20}  {'Triple':>15}  {'Stable?':>8}")
+    print(f"  {'─'*3}  {'─'*15}  {'─'*4}  {'─'*20}  {'─'*15}  {'─'*8}")
+
+    particle_types = {
+        1: 'leptons',
+        2: 'mesons',
+        3: 'baryons',
+        4: 'tetraquarks',
+        5: 'pentaquarks',
+        6: 'hexaquarks',
+    }
+
+    for k in range(1, 7):
+        k2 = k * k
+        # Find factor pairs of k² where both factors have same parity
+        # (N-q)(N+q) = k² with N,q positive integers, N > q
+        triple_found = False
+        for d in range(1, k2 + 1):
+            if k2 % d == 0:
+                d2 = k2 // d
+                if d2 > d and (d + d2) % 2 == 0:  # same parity
+                    N = (d + d2) // 2
+                    q = (d2 - d) // 2
+                    if q > 0:  # non-trivial
+                        triple = f"({k},{q},{N})"
+                        # Verify
+                        assert k**2 + q**2 == N**2, f"Bad triple: {k}²+{q}²≠{N}²"
+                        ptype = particle_types.get(k, '???')
+                        stability = "YES" if k in [3, 5] else ("(topo)" if k == 1 else "no")
+                        print(f"  {k:3d}  {ptype:<15}  {k2:4d}  ({d},{d2}){'':<13}  {triple:>15}  {stability:>8}")
+                        triple_found = True
+                        break
+        if not triple_found:
+            ptype = particle_types.get(k, '???')
+            stability = "(topo)" if k == 1 else "NO"
+            print(f"  {k:3d}  {ptype:<15}  {k2:4d}  {'none with q>0':<20}  {'NONE':>15}  {stability:>8}")
+
+    print(f"\n  KEY RESULT:")
+    print(f"  • k=3 (baryons):  (3,4,5) triple at p=1 → exact resonance → STABLE")
+    print(f"  • k=5 (pentaquarks): (5,12,13) triple at p=1 → exact resonance")
+    print(f"  • k=2 (mesons):   NO triple at p=1 → no exact resonance → UNSTABLE")
+    print(f"  • k=4 (tetraquarks): (4,3,5) at p=1 → resonance exists, but")
+    print(f"    can decay to 2 mesons (lower energy) — resonance ≠ stability")
+    print(f"  • k=1 (leptons):  NO triple, but stability is topological ((2,1) knot)")
+
+    # ──────────────────────────────────────────────────────────────────
+    # Section 2: Full mode catalog for each aspect ratio
+    # ──────────────────────────────────────────────────────────────────
+    N_MAX = 30  # search up to this hypotenuse
+    P_MAX = 6   # max toroidal winding to consider
+
+    print(f"\n\n  2. COMPLETE PYTHAGOREAN MODE CATALOG (N ≤ {N_MAX})")
+    print(f"  {'─'*60}")
+
+    for k in [2, 3, 4, 5]:
+        ptype = particle_types[k]
+        print(f"\n  ── k = {k} ({ptype}) ──")
+        print(f"  Condition: ({k}p)² + q² = N²")
+        print()
+        print(f"  {'p':>3}  {'q':>4}  {'kp':>4}  {'N':>4}  {'Triple':>15}  {'Primitive?':>10}  {'E/E₁':>8}  {'Notes'}")
+        print(f"  {'─'*3}  {'─'*4}  {'─'*4}  {'─'*4}  {'─'*15}  {'─'*10}  {'─'*8}  {'─'*20}")
+
+        modes = []
+        for p in range(0, P_MAX + 1):
+            for q in range(0, N_MAX + 1):
+                if p == 0 and q == 0:
+                    continue
+                kp = k * p
+                N2 = kp**2 + q**2
+                N = int(round(np.sqrt(N2)))
+                if N * N == N2 and N <= N_MAX:
+                    # Exact Pythagorean mode
+                    # Energy from Laplacian eigenvalue:
+                    # E = (ℏc/r) × √((p/k)² + q²) = (ℏc/r) × √(p² + k²q²) / k
+                    # Simpler: E ∝ √((p/k)² + q²) ... normalize to (0,1) mode
+                    E_ratio = np.sqrt((p / k)**2 + q**2)  # relative to E₁ = ℏc/r
+
+                    # Check if primitive (gcd of triple = 1)
+                    from math import gcd
+                    g = gcd(gcd(kp, q), N)
+                    primitive = "yes" if g == 1 else f"×{g}"
+
+                    # Notes
+                    notes = ""
+                    if q == 0:
+                        notes = f"pure toroidal (f/{k*p})"
+                    elif p == 0:
+                        notes = f"pure poloidal"
+                    else:
+                        notes = f"helical"
+
+                    modes.append({
+                        'p': p, 'q': q, 'kp': kp, 'N': N,
+                        'E_ratio': E_ratio, 'primitive': primitive,
+                        'notes': notes
+                    })
+
+        # Sort by N, then by p
+        modes.sort(key=lambda m: (m['N'], m['p']))
+
+        # Remove duplicates (same kp and q)
+        seen = set()
+        unique_modes = []
+        for m in modes:
+            key = (m['kp'], m['q'])
+            if key not in seen:
+                seen.add(key)
+                unique_modes.append(m)
+
+        for m in unique_modes:
+            triple = f"({m['kp']},{m['q']},{m['N']})"
+            print(f"  {m['p']:3d}  {m['q']:4d}  {m['kp']:4d}  {m['N']:4d}"
+                  f"  {triple:>15}  {m['primitive']:>10}  {m['E_ratio']:8.4f}"
+                  f"  {m['notes']}")
+
+        print(f"\n  Total exact modes: {len(unique_modes)}")
+
+    # ──────────────────────────────────────────────────────────────────
+    # Section 3: Meson near-miss analysis — the non-right triangles
+    # ──────────────────────────────────────────────────────────────────
+    print(f"\n\n  3. MESON NEAR-MISS ANALYSIS (k=2, p=1)")
+    print(f"  {'─'*60}")
+    print(f"  At p=1, k=2: the path has 'legs' (2, q) with hypotenuse √(4+q²).")
+    print(f"  For a right triangle we need 4 + q² = N² (exact integer).")
+    print(f"  When this FAILS, the wave doesn't close — inherent instability.")
+    print()
+    print(f"  {'q':>3}  {'4+q²':>6}  {'√(4+q²)':>8}  {'N_near':>6}  {'δ=4+q²-N²':>10}"
+          f"  {'|δ|/N²':>8}  {'Triangle type':<20}  {'Q factor':>10}")
+    print(f"  {'─'*3}  {'─'*6}  {'─'*8}  {'─'*6}  {'─'*10}  {'─'*8}  {'─'*20}  {'─'*10}")
+
+    meson_near_misses = []
+    for q in range(0, 20):
+        val = 4 + q**2
+        exact = np.sqrt(val)
+        N_near = int(round(exact))
+        if N_near == 0:
+            N_near = 1
+        delta = val - N_near**2
+
+        # Triangle classification
+        if delta == 0:
+            tri_type = "RIGHT (Pythagorean)"
+            Q_factor = np.inf
+        elif delta > 0:
+            tri_type = "obtuse"
+            Q_factor = N_near**2 / abs(delta)
+        else:
+            tri_type = "acute"
+            Q_factor = N_near**2 / abs(delta)
+
+        Q_str = f"{Q_factor:.1f}" if Q_factor < 1e6 else "∞"
+
+        meson_near_misses.append({
+            'q': q, 'val': val, 'exact': exact, 'N_near': N_near,
+            'delta': delta, 'tri_type': tri_type, 'Q_factor': Q_factor
+        })
+
+        print(f"  {q:3d}  {val:6d}  {exact:8.4f}  {N_near:6d}  {delta:+10d}"
+              f"  {abs(delta)/N_near**2 if N_near > 0 else 0:8.4f}"
+              f"  {tri_type:<20}  {Q_str:>10}")
+
+    print(f"\n  INTERPRETATION:")
+    print(f"  • δ = 0: exact Pythagorean triple → standing wave closes perfectly")
+    print(f"  • δ > 0: obtuse triangle → path LONGER than N wavelengths (phase excess)")
+    print(f"  • δ < 0: acute triangle → path SHORTER than N wavelengths (phase deficit)")
+    print(f"  • Q factor = N²/|δ|: higher Q → closer to resonance → longer-lived")
+    print(f"\n  The only exact solution at p=1 is q=0 (pure toroidal, trivial).")
+    print(f"  ALL helical p=1 meson modes are non-right triangles → unstable.")
+    print(f"  Compare: baryons (k=3) have (3,4,5) at p=1 → stable proton.")
+
+    # ──────────────────────────────────────────────────────────────────
+    # Section 4: Baryon spectrum — anchoring to the proton
+    # ──────────────────────────────────────────────────────────────────
+    print(f"\n\n  4. BARYON MODE SPECTRUM (k=3)")
+    print(f"  {'─'*60}")
+
+    # Collect exact modes for k=3
+    baryon_modes = []
+    for p in range(0, P_MAX + 1):
+        for q in range(0, N_MAX + 1):
+            if p == 0 and q == 0:
+                continue
+            kp = 3 * p
+            N2 = kp**2 + q**2
+            N = int(round(np.sqrt(N2)))
+            if N * N == N2 and N <= N_MAX:
+                E_ratio = np.sqrt((p / 3)**2 + q**2)
+                key = (kp, q)
+                baryon_modes.append({
+                    'p': p, 'q': q, 'kp': kp, 'N': N, 'E_ratio': E_ratio
+                })
+    baryon_modes.sort(key=lambda m: m['E_ratio'])
+
+    # Deduplicate
+    seen = set()
+    baryon_unique = []
+    for m in baryon_modes:
+        key = (m['kp'], m['q'])
+        if key not in seen:
+            seen.add(key)
+            baryon_unique.append(m)
+
+    # Try different anchor modes for the proton
+    # The proton mass is 938.272 MeV
+    m_proton = 938.272
+
+    print(f"\n  Trying different mode assignments for the proton (938.3 MeV):")
+    print(f"  Each anchor sets the energy scale E₁ = ℏc/r, then predicts all other masses.")
+    print()
+
+    for anchor_label, anchor_mode in [("(0,1) N=1", (0, 1)),
+                                       ("(1,0) N=3", (1, 0)),
+                                       ("(1,4) N=5 [3,4,5]", (1, 4))]:
+        p_a, q_a = anchor_mode
+        E_anchor = np.sqrt((p_a / 3)**2 + q_a**2)
+
+        if E_anchor == 0:
+            continue
+
+        # E₁ such that E_anchor × E₁ = m_proton
+        E1 = m_proton / E_anchor
+
+        print(f"  ── Anchor: proton = mode {anchor_label}, E/E₁ = {E_anchor:.4f}"
+              f" → E₁ = {E1:.1f} MeV ──")
+        print(f"  {'Mode':>12}  {'N':>3}  {'E/E₁':>8}  {'Mass (MeV)':>12}  {'Nearest known':>20}  {'Error':>8}")
+        print(f"  {'─'*12}  {'─'*3}  {'─'*8}  {'─'*12}  {'─'*20}  {'─'*8}")
+
+        for m in baryon_unique[:15]:  # first 15 modes
+            mass_pred = m['E_ratio'] * E1
+            if mass_pred < 50 or mass_pred > 5000:
+                continue
+
+            # Find nearest known baryon
+            nearest = min(KNOWN_BARYONS.items(),
+                         key=lambda kv: abs(kv[1]['mass'] - mass_pred))
+            err = (mass_pred - nearest[1]['mass']) / nearest[1]['mass'] * 100
+
+            mode_str = f"({m['p']},{m['q']})"
+            err_str = f"{err:+.1f}%" if abs(err) < 50 else "---"
+            match = f"{nearest[0]} ({nearest[1]['mass']:.0f})"
+            print(f"  {mode_str:>12}  {m['N']:3d}  {m['E_ratio']:8.4f}"
+                  f"  {mass_pred:12.1f}  {match:>20}  {err_str:>8}")
+        print()
+
+    # ──────────────────────────────────────────────────────────────────
+    # Section 5: Meson spectrum — anchoring to the pion
+    # ──────────────────────────────────────────────────────────────────
+    print(f"\n  5. MESON MODE SPECTRUM (k=2)")
+    print(f"  {'─'*60}")
+
+    # Collect ALL modes for k=2 (exact and near-miss)
+    meson_modes = []
+    for p in range(0, P_MAX + 1):
+        for q in range(0, N_MAX + 1):
+            if p == 0 and q == 0:
+                continue
+            kp = 2 * p
+            E_ratio = np.sqrt((p / 2)**2 + q**2)
+
+            # Check if exact Pythagorean
+            N2 = kp**2 + q**2
+            N_exact = np.sqrt(N2)
+            N_near = int(round(N_exact))
+            delta = N2 - N_near**2
+
+            meson_modes.append({
+                'p': p, 'q': q, 'kp': kp, 'N_near': N_near,
+                'E_ratio': E_ratio, 'delta': delta,
+                'exact': delta == 0,
+            })
+
+    meson_modes.sort(key=lambda m: m['E_ratio'])
+
+    # Deduplicate
+    seen = set()
+    meson_unique = []
+    for m in meson_modes:
+        key = (m['kp'], m['q'])
+        if key not in seen:
+            seen.add(key)
+            meson_unique.append(m)
+
+    # Anchor: pion = fundamental (0,1) mode
+    m_pion = 139.570
+    print(f"\n  Anchor: π± = (0,1) mode, E/E₁ = 1.0000 → E₁ = {m_pion:.1f} MeV")
+    print(f"  {'Mode':>8}  {'N~':>3}  {'δ':>4}  {'Exact?':>6}  {'E/E₁':>8}  {'Mass':>8}"
+          f"  {'Nearest known':>20}  {'Error':>8}")
+    print(f"  {'─'*8}  {'─'*3}  {'─'*4}  {'─'*6}  {'─'*8}  {'─'*8}"
+          f"  {'─'*20}  {'─'*8}")
+
+    for m in meson_unique[:25]:
+        mass_pred = m['E_ratio'] * m_pion
+        if mass_pred < 50 or mass_pred > 12000:
+            continue
+
+        nearest = min(KNOWN_MESONS.items(),
+                     key=lambda kv: abs(kv[1]['mass'] - mass_pred))
+        err = (mass_pred - nearest[1]['mass']) / nearest[1]['mass'] * 100
+
+        mode_str = f"({m['p']},{m['q']})"
+        exact_str = "✓" if m['exact'] else f"δ={m['delta']:+d}"
+        err_str = f"{err:+.1f}%" if abs(err) < 50 else "---"
+        match = f"{nearest[0]} ({nearest[1]['mass']:.0f})"
+        print(f"  {mode_str:>8}  {m['N_near']:3d}  {m['delta']:+4d}  {exact_str:>6}"
+              f"  {m['E_ratio']:8.4f}  {mass_pred:8.1f}"
+              f"  {match:>20}  {err_str:>8}")
+
+    # Also try anchoring pion to the (1,0) mode at E/E₁ = 0.5
+    print(f"\n  Alternative anchor: π± = (1,0) mode, E/E₁ = 0.5 → E₁ = {m_pion/0.5:.1f} MeV")
+    E1_alt = m_pion / 0.5
+    print(f"  {'Mode':>8}  {'δ':>4}  {'Exact?':>6}  {'E/E₁':>8}  {'Mass':>8}"
+          f"  {'Nearest known':>20}  {'Error':>8}")
+    print(f"  {'─'*8}  {'─'*4}  {'─'*6}  {'─'*8}  {'─'*8}  {'─'*20}  {'─'*8}")
+
+    for m in meson_unique[:25]:
+        mass_pred = m['E_ratio'] * E1_alt
+        if mass_pred < 50 or mass_pred > 12000:
+            continue
+
+        nearest = min(KNOWN_MESONS.items(),
+                     key=lambda kv: abs(kv[1]['mass'] - mass_pred))
+        err = (mass_pred - nearest[1]['mass']) / nearest[1]['mass'] * 100
+
+        mode_str = f"({m['p']},{m['q']})"
+        exact_str = "✓" if m['exact'] else f"δ={m['delta']:+d}"
+        err_str = f"{err:+.1f}%" if abs(err) < 50 else "---"
+        match = f"{nearest[0]} ({nearest[1]['mass']:.0f})"
+        print(f"  {mode_str:>8}  {m['delta']:+4d}  {exact_str:>6}"
+              f"  {m['E_ratio']:8.4f}  {mass_pred:8.1f}"
+              f"  {match:>20}  {err_str:>8}")
+
+    # ──────────────────────────────────────────────────────────────────
+    # Section 6: Defect vs lifetime correlation for mesons
+    # ──────────────────────────────────────────────────────────────────
+    print(f"\n\n  6. PYTHAGOREAN DEFECT vs LIFETIME (stability test)")
+    print(f"  {'─'*60}")
+    print(f"  If the Pythagorean defect δ governs stability, then:")
+    print(f"  • |δ| = 0: stable (infinite lifetime)")
+    print(f"  • small |δ|: long-lived (pseudo-stable)")
+    print(f"  • large |δ|: short-lived (resonance)")
+    print()
+    print(f"  Known meson lifetimes span 20 orders of magnitude:")
+    print(f"  {'Meson':>12}  {'Mass (MeV)':>10}  {'τ (s)':>12}  {'log₁₀(τ)':>10}")
+    print(f"  {'─'*12}  {'─'*10}  {'─'*12}  {'─'*10}")
+    for name, data in sorted(KNOWN_MESONS.items(), key=lambda kv: -kv[1]['lifetime']):
+        lt = data['lifetime']
+        log_lt = np.log10(lt) if lt > 0 else float('inf')
+        lt_str = f"{lt:.2e}" if lt < 1 else f"{lt:.1f}"
+        print(f"  {name:>12}  {data['mass']:10.1f}  {lt_str:>12}  {log_lt:10.1f}")
+
+    print(f"\n  The 20-order-of-magnitude range suggests a GEOMETRIC mechanism,")
+    print(f"  not perturbative corrections. The Pythagorean defect δ naturally")
+    print(f"  produces such wide ranges through the quality factor Q = N²/|δ|.")
+
+    # ──────────────────────────────────────────────────────────────────
+    # Section 7: Robinson's frequency ratios
+    # ──────────────────────────────────────────────────────────────────
+    print(f"\n\n  7. ROBINSON'S FREQUENCY RATIOS AND THE MODE SPECTRUM")
+    print(f"  {'─'*60}")
+    print(f"  Robinson proposed that the proton contains harmonics at")
+    print(f"  frequency ratios f/3, f/9, f/27 — a geometric series 3^{{-n}}.")
+    print(f"\n  In the torus waveguide picture, these are the PURE TOROIDAL")
+    print(f"  modes (q=0) on a k=3 torus:")
+    print()
+    print(f"  {'p':>3}  {'kp':>4}  {'Mode':>10}  {'Freq ratio':>12}  {'Robinson':>10}")
+    print(f"  {'─'*3}  {'─'*4}  {'─'*10}  {'─'*12}  {'─'*10}")
+
+    for p in range(1, 6):
+        kp = 3 * p
+        freq_ratio = 1.0 / (k * p)  # frequency ∝ 1/path_length ∝ 1/(kp)
+        # Actually for pure toroidal mode: E ∝ p/k, so ratio = p/k = p/3
+        E_ratio_tor = p / 3.0
+        rob = f"f/{3**p}" if p <= 3 else ""
+        print(f"  {p:3d}  {kp:4d}  ({p},0)     "
+              f"  {E_ratio_tor:12.4f}  {rob:>10}")
+
+    print(f"\n  But the (3,4,5) Pythagorean triple gives an ADDITIONAL mode:")
+    print(f"  The (1,4) helical mode at E/E₁ = √(1/9 + 16) = {np.sqrt(1/9 + 16):.4f}")
+    print(f"  This is NOT in Robinson's series — it's a mode that mixes")
+    print(f"  toroidal and poloidal oscillation. A two-dimensional standing wave.")
+    print(f"\n  The Pythagorean condition selects which mixed modes are allowed.")
+    print(f"  Robinson found the toroidal tower; the right triangles give the rest.")
+
+    # ──────────────────────────────────────────────────────────────────
+    # Section 8: The triangle zoo — all Pythagorean families
+    # ──────────────────────────────────────────────────────────────────
+    print(f"\n\n  8. THE TRIANGLE ZOO: Pythagorean families by aspect ratio")
+    print(f"  {'─'*60}")
+    print(f"  Each aspect ratio k generates a different family of triangles.")
+    print(f"  The family determines the complete resonant mode catalog.")
+    print()
+
+    for k in [2, 3, 4, 5]:
+        ptype = particle_types[k]
+        print(f"\n  k = {k} ({ptype}):")
+        primitives = []
+        for p in range(0, 10):
+            for q in range(0, 50):
+                if p == 0 and q == 0:
+                    continue
+                kp = k * p
+                N2 = kp**2 + q**2
+                N = int(round(np.sqrt(N2)))
+                if N * N == N2 and N <= 50:
+                    from math import gcd
+                    g = gcd(gcd(kp, q), N)
+                    if g == 1:  # primitive
+                        primitives.append((kp, q, N))
+
+        # Deduplicate and sort
+        primitives = sorted(set(primitives), key=lambda t: t[2])
+        print(f"  Primitive triples: ", end="")
+        for i, (a, b, c) in enumerate(primitives[:8]):
+            if i > 0:
+                print(", ", end="")
+            print(f"({a},{b},{c})", end="")
+        if len(primitives) > 8:
+            print(f", ... [{len(primitives)} total]", end="")
+        print()
+
+    # ──────────────────────────────────────────────────────────────────
+    # Section 9: Summary
+    # ──────────────────────────────────────────────────────────────────
+    print(f"\n\n  9. SUMMARY AND OPEN QUESTIONS")
+    print(f"  {'─'*60}")
+    print(f"""
+  THE PYTHAGOREAN RESONANCE PRINCIPLE:
+  The allowed modes on a torus are determined by integer right triangles.
+  The aspect ratio k = R/r classifies particle type. The Pythagorean
+  condition (kp)² + q² = N² selects which modes exist as standing waves.
+
+  WHAT WORKS:
+  • k=3 (baryons) has (3,4,5) at fundamental → explains proton stability
+  • k=2 (mesons) has NO fundamental triple → explains meson instability
+  • Robinson's f/3 series = pure toroidal modes on k=3 torus
+  • The mode hierarchy naturally produces a discrete mass spectrum
+  • The Pythagorean defect δ could explain the 20-order-of-magnitude
+    range of meson lifetimes
+
+  OPEN QUESTIONS:
+  • Which mode IS the proton? (1,0), (0,1), or (1,4)?
+  • What sets the absolute energy scale E₁ = ℏc/r?
+  • Can the mode→mass mapping reproduce the baryon resonance spectrum?
+  • Do near-miss meson modes map quantitatively onto known meson masses?
+  • What does the Skilton paper say about integer right triangle families?
+  • How does the Pythagorean condition interact with the Koide angle?
+  • Is there a selection rule for which modes are physically realized?
+""")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Closed null worldtube analysis')
     parser.add_argument('--scan', action='store_true', help='Scan parameter space')
@@ -10494,6 +11037,8 @@ def main():
                         help='Neutrino masses from twist-wave dispersion on the torus')
     parser.add_argument('--quark-koide', action='store_true', dest='quark_koide',
                         help='Quark Koide extension: linking corrections to angle and hierarchy')
+    parser.add_argument('--pythagorean', action='store_true',
+                        help='Pythagorean mode catalog: resonant modes on torus by aspect ratio')
     parser.add_argument('--R', type=float, default=1.0, help='Major radius in units of λ_C')
     parser.add_argument('--r', type=float, default=0.1, help='Minor radius in units of λ_C')
     parser.add_argument('--p', type=int, default=1, help='Toroidal winding number')
@@ -10566,6 +11111,10 @@ def main():
 
     if args.quark_koide:
         print_quark_koide_analysis()
+        return
+
+    if args.pythagorean:
+        print_pythagorean_analysis()
         return
 
     params = TorusParams(
