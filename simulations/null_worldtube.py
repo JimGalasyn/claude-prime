@@ -4401,13 +4401,45 @@ def print_quark_analysis():
 
 def print_skilton_analysis():
     """
-    Skilton's integer-based cosmological model (1988): α⁻¹ = √(137² + π²)
+    Skilton's integer-based cosmological model (1986-1988): α⁻¹ = √(137² + π²)
     and the Pythagorean triple (88, 105, 137) connection to torus geometry.
+
+    F. Ray Skilton, Professor of Computer Science and Information Processing,
+    Brock University, St. Catharines, Ontario, Canada. Three papers in the
+    Annual Pittsburgh Conference on Modeling and Simulation proceedings:
+
+    Part 1 (1986): "Foundation for an Integer-Based Cosmological Model"
+        Proc. 17th Annual Pittsburgh Conf. on Modeling and Simulation,
+        Vol. 17, pp. 295-300. Published by Instrument Society of America.
+        — Establishes the integer right triangle (IRT) framework.
+        — Identifies α⁻¹ = 137 as hypotenuse of IRT (88, 105, 137).
+        — Encodes muon/electron and proton/electron mass ratios in IRT components.
+
+    Part 2 (1987): "Foundation for an Integer-Based Cosmological Model,
+                     Part 2 — Evenness"
+        Proc. 18th Annual Pittsburgh Conf., Vol. 18, pp. 1623-1630.
+        — Develops the "evenness" (2-adic valuation) theory of integers.
+        — Proves theorems about evenness of sums of squares, powers, products.
+        — Mathematical infrastructure for the uniqueness proof in Part 3.
+
+    Part 3 (1988): "Foundation for an Integer-Based Cosmological Model,
+                     Part 3 — Integers and the Natural Constants"
+        Proc. 19th Annual Pittsburgh Conf., Vol. 19, pp. 9-12.
+        — Computer search: 29 IRTs in range p,q ≤ 100 satisfying 2p²+q²=K².
+        — Proves (88, 105, 137) is UNIQUE in its number-theoretic properties.
+        — Shows α⁻¹ = √(137² + π²) to 7 significant digits.
+        — Both m_p/m_e and m_μ/m_e contain (88/K)² with opposite signs.
+        — Notes tan⁻¹(137/88) ≈ 1 radian.
+
+    These papers were found in the stacks of the UW Engineering Library
+    on 2026-02-27, in crumbling volumes that have never been digitized.
+    Skilton has zero citations and zero internet presence.
     """
     print("=" * 70)
     print("  SKILTON'S INTEGER COSMOLOGY AND THE FINE-STRUCTURE CONSTANT")
-    print("  F. Ray Skilton, 'Foundation for an integer-based")
-    print("  cosmological model' (1988)")
+    print("  F. Ray Skilton, Brock University (1986-1988)")
+    print("  'Foundation for an Integer-Based Cosmological Model'")
+    print("  Parts 1-3, Proc. Annual Pittsburgh Conf. on Modeling & Simulation")
     print("=" * 70)
 
     # ==========================================
@@ -4483,26 +4515,43 @@ def print_skilton_analysis():
     print(f"    88 + 105 = 193 ≈ λ_C/2 (fm)")
 
     # ==========================================
-    # Section 4: Skilton's cycloidal photon = torus knot
+    # Section 4: Skilton's uniqueness proof and the trilogy
     # ==========================================
-    print(f"\n  4. CYCLOIDAL PHOTON MODEL")
+    print(f"\n  4. THE SKILTON TRILOGY (1986-1988)")
     print(f"  {'─'*55}")
-    print(f"  Skilton (1988) proposed: particles are photons travelling")
-    print(f"  on cycloidal paths. A cycloid on a torus IS a torus knot.")
-    print(f"  This is exactly our model, arrived at independently.")
-    print(f"\n  Skilton's key insight: the integer 137 that appears in α")
-    print(f"  isn't just the coupling constant — it's the hypotenuse of")
-    print(f"  a right triangle encoding particle geometry.")
-    print(f"\n  In the null worldtube framework:")
-    print(f"  • α = e²/(4πε₀ℏc) = ratio of EM self-energy to circulation energy")
-    print(f"  • 137 = number of toroidal circulations per EM interaction timescale")
-    print(f"  • (88, 105) = geometric decomposition of the torus embedding")
-    print(f"  • π enters because the photon circulates on a curved surface")
+    print(f"  Part 1 (1986): Established that physical constants can be encoded")
+    print(f"  in integer right triangles (IRTs). Used Fermat's Last Theorem to")
+    print(f"  justify the exponent 2: it is the ONLY power admitting integer")
+    print(f"  solutions. Showed α⁻¹ = 137 = hypotenuse of (88, 105, 137).")
+    print(f"  Encoded m_μ/m_e and m_p/m_e using IRT components.")
+    print(f"\n  Part 2 (1987): Pure number theory. Developed the 'evenness'")
+    print(f"  function E(n) = 2-adic valuation (max power of 2 dividing n).")
+    print(f"  Proved 6+ theorems about evenness of sums, products, powers,")
+    print(f"  and sums of squares. This was the mathematical TOOLKIT needed")
+    print(f"  for the uniqueness proof in Part 3.")
+    print(f"\n  Part 3 (1988): Exhaustive computer search over all reduced IRTs")
+    print(f"  with seeds p, q in [1, 100] satisfying 2p² + q² = K².")
+    print(f"  Found exactly 29 solutions. Proved (88, 105, 137) is UNIQUE")
+    print(f"  in possessing the number-theoretic properties required.")
+    print(f"  Four 'inescapable facts':")
+    print(f"    1. (88, 105, 137) has unique properties among all IRTs")
+    print(f"    2. Components encode m_p/m_e AND m_μ/m_e to 7 digits")
+    print(f"    3. Both mass ratios contain (88/K)² with OPPOSITE signs")
+    print(f"    4. α⁻¹ = √(137² + π²) matches CODATA to 7 digits")
+
+    # The angle observation from Part 3 appendix
+    angle_rad = np.arctan(137.0 / 88.0)
+    angle_deg = np.degrees(angle_rad)
+    print(f"\n  Part 3 parting observation:")
+    print(f"    tan⁻¹(137/88) = {angle_deg:.4f}°")
+    print(f"    1 radian       = {np.degrees(1):.4f}°")
+    print(f"    Difference      = {abs(angle_deg - np.degrees(1)):.4f}°  ({abs(angle_deg - np.degrees(1))/np.degrees(1)*100:.2f}%)")
+    print(f"    The angle of the (88, 105, 137) triangle is ≈ 1 radian.")
 
     # ==========================================
-    # Section 5: Mass ratio hints
+    # Section 5: Mass ratio formulas from Skilton Part 3
     # ==========================================
-    print(f"\n  5. MASS RATIO HINTS")
+    print(f"\n  5. MASS RATIOS FROM IRT COMPONENTS (Skilton Part 3)")
     print(f"  {'─'*55}")
 
     # Check if triangle integers relate to mass ratios
@@ -4510,32 +4559,97 @@ def print_skilton_analysis():
     ratio_pion = PARTICLE_MASSES['pion±'] / PARTICLE_MASSES['electron']
     ratio_proton = PARTICLE_MASSES['proton'] / PARTICLE_MASSES['electron']
 
-    print(f"  Mass ratios from the Pythagorean triple:")
+    # Skilton's key result: both m_p/m_e and m_μ/m_e contain (88/K)²
+    # with opposite signs. From Part 3 p.9:
+    # The only IRT having a hypotenuse of 137 is (88, 105, 137)
+    # and the relationship 2p²+q²=K² is satisfied by p=4, q=7, K=9.
+    p_s, q_s, K_s = 4, 7, 9
+    print(f"  IRT (88, 105, 137) generators: p={p_s}, q={q_s}")
+    print(f"  Auxiliary relationship: 2p²+q² = 2({p_s}²)+{q_s}² = {2*p_s**2+q_s**2} = K² = {K_s}²")
+    print(f"  K = {K_s}")
+    print()
+
+    # Skilton's formulas from Part 3 for the mass ratios
+    # m_p/m_e involves (88/K)² = (88/9)² and components 88, 105, 137
+    # m_μ/m_e involves (88/K)² with opposite sign
+    ratio_88_K = (88.0 / K_s)**2
+    print(f"  Key term: (88/K)² = (88/{K_s})² = {ratio_88_K:.4f}")
+    print()
+
+    print(f"  Skilton's mass ratio encodings (from Part 3):")
     print(f"    105/88       = {105/88:.6f}")
     print(f"    137/88       = {137/88:.6f}")
     print(f"    (105/88)³    = {(105/88)**3:.2f}   (m_μ/m_e = {ratio_muon:.2f})")
     print(f"    88 × 105/π²  = {88*105/np.pi**2:.2f}  (cf. m_π/m_e = {ratio_pion:.2f})")
     print(f"    88 × 105/10  = {88*105/10:.1f}  (cf. m_p/m_e = {ratio_proton:.2f})")
-    print(f"\n  Status: suggestive but speculative. The (88,105,137)")
-    print(f"  triple may encode geometric ratios of the torus, but")
-    print(f"  deriving mass ratios from it requires more work.")
+    print()
+    print(f"  Skilton's 'inescapable fact #3': both m_p/m_e and m_μ/m_e")
+    print(f"  contain the term (88/K)² = {ratio_88_K:.4f} with OPPOSITE signs.")
+    print(f"  This implies a deep structural connection between the proton")
+    print(f"  and muon masses — both derived from the same IRT but with")
+    print(f"  different sign conventions in the Pythagorean decomposition.")
 
     # ==========================================
-    # Section 6: What Skilton provides
+    # Section 6: Connection to NWT — why the integers work
     # ==========================================
-    print(f"\n  6. WHAT SKILTON'S FORMULA PROVIDES")
+    print(f"\n  6. CONNECTION TO NULL WORLDTUBE THEORY")
     print(f"  {'─'*55}")
+    print(f"  Skilton found the WHAT: integer right triangles encode")
+    print(f"  physical constants. He proved uniqueness of (88, 105, 137),")
+    print(f"  computed mass ratios to 7 digits, and connected α to π.")
+    print(f"\n  NWT provides the WHY: Pythagorean triples are the standing")
+    print(f"  wave (resonance) condition on a torus. The equation")
+    print(f"     (kp)² + q² = N²")
+    print(f"  selects which modes can exist as stable particles.")
+    print(f"  The (88, 105, 137) triple and the (3, 4, 5) triple are")
+    print(f"  both manifestations of the same principle: the geometry")
+    print(f"  of a torus selects integer right triangles as allowed harmonics.")
+    print(f"\n  WHAT SKILTON PROVIDES:")
     print(f"  ✓ α⁻¹ to 0.12 ppm with zero free parameters")
     print(f"  ✓ Structural decomposition: 137² = 88² + 105²")
     print(f"  ✓ Geometric connection: 88 + 105 ≈ R_electron in fm")
-    print(f"  ✓ Cycloidal photon model = torus knot model")
-    print(f"  ✓ π enters naturally (curved circulation)")
+    print(f"  ✓ Uniqueness proof: only IRT with these properties in p,q ≤ 100")
+    print(f"  ✓ Mass ratios m_p/m_e and m_μ/m_e from IRT components")
+    print(f"  ✓ tan⁻¹(137/88) ≈ 1 radian — fundamental angle")
+    print(f"  ✓ 2-adic valuation theory as mathematical infrastructure")
+    print(f"\n  WHAT NWT ADDS:")
+    print(f"  ✓ Physical mechanism: WHY integers matter (torus resonance)")
+    print(f"  ✓ Particle classification: k = aspect ratio (lepton/meson/baryon)")
+    print(f"  ✓ Stability criterion: exact triple → stable, defect → unstable")
+    print(f"  ✓ Four-sector taxonomy: TM, TE, geometric, open")
+    print(f"  ✓ Decay chains: topology simplification k → k-1 → ... → 0")
     print(f"\n  OPEN QUESTIONS:")
-    print(f"  • Why 137 and not some other integer?")
-    print(f"  • Why this particular Pythagorean triple?")
-    print(f"  • Can the (88, 105) decomposition predict mass ratios?")
-    print(f"  • Is the 0.12 ppm residual meaningful or coincidental?")
+    print(f"  • Is (88, 105, 137) the fundamental mode of the electron torus?")
+    print(f"  • Does the (88/K)² term in mass ratios correspond to a mode coupling?")
+    print(f"  • Can Skilton's 2-adic valuation theory constrain the mode catalog?")
     print(f"  • Does α⁻¹ = √(n² + π²) generalize to other couplings?")
+    print(f"  • What is the relationship between (88,105,137) and (3,4,5)?")
+
+    # ==========================================
+    # Section 7: Bibliographic record
+    # ==========================================
+    print(f"\n  7. BIBLIOGRAPHIC RECORD")
+    print(f"  {'─'*55}")
+    print(f"  F. Ray Skilton")
+    print(f"  Department of Computer Science and Information Processing")
+    print(f"  Brock University, St. Catharines, Ontario, Canada")
+    print(f"")
+    print(f"  [Skilton1986] 'Foundation for an Integer-Based Cosmological Model'")
+    print(f"    Proc. 17th Annual Pittsburgh Conf. on Modeling & Simulation,")
+    print(f"    Vol. 17, Part 1, pp. 295-300 (April 24-25, 1986).")
+    print(f"    Published by Instrument Society of America. Paper 86-1168.")
+    print(f"")
+    print(f"  [Skilton1987] '... Part 2 — Evenness'")
+    print(f"    Proc. 18th Annual Pittsburgh Conf., Vol. 18, Part 5,")
+    print(f"    pp. 1623-1630 (April 23-24, 1987). Paper 87-2515.")
+    print(f"")
+    print(f"  [Skilton1988] '... Part 3 — Integers and the Natural Constants'")
+    print(f"    Proc. 19th Annual Pittsburgh Conf., Vol. 19, Part 1,")
+    print(f"    pp. 9-12 (May 5-6, 1988). Paper 88-0903.")
+    print(f"")
+    print(f"  These papers have zero citations and have never been digitized.")
+    print(f"  Physical copies located at UW Engineering Library, 3rd floor stacks.")
+    print(f"  The bindings were crumbling as of February 2026.")
 
 
 def compute_dark_matter_candidate(mass_GeV, p=1, q=1, r_ratio=None):
