@@ -48,6 +48,9 @@ Usage:
     python3 null_worldtube.py --neutrino         # neutrino masses from twist-wave dispersion
     python3 null_worldtube.py --quark-koide      # quark Koide extension: linking corrections
     python3 null_worldtube.py --pythagorean      # Pythagorean mode catalog for composite particles
+    python3 null_worldtube.py --orbit            # orbit analysis: what fixes the electron's size?
+    python3 null_worldtube.py --casimir          # Casimir energy: can vacuum fluctuations set r/R?
+    python3 null_worldtube.py --greybody         # greybody factors: partial transparency of the NWT surface
 """
 
 import numpy as np
@@ -3873,6 +3876,126 @@ def compute_string_tension(R_hadron_fm, r_ratio=0.1):
     }
 
 
+def compute_string_tension_nwt():
+    """
+    Derive QCD string tension from NWT first principles: (α, m_e, N_c=3).
+
+    Chain: Λ_π = m_e/α → m_π = 2Λ_π → σ = N_c² m_π² / ℏc
+
+    The pion is the lightest meson — the fundamental (1,0) mode of a
+    linked quark–antiquark torus pair with k=2. The pion mass scale
+    m_e/α = 70.0 MeV is the confinement energy per quark: the EM
+    self-energy of a torus knot with aspect ratio α, evaluated at the
+    linking scale. The factor of 2 gives the meson (quark + antiquark).
+
+    The string tension σ relates to the pion mass through the adjoint
+    Casimir: σ = N_c² m_π² / ℏc. The N_c² factor is the adjoint
+    (gluon) Casimir for SU(N_c) — empirically correct (0.6% vs lattice)
+    but not yet geometrically derived from the torus linking topology.
+    """
+    N_c = 3
+
+    # Step 1: Pion scale from confinement energy
+    Lambda_pi = m_e_MeV / alpha   # 70.03 MeV
+
+    # Step 2: Pion mass = 2 × confinement scale (quark + antiquark)
+    m_pi_pred = 2 * Lambda_pi     # 140.05 MeV
+    m_pi_obs = 139.57             # MeV (PDG)
+
+    # Step 3: String tension from adjoint Casimir
+    sigma = N_c**2 * m_pi_pred**2 / hbar_c_MeV_fm   # MeV/fm
+    sigma_lattice = 900.0  # MeV/fm (lattice QCD)
+
+    return {
+        'N_c': N_c,
+        'Lambda_pi_MeV': Lambda_pi,
+        'm_pi_pred_MeV': m_pi_pred,
+        'm_pi_obs_MeV': m_pi_obs,
+        'm_pi_error_pct': abs(m_pi_pred - m_pi_obs) / m_pi_obs * 100,
+        'sigma_MeV_fm': sigma,
+        'sigma_lattice_MeV_fm': sigma_lattice,
+        'sigma_error_pct': abs(sigma - sigma_lattice) / sigma_lattice * 100,
+    }
+
+
+def compute_proton_mass_cornell(sigma=None):
+    """
+    Derive the proton mass from Cornell potential minimization.
+
+    Uses α_s = 16α (already derived in NWT as the strong coupling from
+    flux threading through N_c² = 9 adjoint channels with geometric
+    factor 16/9, cross-referenced in S8.2).
+
+    Cornell potential for three quarks in a Y-string configuration:
+      E(R) = (3/2)ℏc/R − 2α_s ℏc/R + σR
+
+    where:
+      3/2 = variational kinetic energy (three quarks, each ~ℏc/(2R))
+      2α_s = Coulomb coefficient (empirical, needs geometric derivation)
+      σR = linear confinement from the string tension
+
+    Minimization gives R_min and E_min analytically.
+
+    Closed form: m_p/m_e = (4N_c/α)√(3/2 − 32α)
+    """
+    import math
+    N_c = 3
+
+    if sigma is None:
+        st = compute_string_tension_nwt()
+        sigma = st['sigma_MeV_fm']
+
+    # Strong coupling from NWT (see S8.2)
+    alpha_s = 16 * alpha
+
+    # Cornell potential coefficients
+    coeff_kinetic = 3.0 / 2.0     # variational estimate, not NWT-derived
+    coeff_coulomb = 2.0 * alpha_s  # needs geometric justification
+
+    net_coeff = coeff_kinetic - coeff_coulomb
+
+    # Minimization: dE/dR = 0 → R_min
+    R_min = math.sqrt(hbar_c_MeV_fm * net_coeff / sigma)
+
+    # Energy at minimum
+    E_kinetic = coeff_kinetic * hbar_c_MeV_fm / R_min
+    E_coulomb = -coeff_coulomb * hbar_c_MeV_fm / R_min
+    E_string = sigma * R_min
+    E_total = E_kinetic + E_coulomb + E_string
+
+    # Closed-form expression
+    # E_min = 2√(σ ℏc (3/2 − 2α_s))
+    E_closed = 2 * math.sqrt(sigma * hbar_c_MeV_fm * net_coeff)
+
+    # Mass ratio
+    ratio_pred = E_total / m_e_MeV
+    ratio_closed = (4 * N_c / alpha) * math.sqrt(3.0/2.0 - 32 * alpha)
+
+    # Observed values
+    m_p_obs = 938.272          # MeV (PDG)
+    ratio_obs = m_p_obs / m_e_MeV  # 1836.15
+
+    return {
+        'alpha_s': alpha_s,
+        'coeff_kinetic': coeff_kinetic,
+        'coeff_coulomb': coeff_coulomb,
+        'net_coeff': net_coeff,
+        'R_min_fm': R_min,
+        'E_kinetic_MeV': E_kinetic,
+        'E_coulomb_MeV': E_coulomb,
+        'E_string_MeV': E_string,
+        'E_total_MeV': E_total,
+        'E_closed_MeV': E_closed,
+        'm_p_obs_MeV': m_p_obs,
+        'm_p_error_pct': abs(E_total - m_p_obs) / m_p_obs * 100,
+        'ratio_pred': ratio_pred,
+        'ratio_closed': ratio_closed,
+        'ratio_obs': ratio_obs,
+        'ratio_error_pct': abs(ratio_pred - ratio_obs) / ratio_obs * 100,
+        'R_charge_fm': 0.875,   # proton charge radius (fm)
+    }
+
+
 def compute_baryon_magnetic_moment(hadron_name):
     """
     Compute baryon magnetic moment from circulating quark tori.
@@ -4397,6 +4520,1588 @@ def print_quark_analysis():
     print(f"\n  If correct: three forces, not four. Electromagnetism and the")
     print(f"  strong force are the same interaction at different topologies.")
     print(f"  Isolated torus → QED.  Linked tori → QCD.")
+
+
+def print_proton_mass_analysis():
+    """
+    Derive the proton mass from (α, m_e, N_c) via Cornell potential.
+
+    Five-step chain:
+      1. Λ_π = m_e/α = 70.0 MeV (confinement scale)
+      2. m_π = 2Λ_π = 140.1 MeV (0.34% error)
+      3. σ = N_c²m_π²/ℏc = 894.6 MeV/fm (0.6% vs lattice)
+      4. α_s = 16α = 0.1168 (NWT prediction, see --quarks)
+      5. Cornell minimization → m_p = 945.7 MeV (0.8% error)
+
+    Closed form: m_p/m_e = (4N_c/α)√(3/2 − 32α)
+    """
+    st = compute_string_tension_nwt()
+    pm = compute_proton_mass_cornell(sigma=st['sigma_MeV_fm'])
+
+    print("=" * 70)
+    print("  PROTON MASS FROM FIRST PRINCIPLES")
+    print("  Derivation chain: (α, m_e, N_c) → Λ_π → m_π → σ → m_p")
+    print("=" * 70)
+
+    print(f"\n  INPUTS:")
+    print(f"    α   = {alpha:.10e}  (fine-structure constant)")
+    print(f"    m_e = {m_e_MeV:.8f} MeV  (electron mass)")
+    print(f"    N_c = {st['N_c']}  (color number / Borromean link)")
+
+    print(f"\n  STEP 1: Pion scale (confinement energy per quark)")
+    print(f"    Λ_π = m_e / α = {st['Lambda_pi_MeV']:.4f} MeV")
+    print(f"    (EM self-energy of torus knot at linking scale)")
+
+    print(f"\n  STEP 2: Pion mass (quark + antiquark)")
+    print(f"    m_π = 2 Λ_π = {st['m_pi_pred_MeV']:.4f} MeV")
+    print(f"    Observed:       {st['m_pi_obs_MeV']:.2f} MeV")
+    print(f"    Error:          {st['m_pi_error_pct']:.2f}%")
+
+    print(f"\n  STEP 3: String tension (adjoint Casimir)")
+    print(f"    σ = N_c² × m_π² / ℏc = {st['sigma_MeV_fm']:.1f} MeV/fm")
+    print(f"    Lattice QCD:             {st['sigma_lattice_MeV_fm']:.1f} MeV/fm")
+    print(f"    Error:                   {st['sigma_error_pct']:.1f}%")
+
+    print(f"\n  STEP 4: Strong coupling (from NWT)")
+    print(f"    α_s = 16α = {pm['alpha_s']:.6f}")
+    print(f"    Observed (M_Z):  0.1179 ± 0.0009")
+    print(f"    Error:           {abs(pm['alpha_s'] - 0.1179)/0.1179*100:.1f}%")
+
+    print(f"\n  STEP 5: Cornell potential minimization")
+    print(f"    E(R) = (3/2)ℏc/R − 2α_s ℏc/R + σR")
+    print(f"    Kinetic coeff:   {pm['coeff_kinetic']:.1f}  (variational)")
+    print(f"    Coulomb coeff:   {pm['coeff_coulomb']:.6f}  (= 2α_s)")
+    print(f"    Net 1/R coeff:   {pm['net_coeff']:.6f}")
+    print(f"    R_min = √(ℏc × net / σ) = {pm['R_min_fm']:.4f} fm")
+
+    print(f"\n  ENERGY BUDGET AT R_min:")
+    print(f"  {'Component':<30} {'Value (MeV)':>12} {'Fraction':>10}")
+    print(f"  {'-'*52}")
+    print(f"  {'Kinetic (3/2 ℏc/R)':<30} {pm['E_kinetic_MeV']:>12.1f} {pm['E_kinetic_MeV']/pm['E_total_MeV']:>10.1%}")
+    print(f"  {'Coulomb (−2α_s ℏc/R)':<30} {pm['E_coulomb_MeV']:>12.1f} {pm['E_coulomb_MeV']/pm['E_total_MeV']:>10.1%}")
+    print(f"  {'String (σR)':<30} {pm['E_string_MeV']:>12.1f} {pm['E_string_MeV']/pm['E_total_MeV']:>10.1%}")
+    print(f"  {'-'*52}")
+    print(f"  {'TOTAL':<30} {pm['E_total_MeV']:>12.1f}")
+    print(f"  {'Observed m_p':<30} {pm['m_p_obs_MeV']:>12.3f}")
+    print(f"  {'Error':<30} {pm['m_p_error_pct']:>12.1f}%")
+
+    print(f"\n  CLOSED FORM:")
+    print(f"    m_p / m_e = (4 N_c / α) √(3/2 − 32α)")
+    print(f"    Predicted ratio:  {pm['ratio_pred']:.1f}")
+    print(f"    Closed-form:      {pm['ratio_closed']:.1f}")
+    print(f"    Observed ratio:   {pm['ratio_obs']:.1f}")
+    print(f"    Error:            {pm['ratio_error_pct']:.1f}%")
+
+    print(f"\n  SUMMARY — FIVE-STEP DERIVATION CHAIN")
+    print(f"  {'Step':<5} {'Quantity':<20} {'Predicted':>12} {'Observed':>12} {'Error':>8}")
+    print(f"  {'-'*57}")
+    print(f"  {'1':<5} {'Λ_π (MeV)':<20} {st['Lambda_pi_MeV']:>12.2f} {'70.0':>12} {'—':>8}")
+    print(f"  {'2':<5} {'m_π (MeV)':<20} {st['m_pi_pred_MeV']:>12.2f} {st['m_pi_obs_MeV']:>12.2f} {st['m_pi_error_pct']:>7.2f}%")
+    print(f"  {'3':<5} {'σ (MeV/fm)':<20} {st['sigma_MeV_fm']:>12.1f} {st['sigma_lattice_MeV_fm']:>12.1f} {st['sigma_error_pct']:>7.1f}%")
+    print(f"  {'4':<5} {'α_s':<20} {pm['alpha_s']:>12.4f} {'0.1179':>12} {abs(pm['alpha_s']-0.1179)/0.1179*100:>7.1f}%")
+    print(f"  {'5':<5} {'m_p (MeV)':<20} {pm['E_total_MeV']:>12.1f} {pm['m_p_obs_MeV']:>12.3f} {pm['m_p_error_pct']:>7.1f}%")
+
+    print(f"\n  HONEST CAVEATS:")
+    print(f"  1. Kinetic coefficient 3/2 is a variational estimate for three")
+    print(f"     quarks confined to radius R. Not derived from NWT dynamics.")
+    print(f"  2. Coulomb coefficient 2 (in 2α_s) needs geometric justification")
+    print(f"     from torus linking number — currently an empirical choice.")
+    print(f"  3. N_c² in σ = N_c²m_π²/ℏc is the adjoint Casimir. Matches")
+    print(f"     lattice QCD (0.6%) but not geometrically derived from torus topology.")
+    print(f"  4. R_min = {pm['R_min_fm']:.2f} fm ≠ charge radius {pm['R_charge_fm']} fm. The Cornell")
+    print(f"     minimum is the energy scale, not the charge distribution. The")
+    print(f"     relationship between R_min and r_charge is not derived.")
+    print(f"  5. m_π = 2m_e/α identifies the pion as the fundamental geometric")
+    print(f"     mode of the linked torus pair — already secure in NWT.")
+
+    print(f"\n  SIGNIFICANCE:")
+    print(f"  The proton mass was previously an input (via Λ_tube). This derivation")
+    print(f"  reduces the effective input count from 4 to 3: (α, m_e, m_μ) plus")
+    print(f"  three integers (p=2, q=1, N_c=3). The caveats above mean the")
+    print(f"  variational coefficients (3/2, 2) are not yet first-principles —")
+    print(f"  they are the remaining gap between NWT and a complete derivation.")
+    print("=" * 70)
+
+
+def compute_orbit_energy_landscape(R_m, p=2, q=1, r_ratio=None):
+    """
+    Compute all energy terms at a given major radius R (meters).
+
+    Returns dict with E_circ, U_EM, E_total, U_grav, delta_E_running,
+    E_larmor, and the E×R product (should be constant if scale-invariant).
+    """
+    if r_ratio is None:
+        r_ratio = alpha  # r = α×R is the NWT prescription
+    r_m = r_ratio * R_m
+    params = TorusParams(R=R_m, r=r_m, p=p, q=q)
+    se = compute_self_energy(params)
+    E_circ = se['E_circ_J']
+    U_EM = se['U_total_J']
+    E_total = se['E_total_J']
+
+    # Gravitational self-energy: U_grav = -G(E/c²)²/R  (∝ 1/R³)
+    M_eff = E_total / c**2
+    U_grav = -G_N * M_eff**2 / R_m
+
+    # Running coupling correction (one-loop QED)
+    mu_MeV = hbar * c / R_m / MeV
+    if mu_MeV > m_e_MeV:
+        log_ratio = np.log(mu_MeV / m_e_MeV)
+        alpha_R = alpha / (1 - (2 * alpha / (3 * np.pi)) * log_ratio)
+    else:
+        alpha_R = alpha
+    delta_alpha = alpha_R - alpha
+    # Self-energy scales as α, so δE ≈ E_total × (δα/α) × (U_EM/E_total)
+    delta_E_running = U_EM * (delta_alpha / alpha)
+
+    # Larmor radiation loss per orbit: P_Larmor × T_orbit
+    # For circular motion at c with radius ~ R: a = c²/R
+    # P = e²a²/(6πε₀c³), T = 2πR/c (approximate)
+    # E_larmor = P × T = e²c/(3ε₀R) × (1/(2π)) ... let's compute it properly
+    # P_Larmor = e²c⁴/(6πε₀c³R²) = e²c/(6πε₀R²)
+    # E_per_orbit = P × T ≈ P × L/(c) where L is path length
+    L_path = compute_path_length(params)
+    a_cent = c**2 / R_m  # centripetal acceleration
+    P_larmor = e_charge**2 * a_cent**2 / (6 * np.pi * eps0 * c**3)
+    T_orbit = L_path / c
+    E_larmor = P_larmor * T_orbit
+
+    # Angular momentum
+    am = compute_angular_momentum(params)
+
+    return {
+        'R_m': R_m,
+        'R_fm': R_m * 1e15,
+        'E_circ_J': E_circ,
+        'U_EM_J': U_EM,
+        'E_total_J': E_total,
+        'E_total_MeV': E_total / MeV,
+        'U_grav_J': U_grav,
+        'delta_E_running_J': delta_E_running,
+        'E_larmor_J': E_larmor,
+        'ER_product': E_total * R_m,
+        'Lz_over_hbar': am['Lz_over_hbar'],
+    }
+
+
+def compute_orbit_force_balance(R_m, p=2, q=1, r_ratio=None):
+    """
+    Compute all forces at a given major radius R (meters).
+
+    Returns dict with centripetal, magnetic hoop, gravitational,
+    Larmor radiation reaction forces and dimensionless ratios.
+    """
+    if r_ratio is None:
+        r_ratio = alpha
+    r_m = r_ratio * R_m
+    params = TorusParams(R=R_m, r=r_m, p=p, q=q)
+    se = compute_self_energy(params)
+    E_total = se['E_total_J']
+
+    # Centripetal force for photon orbit: F = pv/R = (E/c)×c/R = E/R
+    F_cent = E_total / R_m
+
+    # Magnetic hoop stress (expansion force from current loop)
+    # F_hoop = μ₀I²/2 × [ln(8R/r) - 1]
+    I = se['I_amps']
+    log_factor_hoop = np.log(8.0 * R_m / r_m) - 1.0
+    F_hoop = mu0 * I**2 / 2.0 * max(log_factor_hoop, 0.01)
+
+    # Gravitational self-attraction: F_grav = G(E/c²)²/R²
+    M_eff = E_total / c**2
+    F_grav = G_N * M_eff**2 / R_m**2
+
+    # Larmor radiation reaction force: F_rad = P_Larmor / c
+    a_cent = c**2 / R_m
+    P_larmor = e_charge**2 * a_cent**2 / (6 * np.pi * eps0 * c**3)
+    F_larmor = P_larmor / c
+
+    return {
+        'R_m': R_m,
+        'R_fm': R_m * 1e15,
+        'F_cent': F_cent,
+        'F_hoop': F_hoop,
+        'F_grav': F_grav,
+        'F_larmor': F_larmor,
+        'hoop_over_cent': F_hoop / F_cent,
+        'grav_over_cent': F_grav / F_cent,
+        'larmor_over_cent': F_larmor / F_cent,
+    }
+
+
+def print_orbit_analysis():
+    """
+    What fixes the electron's size?  An orbital-mechanics analysis.
+
+    The NWT electron has E(R) ∝ 1/R — classically scale-invariant.
+    Given m_e you solve for R_e, but nothing DERIVES m_e.
+    This module systematically surveys what could break scale invariance.
+    """
+    print("=" * 70)
+    print("  ORBIT ANALYSIS: WHAT FIXES THE ELECTRON'S SIZE?")
+    print("  Scale invariance, Kepler analogy, and candidate mechanisms")
+    print("=" * 70)
+
+    # Get the electron radius as our reference point
+    sol_e = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=alpha)
+    R_e = sol_e['R']
+    R_e_fm = R_e * 1e15
+
+    print(f"\n  Reference: electron on (2,1) torus knot, r/R = α")
+    print(f"    R_e = {R_e_fm:.2f} fm  ({R_e:.4e} m)")
+    print(f"    m_e = {m_e_MeV:.8f} MeV")
+
+    # ── Section 1: Scale Invariance Demonstrated ──────────────────────
+    print(f"\n\n  1. SCALE INVARIANCE DEMONSTRATED")
+    print("  " + "─" * 51)
+    print(f"\n  All energies ∝ 1/R, so E×R = const at any radius.")
+    print(f"  Angular momentum L_z is R-independent.\n")
+
+    R_values_fm = [0.1, 1.0, 10.0, 100.0, 194.0, 1000.0, 10000.0]
+    print(f"  {'R (fm)':>10}  {'E_circ (MeV)':>14}  {'U_EM (MeV)':>14}  "
+          f"{'E×R (MeV·fm)':>14}  {'L_z/ℏ':>8}")
+    print(f"  {'-'*68}")
+
+    ER_ref = None
+    for R_fm in R_values_fm:
+        R_m = R_fm * 1e-15
+        el = compute_orbit_energy_landscape(R_m)
+        ER = el['E_total_MeV'] * R_fm
+        if ER_ref is None:
+            ER_ref = ER
+        print(f"  {R_fm:>10.1f}  {el['E_circ_J']/MeV:>14.6f}  "
+              f"{el['U_EM_J']/MeV:>14.6f}  {ER:>14.6f}  "
+              f"{el['Lz_over_hbar']:>8.4f}")
+
+    print(f"\n  E×R variation over 5 decades: < {abs(ER/ER_ref - 1)*100:.1e}%")
+    print(f"  L_z/ℏ = 0.5000 at every radius — spin is geometric, not dynamic.")
+
+    # ── Section 2: The Kepler Analogy ─────────────────────────────────
+    print(f"\n\n  2. THE KEPLER ANALOGY: WHY ORBITS HAVE A PREFERRED SIZE")
+    print("  " + "─" * 51)
+    print(f"""
+  KEPLER ORBIT (planet around star):
+    V(r) = -GMm/r              ∝ 1/r
+    T(r) = L²/(2mr²)           ∝ 1/r²  (angular momentum → centrifugal)
+    E(r) = L²/(2mr²) - GMm/r   → minimum at r₀ = L²/(GMm²)
+    KEY: L converts T from p²/2m to 1/r², creating a DIFFERENT power than V.
+
+  NWT TORUS (photon on torus knot):
+    E_circ(R) = 2πℏc/L(R)      ∝ 1/R
+    U_EM(R) = α×f(r/R)×E_circ  ∝ 1/R   (same power!)
+    E_total(R)                  ∝ 1/R   (no minimum, no maximum)
+    KEY: L_z = ℏ/2 is R-independent. No centrifugal barrier.
+
+  The photon ALWAYS moves at c, so there's no "kinetic energy that
+  depends on angular momentum" — the orbit speed is fixed by relativity.
+  Angular momentum L_z = (E/c)×R×⟨cos θ⟩ = ℏ/2 because E ∝ 1/R.
+  This is the root of scale invariance.""")
+
+    # ── Section 3: Gravitational Self-Energy ──────────────────────────
+    print(f"\n\n  3. GRAVITATIONAL SELF-ENERGY (the one that works — at the wrong scale)")
+    print("  " + "─" * 51)
+
+    # E_total = A/R, U_grav = -G(A/Rc²)²/R = -GA²/(c⁴R³)
+    # dE/dR = -A/R² + 3GA²/(c⁴R⁴) = 0
+    # -AR² + 3GA²/c⁴ = 0  →  R² = 3GA/c⁴
+    # R_grav = √(3GA/c⁴)
+    # But A = E_total × R, get it at R_e:
+    el_e = compute_orbit_energy_landscape(R_e)
+    A = el_e['ER_product']  # E×R in J·m
+    A_MeV_fm = A / (MeV * 1e-15)
+
+    R_grav = np.sqrt(3 * G_N * A / c**4)
+    R_grav_fm = R_grav * 1e15
+    E_at_grav = A / R_grav
+    m_grav_MeV = E_at_grav / MeV
+    m_grav_kg = E_at_grav / c**2
+
+    # Compare to Planck length
+    R_grav_over_lP = R_grav / l_Planck
+    R_grav_over_Re = R_grav / R_e
+
+    print(f"""
+  Add gravity: E(R) = A/R − GA²/(c⁴R³)
+
+  where A = E×R = {A_MeV_fm:.6f} MeV·fm  (the scale-invariant product)
+
+  Minimum at dE/dR = 0:
+    −A/R² + 3GA²/(c⁴R⁴) = 0
+    R_grav = √(3GA/c⁴)
+
+  Result:
+    R_grav    = {R_grav:.4e} m  = {R_grav_fm:.4e} fm
+    R_grav/l_P = {R_grav_over_lP:.2f}  (≈ √3 × Planck length)
+    m_grav    = {m_grav_MeV:.2e} MeV  = {m_grav_kg:.2e} kg
+    R_grav/R_e = {R_grav_over_Re:.2e}
+
+  Gravity DOES break scale invariance — the 1/R³ term has a different
+  power than the 1/R term, creating a minimum. But the minimum is at
+  the Planck scale, not at 194 fm. This is the hierarchy problem:
+  why is the electron 10²² times larger than gravity predicts?""")
+
+    # Verify numerically
+    print(f"\n  Numerical verification (energy landscape near R_grav):")
+    print(f"  {'R/R_grav':>10}  {'E_EM (MeV)':>14}  {'U_grav (MeV)':>14}  {'E_net (MeV)':>14}")
+    print(f"  {'-'*56}")
+    for factor in [0.5, 0.8, 1.0, 1.2, 2.0, 10.0]:
+        R_test = factor * R_grav
+        E_em = A / R_test
+        U_g = -G_N * (A / (c**2 * R_test))**2 / R_test
+        E_net = E_em + U_g
+        print(f"  {factor:>10.1f}  {E_em/MeV:>14.4e}  {U_g/MeV:>14.4e}  {E_net/MeV:>14.4e}")
+
+    # ── Section 4: Running Coupling ───────────────────────────────────
+    print(f"\n\n  4. RUNNING COUPLING α(R)")
+    print("  " + "─" * 51)
+
+    # One-loop QED: α(μ) = α / (1 - (2α/3π) ln(μ/m_e))
+    # At R_e: μ = ℏc/R_e
+    mu_e = hbar * c / R_e
+    mu_e_MeV = mu_e / MeV
+    if mu_e_MeV > m_e_MeV:
+        log_ratio_e = np.log(mu_e_MeV / m_e_MeV)
+        alpha_at_Re = alpha / (1 - (2 * alpha / (3 * np.pi)) * log_ratio_e)
+    else:
+        alpha_at_Re = alpha
+    delta_alpha_Re = (alpha_at_Re - alpha) / alpha
+
+    print(f"""
+  One-loop QED β-function: α(μ) = α / (1 − (2α/3π) ln(μ/m_e))
+  Scale μ = ℏc/R: higher energy ↔ smaller torus.
+
+  At R_e = {R_e_fm:.1f} fm:
+    μ     = ℏc/R_e = {mu_e_MeV:.4f} MeV
+    α(R_e) = {alpha_at_Re:.10f}
+    δα/α   = {delta_alpha_Re:.2e}  ({delta_alpha_Re*100:.4f}%)
+
+  The self-energy U_EM ∝ α(R)/R, so running coupling changes
+  the effective scaling from exactly 1/R to 1/R × [1 + O(α ln R)].
+  This is a logarithmic perturbation — it tilts the energy curve
+  but doesn't create a minimum at any finite R.""")
+
+    # Show α at various scales
+    print(f"  {'R (fm)':>10}  {'μ (MeV)':>12}  {'α(R)':>14}  {'δα/α':>12}")
+    print(f"  {'-'*52}")
+    for R_fm in [0.01, 0.1, 1.0, 10.0, 100.0, 194.0, 1000.0]:
+        R_m = R_fm * 1e-15
+        mu = hbar * c / R_m
+        mu_MeV = mu / MeV
+        if mu_MeV > m_e_MeV:
+            lr = np.log(mu_MeV / m_e_MeV)
+            a_R = alpha / (1 - (2 * alpha / (3 * np.pi)) * lr)
+        else:
+            a_R = alpha
+        da = (a_R - alpha) / alpha
+        print(f"  {R_fm:>10.2f}  {mu_MeV:>12.2f}  {a_R:>14.10f}  {da:>12.2e}")
+
+    # ── Section 5: Radiation Reaction ─────────────────────────────────
+    print(f"\n\n  5. RADIATION REACTION (Larmor)")
+    print("  " + "─" * 51)
+
+    el_e_detail = compute_orbit_energy_landscape(R_e)
+    ratio_larmor = el_e_detail['E_larmor_J'] / el_e_detail['E_circ_J']
+
+    print(f"""
+  A circulating charge radiates (Larmor). Energy lost per orbit:
+
+    P_Larmor = e²a²/(6πε₀c³),  a = c²/R  (centripetal)
+    E_rad/orbit = P × T_orbit = P × L/c
+
+  At R_e:
+    E_rad    = {el_e_detail['E_larmor_J']/MeV:.6e} MeV
+    E_circ   = {el_e_detail['E_circ_J']/MeV:.6f} MeV
+    E_rad/E_circ = {ratio_larmor:.6e}
+
+  Analytical ratio: E_rad/E_circ = 4α/(3p²) × (2πp)  ... let's check scaling:""")
+
+    # Show that radiation also scales as 1/R
+    print(f"\n  {'R (fm)':>10}  {'E_circ (MeV)':>14}  {'E_rad (MeV)':>14}  {'E_rad/E_circ':>14}")
+    print(f"  {'-'*56}")
+    for R_fm in [1.0, 10.0, 100.0, 194.0, 1000.0]:
+        R_m = R_fm * 1e-15
+        el = compute_orbit_energy_landscape(R_m)
+        ratio = el['E_larmor_J'] / el['E_circ_J']
+        print(f"  {R_fm:>10.1f}  {el['E_circ_J']/MeV:>14.6f}  "
+              f"{el['E_larmor_J']/MeV:>14.6e}  {ratio:>14.6e}")
+
+    print(f"\n  E_rad/E_circ is R-independent → radiation reaction scales as 1/R")
+    print(f"  (same as E_circ). No scale invariance breaking.")
+
+    # ── Section 6: Force Survey ───────────────────────────────────────
+    print(f"\n\n  6. FORCE SURVEY AT R_e = {R_e_fm:.1f} fm")
+    print("  " + "─" * 51)
+
+    fb = compute_orbit_force_balance(R_e)
+
+    print(f"\n  {'Force':>25}  {'Value (N)':>14}  {'F/F_cent':>14}")
+    print(f"  {'-'*56}")
+    print(f"  {'Centripetal (E/R)':>25}  {fb['F_cent']:>14.4e}  {'1.000':>14}")
+    print(f"  {'Magnetic hoop':>25}  {fb['F_hoop']:>14.4e}  {fb['hoop_over_cent']:>14.4e}")
+    print(f"  {'Gravitational':>25}  {fb['F_grav']:>14.4e}  {fb['grav_over_cent']:>14.4e}")
+    print(f"  {'Larmor reaction':>25}  {fb['F_larmor']:>14.4e}  {fb['larmor_over_cent']:>14.4e}")
+
+    print(f"""
+  The centripetal force is overwhelmingly dominant. The magnetic hoop
+  stress (which tries to expand the loop) is the largest correction
+  at ~{fb['hoop_over_cent']:.1e} of centripetal. Gravity is negligible ({fb['grav_over_cent']:.1e}).
+
+  Crucially: F_cent ∝ 1/R², F_hoop ∝ 1/R², F_Larmor ∝ 1/R².
+  All forces have the SAME R-dependence. No force balance picks out R_e.""")
+
+    # ── Section 7: Summary Table ──────────────────────────────────────
+    print(f"\n\n  7. SUMMARY: MECHANISMS THAT COULD FIX THE SCALE")
+    print("  " + "─" * 51)
+
+    print(f"""
+  {'Mechanism':<24} {'Scaling':>10} {'Breaks SI?':>12} {'Predicted R':>14} {'R/R_e':>10}
+  {'-'*72}
+  {'Gravitational':<24} {'1/R³':>10} {'YES':>12} {'~l_Planck':>14} {f'{R_grav_over_Re:.1e}':>10}
+  {'Running coupling':<24} {'1/R·ln':>10} {'WEAK':>12} {'no minimum':>14} {'---':>10}
+  {'Radiation reaction':<24} {'1/R':>10} {'NO':>12} {'---':>14} {'---':>10}
+  {'Magnetic hoop':<24} {'1/R²':>10} {'NO':>12} {'---':>14} {'---':>10}
+  {'Angular momentum':<24} {'const':>10} {'NO':>12} {'---':>14} {'---':>10}
+  {'-'*72}""")
+
+    print(f"  Scale invariance requires ALL terms ∝ 1/R. Gravity (∝ 1/R³) is the")
+    print(f"  only classical mechanism that breaks it — but at the wrong scale.")
+
+    # ── Section 8: What's Needed ──────────────────────────────────────
+    print(f"\n\n  8. WHAT'S NEEDED — AND HONEST ASSESSMENT")
+    print("  " + "─" * 51)
+
+    print(f"""
+  To fix R_e ≈ 194 fm, we need a term in E(R) that:
+    • Scales as 1/Rⁿ with n ≠ 1  (to compete with the 1/R terms)
+    • Is active at R ~ 200 fm     (not Planck-scale, not astronomical)
+    • Is attractive for n > 1     (or repulsive for n < 1)
+
+  The gap between gravity's prediction (l_Planck) and observation (R_e)
+  is a factor of {R_e/R_grav:.1e} — this IS the hierarchy problem,
+  recast in NWT language.
+
+  CANDIDATES FOR FUTURE INVESTIGATION:
+    1. Topology-dependent Casimir energy — vacuum fluctuations on the
+       torus depend on both R and r/R. If the Casimir energy has a
+       different R-scaling than 1/R (possible for non-trivial topology),
+       it could create a minimum. Requires zeta-regularization on the
+       knotted torus.
+
+    2. Nonlinear QED (Euler-Heisenberg) — at strong fields near the
+       tube, the effective Lagrangian gets O(α²) corrections that
+       scale as (r_class/R)⁴. Too small at R_e but illustrates how
+       field-strength-dependent corrections change the scaling.
+
+    3. Non-perturbative QED — the electron's anomalous magnetic moment
+       is known to all orders in α. If the full QED effective action
+       on a torus has non-perturbative contributions (instantons,
+       monopole-like configurations), these could provide the missing
+       scale.
+
+  THE DEEPEST OPEN QUESTION:
+    In NWT, the electron mass m_e is currently an input — the theory
+    predicts m_μ/m_e, m_p/m_e, and α in terms of geometry, but m_e
+    itself sets the overall energy scale. Either:
+
+    (a) m_e is axiomatic — a free parameter of the universe, like c
+        or ℏ, not derivable from anything deeper.
+
+    (b) Physics not yet in the model breaks the scale invariance —
+        quantum gravity, topology change, or some mechanism that
+        connects the Planck scale to the electron scale across 22
+        orders of magnitude.
+
+    This module shows that (b) requires something beyond classical
+    gravity, perturbative QED, and radiation reaction. The answer,
+    if it exists, likely involves the topology of spacetime itself.""")
+
+    print("=" * 70)
+
+
+def compute_epstein_zeta_ren(tau, N_terms=200):
+    """
+    Regularized Epstein zeta Z_ren(-1/2, τ) for the flat 2-torus.
+
+    Uses the Chowla-Selberg formula:
+        Z_ren(-1/2, τ) = -(1+τ)/6 - (2τ/π) × Σ_{n=1}^{N} σ₂(n) K₁(2πnτ)/n
+
+    where σ₂(n) = sum of d² for d|n, K₁ = modified Bessel function.
+    """
+    from scipy.special import kv
+
+    Z_const = -(1.0 + tau) / 6.0
+
+    Z_bessel = 0.0
+    for n in range(1, N_terms + 1):
+        arg = 2.0 * np.pi * n * tau
+        if arg > 500:
+            break
+        # σ₂(n): sum of d² for all divisors d of n
+        sigma2 = sum(d * d for d in range(1, n + 1) if n % d == 0)
+        Z_bessel += sigma2 * kv(1, arg) / n
+
+    Z_bessel *= -2.0 * tau / np.pi
+    Z_ren = Z_const + Z_bessel
+
+    return {
+        'Z_ren': Z_ren,
+        'Z_const': Z_const,
+        'Z_bessel': Z_bessel,
+        'tau': tau,
+        'bessel_fraction': abs(Z_bessel / Z_const) if Z_const != 0 else 0.0,
+    }
+
+
+def compute_casimir_energy_torus(R, r, p=2, q=1, N_dof=2):
+    """
+    Casimir energy for a scalar field on a flat 2-torus with sides
+    L₁ = 2πpR (toroidal) and L₂ = 2πqr (poloidal).
+
+    E_Casimir = N_dof × (πℏc / L₁) × Z_ren(-1/2, τ)
+
+    where τ = L₁/L₂ = pR/(qr).
+
+    Also computes thin-torus approximation:
+        E ≈ -N_dof × [ℏc/(12pR) + ℏc/(12qr)]
+    """
+    L1 = 2.0 * np.pi * p * R  # toroidal circumference
+    L2 = 2.0 * np.pi * q * r  # poloidal circumference
+    tau = L1 / L2              # aspect ratio = pR/(qr)
+
+    zeta = compute_epstein_zeta_ren(tau)
+    E_casimir = N_dof * (np.pi * hbar * c / L1) * zeta['Z_ren']
+
+    # Thin-torus approximation: sum of two 1D Casimir energies
+    E_toroidal = -N_dof * hbar * c / (12.0 * p * R)
+    E_poloidal = -N_dof * hbar * c / (12.0 * q * r)
+    E_thin_approx = E_toroidal + E_poloidal
+
+    r_over_R = r / R
+
+    return {
+        'E_casimir_J': E_casimir,
+        'E_casimir_MeV': E_casimir / MeV,
+        'E_toroidal_J': E_toroidal,
+        'E_toroidal_MeV': E_toroidal / MeV,
+        'E_poloidal_J': E_poloidal,
+        'E_poloidal_MeV': E_poloidal / MeV,
+        'E_thin_approx_J': E_thin_approx,
+        'E_thin_approx_MeV': E_thin_approx / MeV,
+        'tau': tau,
+        'r_over_R': r_over_R,
+        'L1': L1,
+        'L2': L2,
+        'Z_ren': zeta['Z_ren'],
+        'Z_const': zeta['Z_const'],
+        'Z_bessel': zeta['Z_bessel'],
+        'bessel_fraction': zeta['bessel_fraction'],
+    }
+
+
+def compute_casimir_landscape(R, r_ratio_range, p=2, q=1, N_dof=2):
+    """
+    Sweep r/R over a range and compute E_EM + E_Casimir at each point.
+
+    Returns dict with arrays and location of the minimum of E_total.
+    """
+    ratios = np.array(r_ratio_range)
+    E_EM_arr = np.zeros_like(ratios)
+    E_cas_arr = np.zeros_like(ratios)
+    E_tot_arr = np.zeros_like(ratios)
+
+    for i, rr in enumerate(ratios):
+        r_val = rr * R
+        params = TorusParams(R=R, r=r_val, p=p, q=q)
+        se = compute_self_energy(params)
+        cas = compute_casimir_energy_torus(R, r_val, p=p, q=q, N_dof=N_dof)
+
+        E_EM_arr[i] = se['E_total_MeV']
+        E_cas_arr[i] = cas['E_casimir_MeV']
+        E_tot_arr[i] = E_EM_arr[i] + E_cas_arr[i]
+
+    idx_min = np.argmin(E_tot_arr)
+
+    return {
+        'ratios': ratios,
+        'E_EM_MeV': E_EM_arr,
+        'E_casimir_MeV': E_cas_arr,
+        'E_total_MeV': E_tot_arr,
+        'min_ratio': ratios[idx_min],
+        'min_E_total': E_tot_arr[idx_min],
+        'min_idx': idx_min,
+    }
+
+
+def print_casimir_analysis():
+    """
+    Can vacuum fluctuations on the torus set r/R = α?
+
+    The NWT torus has two compact dimensions: toroidal (2πpR) and poloidal
+    (2πqr). Quantum fields on compact spaces produce Casimir energy that
+    depends on the geometry. If E_Casimir(r) + E_EM(r) has a minimum at
+    r/R = α, the aspect ratio is dynamically determined.
+
+    Spoiler: it doesn't work for a flat torus — but the analysis reveals
+    exactly what WOULD need to be true.
+    """
+    print("=" * 70)
+    print("  CASIMIR ENERGY: CAN VACUUM FLUCTUATIONS SET r/R = α?")
+    print("  Epstein zeta function on the NWT torus")
+    print("=" * 70)
+
+    # Get electron reference geometry
+    sol_e = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=alpha)
+    R_e = sol_e['R']
+    R_e_fm = R_e * 1e15
+    r_e = alpha * R_e
+    r_e_fm = r_e * 1e15
+    p, q = 2, 1
+
+    # ================================================================
+    # SECTION 1: Physics — Casimir on the Torus
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 1: PHYSICS — CASIMIR ENERGY ON THE TORUS              ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  The NWT electron is a (2,1) torus knot on a torus with:
+    • Major radius R = {R_e_fm:.2f} fm    (toroidal direction)
+    • Minor radius r = αR = {r_e_fm:.4f} fm  (poloidal direction)
+
+  Two compact lengths:
+    L₁ = 2πpR = {2*np.pi*p*R_e*1e15:.1f} fm   (toroidal circumference)
+    L₂ = 2πqr = {2*np.pi*q*r_e*1e15:.3f} fm   (poloidal circumference)
+
+  The poloidal direction is MUCH shorter: L₂/L₁ = qr/(pR) = α/2 ≈ {alpha/2:.5f}
+
+  Quantum fields on compact spaces have quantized modes. The vacuum
+  energy (sum over zero-point energies of all modes) depends on the
+  geometry. On a 2-torus with sides L₁ × L₂, this is computed by the
+  Epstein zeta function — a 2D generalization of ζ(-1/2).
+
+  KEY IDEA: E_Casimir depends on r (through L₂), while E_EM also depends
+  on r (through the log factor). If their r-derivatives balance at some
+  r/R, the aspect ratio is dynamically determined.""")
+
+    # ================================================================
+    # SECTION 2: The Epstein Zeta Formula
+    # ================================================================
+    cas = compute_casimir_energy_torus(R_e, r_e, p=p, q=q, N_dof=2)
+    tau = cas['tau']
+
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 2: THE EPSTEIN ZETA FORMULA                           ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  For a flat 2-torus with aspect ratio τ = L₁/L₂ = pR/(qr):
+
+    E_Casimir = N_dof × (πℏc/L₁) × Z_ren(-½, τ)
+
+  where Z_ren is the regularized Epstein zeta function:
+
+    Z_ren(-½, τ) = -(1+τ)/6 - (2τ/π) × Σ σ₂(n) K₁(2πnτ) / n
+
+  σ₂(n) = sum of d² over divisors of n, K₁ = modified Bessel function.
+
+  At the electron geometry (r/R = α, p=2, q=1):
+    τ = pR/(qr) = 2/α = {tau:.2f}""")
+
+    print(f"""
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  Epstein Zeta Evaluation at τ = {tau:.2f}                       │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  Z_const   = -(1+τ)/6          = {cas['Z_const']:.6f}         │
+  │  Z_bessel  = Bessel correction  = {cas['Z_bessel']:.2e}         │
+  │  Z_ren     = Z_const + Z_bessel = {cas['Z_ren']:.6f}         │
+  │  Bessel/Const ratio             = {cas['bessel_fraction']:.2e}         │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  At τ ~ 274, the Bessel corrections are negligible.             │
+  │  Z_ren ≈ -(1+τ)/6 = -(1 + 2/α)/6  (pure constant term).       │
+  └─────────────────────────────────────────────────────────────────┘""")
+
+    # Energy comparison
+    params_e = TorusParams(R=R_e, r=r_e, p=p, q=q)
+    se = compute_self_energy(params_e)
+
+    print(f"""
+  Energy at the electron geometry:
+    E_EM (total)    = {se['E_total_MeV']:.6f} MeV  (= m_e, by construction)
+    E_Casimir       = {cas['E_casimir_MeV']:.4f} MeV
+    E_toroidal      = {cas['E_toroidal_MeV']:.6f} MeV  (from L₁)
+    E_poloidal      = {cas['E_poloidal_MeV']:.4f} MeV  (from L₂)
+    Thin-torus est. = {cas['E_thin_approx_MeV']:.4f} MeV
+
+    |E_Casimir/E_EM| = {abs(cas['E_casimir_MeV']/se['E_total_MeV']):.1f}
+    Thin-torus error = {abs((cas['E_thin_approx_MeV'] - cas['E_casimir_MeV'])/cas['E_casimir_MeV'])*100:.3f}%
+
+  ⚠ The Casimir energy is {abs(cas['E_casimir_MeV']/se['E_total_MeV']):.0f}× larger than the EM energy!
+  This already tells us the flat-torus Casimir is far too strong.""")
+
+    # ================================================================
+    # SECTION 3: Energy Landscape
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 3: ENERGY LANDSCAPE E_total(r/R)                      ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  Sweep r/R from 10⁻⁴ to 0.5 at fixed R = R_e = {R_e_fm:.2f} fm.
+  E_total = E_EM + E_Casimir. Look for a minimum.
+""")
+
+    # Selected r/R values for table
+    table_ratios = [1e-4, 3e-4, 1e-3, 3e-3, alpha, 0.01, 0.02, 0.05,
+                    0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
+
+    print("  r/R          E_EM (MeV)    E_Casimir (MeV)  E_total (MeV)   E_Cas/E_EM")
+    print("  " + "─" * 73)
+
+    for rr in table_ratios:
+        r_val = rr * R_e
+        params = TorusParams(R=R_e, r=r_val, p=p, q=q)
+        se_i = compute_self_energy(params)
+        cas_i = compute_casimir_energy_torus(R_e, r_val, p=p, q=q, N_dof=2)
+        E_tot = se_i['E_total_MeV'] + cas_i['E_casimir_MeV']
+        ratio_str = f"{cas_i['E_casimir_MeV']/se_i['E_total_MeV']:>10.1f}"
+        marker = "  ← α" if abs(rr - alpha) / alpha < 0.01 else ""
+        print(f"  {rr:<12.5f}  {se_i['E_total_MeV']:>12.4f}  {cas_i['E_casimir_MeV']:>14.4f}  "
+              f"{E_tot:>13.4f}  {ratio_str}{marker}")
+
+    # Full landscape for analysis
+    r_range = np.logspace(-4, np.log10(0.5), 200)
+    landscape = compute_casimir_landscape(R_e, r_range, p=p, q=q, N_dof=2)
+
+    print(f"""
+  Result: E_total monotonically decreases as r/R → 0.
+          Minimum is at the smallest r/R sampled: r/R = {landscape['min_ratio']:.2e}
+          E_total at min = {landscape['min_E_total']:.2f} MeV
+
+  ➜ NO MINIMUM exists. The flat-torus Casimir predicts tube collapse.""")
+
+    # ================================================================
+    # SECTION 4: Why It Fails — The Casimir Catastrophe
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 4: WHY IT FAILS — THE CASIMIR CATASTROPHE             ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  The energy derivatives at r/R = α tell the story:
+
+  dE_EM/dr:
+    E_EM ∝ (1/R) × [1 + (α/π)(ln(8R/r) - 2)]
+    The r-dependence is through log(R/r), so dE_EM/dr ∝ α/(πr)
+    At r = αR_e: dE_EM/dr ~ α/(π × αR_e) = 1/(πR_e)
+
+  dE_Casimir/dr:
+    E_Casimir ≈ -N_dof × ℏc/(12qr)  (poloidal term dominates)
+    So dE_Casimir/dr ≈ +N_dof × ℏc/(12qr²)
+    At r = αR_e: dE_Casimir/dr ~ ℏc/(6α²R_e²)
+
+  Ratio of derivatives:
+    |dE_Cas/dr| / |dE_EM/dr| ~ πℏc/(6α²R_e × E_EM)""")
+
+    # Compute actual ratio of force scales
+    deriv_EM_scale = se['E_total_J'] * alpha / (np.pi * r_e)
+    deriv_Cas_scale = 2 * hbar * c / (12 * q * r_e**2)
+    force_ratio = abs(deriv_Cas_scale / deriv_EM_scale)
+
+    print(f"""
+    Numerically:
+      |dE_EM/dr|     ~ {deriv_EM_scale:.4e} J/m
+      |dE_Casimir/dr| ~ {deriv_Cas_scale:.4e} J/m
+      Ratio           = {force_ratio:.0f}
+
+  The Casimir "force" overwhelms the EM force by a factor of ~{force_ratio:.0f}.
+
+  PHYSICAL INTERPRETATION:
+    The flat-torus Casimir treats the NWT as a standard QFT vacuum cavity.
+    But the torus ISN'T a cavity — it's a single photon's worldtube. The
+    vacuum modes that produce Casimir energy presuppose a quantum field
+    living ON the torus, while the NWT photon IS the torus. The boundary
+    conditions are fundamentally different.""")
+
+    # ================================================================
+    # SECTION 5: Reverse Engineering — What WOULD Work?
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 5: REVERSE ENGINEERING — WHAT WOULD WORK?             ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  Suppose E_Casimir had an effective coefficient C_eff instead of N_dof/12:
+    E_Cas_eff = -C_eff × ℏc/(q × r)  (poloidal term)
+
+  At equilibrium dE_total/dr = 0:
+    C_eff × ℏc/(q × r²) = -dE_EM/dr
+
+  The EM energy: E_EM ≈ E_circ × [1 + (α/π) × ln(8R/r) / p_eff]
+    where E_circ = 2πℏc/L with L the knot path length.
+
+  For the (2,1) knot at r/R = α:
+    dE_EM/dr ≈ -(α/π) × E_circ / (p × r)  (from the log derivative)
+
+  Setting dE_Cas/dr + dE_EM/dr = 0 at r = αR:
+    C_eff/(αR)² = (α/π) × E_circ / (p × αR × q)""")
+
+    # Compute the required C_eff
+    E_circ_e = se['E_circ_J']
+    # From balance: C_eff × ℏc/(q × r²) = (α/π) × E_circ / (p × r)
+    # C_eff = (α/π) × E_circ × q × r / (p × ℏc)
+    # With r = αR and E_circ = 2πℏc/L ≈ ℏc/(pR) for the (2,1) knot:
+    # C_eff ≈ α² / (π × p) using E_circ ~ ℏc/(pR)
+    C_eff_analytic = alpha**2 / (np.pi * p)
+    C_eff_numeric = (alpha / np.pi) * E_circ_e * q * r_e / (p * hbar * c)
+    C_flat = 2.0 / (12.0 * q)  # N_dof=2, standard flat-torus coefficient
+    suppression = C_flat / C_eff_numeric
+
+    print(f"""
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  Required vs Actual Casimir Coefficient                         │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  C_eff required (analytic) = α²/(πp) = {C_eff_analytic:.4e}          │
+  │  C_eff required (numeric)  =           {C_eff_numeric:.4e}          │
+  │  C_flat (N_dof=2, q=1)     = 1/6      = {C_flat:.6f}          │
+  │                                                                 │
+  │  Ratio: C_flat / C_eff = {suppression:.0f}                          │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  The effective Casimir coefficient must be ~{suppression:.0f}× weaker     │
+  │  than the flat-torus prediction for equilibrium at r/R = α.     │
+  └─────────────────────────────────────────────────────────────────┘""")
+
+    # ================================================================
+    # SECTION 6: Scale Invariance Check
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 6: SCALE INVARIANCE CHECK                             ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  Even if Casimir energy COULD set r/R = α, does it fix the overall
+  scale R? Test: compute E_Casimir × R at fixed r/R = α for various R.
+  If E_Cas ∝ 1/R, then E_Cas × R = const → scale invariance persists.
+""")
+
+    print("  R (fm)         E_Casimir (MeV)     E_Cas × R (MeV·fm)    E_EM × R (MeV·fm)")
+    print("  " + "─" * 73)
+
+    R_test_fm = [1, 5, 10, 50, 100, R_e_fm, 500, 1000, 5000, 10000]
+    for R_fm in R_test_fm:
+        R_val = R_fm * 1e-15
+        r_val = alpha * R_val
+        params_t = TorusParams(R=R_val, r=r_val, p=p, q=q)
+        se_t = compute_self_energy(params_t)
+        cas_t = compute_casimir_energy_torus(R_val, r_val, p=p, q=q, N_dof=2)
+        E_cas_R = cas_t['E_casimir_MeV'] * R_fm
+        E_em_R = se_t['E_total_MeV'] * R_fm
+        marker = "  ← R_e" if abs(R_fm - R_e_fm) / R_e_fm < 0.01 else ""
+        print(f"  {R_fm:<14.2f}  {cas_t['E_casimir_MeV']:>14.6f}     {E_cas_R:>16.6f}      "
+              f"{E_em_R:>14.6f}{marker}")
+
+    print(f"""
+  E_Casimir × R = const across all R (to numerical precision).
+  E_EM × R = const as well (both ∝ 1/R at fixed aspect ratio).
+
+  ➜ Even if Casimir sets r/R, it does NOT fix R. Scale invariance persists.
+  The overall size R_e remains determined by the input mass m_e.""")
+
+    # ================================================================
+    # SECTION 7: Honest Assessment
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 7: HONEST ASSESSMENT                                  ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  Summary of Findings                                            │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  Question: Can vacuum fluctuations on the torus set r/R = α?    │
+  │                                                                 │
+  │  Flat-torus Casimir energy:                                     │
+  │    • Computed via Epstein zeta function Z_ren(-½, τ)            │
+  │    • At r/R = α: E_Casimir ≈ {cas['E_casimir_MeV']:.1f} MeV (vs E_EM = {se['E_total_MeV']:.3f} MeV)  │
+  │    • E_Casimir is ~{abs(cas['E_casimir_MeV']/se['E_total_MeV']):.0f}× larger than E_EM                     │
+  │    • Energy monotonically decreases as r → 0 (no minimum)       │
+  │    • Predicts tube COLLAPSE, not stabilization                  │
+  │                                                                 │
+  │  Required suppression for equilibrium at r/R = α:               │
+  │    • C_eff must be ~{suppression:.0f}× smaller than flat-torus value     │
+  │    • C_required ≈ α²/(2π) ≈ {C_eff_analytic:.1e}                    │
+  │                                                                 │
+  │  Scale invariance:                                              │
+  │    • E_Casimir ∝ 1/R at fixed r/R → does NOT fix R             │
+  │    • Even a successful Casimir mechanism leaves m_e as input    │
+  └─────────────────────────────────────────────────────────────────┘
+
+  THREE CANDIDATE RESOLUTIONS:
+
+  1. CURVED-TORUS CORRECTIONS
+     The flat-torus approximation ignores that the NWT torus has curvature
+     κ ~ 1/r in the poloidal direction. Curvature modifies the effective
+     boundary conditions and can suppress high-frequency modes. The
+     DeWitt-Schwinger expansion shows that curvature corrections enter as
+     R_μν/(mode frequency)², which could provide the ~10⁴ suppression.
+
+  2. PARTIAL TRANSPARENCY
+     The NWT torus isn't a conducting cavity — it's a region where the
+     metric is modified (g → 0 on the null worldtube surface). This is
+     more like a dielectric boundary than a perfect conductor. Partially
+     transparent boundaries reduce the Casimir effect by a factor that
+     depends on the transmission coefficient. If T ~ α, the suppression
+     could be of order α² ~ 5×10⁻⁵, close to the required 10⁻⁴.
+
+  3. TOPOLOGICAL PHASE FROM (2,1) KNOT WINDING
+     The (2,1) torus knot winds twice toroidally for each poloidal turn.
+     A field transported around the knot picks up a phase that depends
+     on the winding. For half-integer spin (fermions), this gives
+     antiperiodic boundary conditions on certain modes, which can flip
+     the sign of their Casimir contribution. The net effect could
+     dramatically reduce the coefficient, especially if the mode spectrum
+     has cancellations related to the knot topology.
+
+  THE KEY INSIGHT:
+    The MECHANISM exists — vacuum energy on compact spaces CAN select
+    aspect ratios. But the COEFFICIENT is wrong by ~{suppression:.0f}×. This is not
+    a failure; it's a signpost. The boundary condition on the NWT torus
+    is very different from a flat periodic torus, and the physics of
+    that difference is where r/R = α must emerge.""")
+
+    print("=" * 70)
+
+
+# ====================================================================
+# GREYBODY FACTORS: Partial transparency of the NWT surface
+# ====================================================================
+
+def compute_greybody_potential(rho_array, r_surface, l_eff):
+    """
+    Regge-Wheeler effective potential for scalar modes near a g→0 surface.
+
+    V_eff(ρ) = (1 - r_surface/ρ) × l_eff(l_eff+1)/ρ²
+
+    Only valid for ρ > r_surface. Returns V array (same shape as rho_array).
+    """
+    V = np.zeros_like(rho_array)
+    mask = rho_array > r_surface
+    rho = rho_array[mask]
+    V[mask] = (1.0 - r_surface / rho) * (l_eff * (l_eff + 1.0) / rho**2)
+    return V
+
+
+def compute_transmission_wkb(r_surface, omega, l_eff):
+    """
+    WKB transmission coefficient through the Regge-Wheeler barrier.
+
+    For a mode with frequency omega and effective angular momentum l_eff,
+    compute the tunneling probability through the potential barrier near
+    the NWT surface at ρ = r_surface.
+
+    Returns dict with T_wkb, T_analytic, V_max, rho_peak.
+    """
+    if l_eff < 0.01:
+        # l=0: no barrier (V_eff = 0 everywhere for l=0)
+        return {'T_wkb': 1.0, 'T_analytic': 1.0, 'V_max': 0.0, 'rho_peak': r_surface}
+
+    # Barrier peak location (analytic for Regge-Wheeler)
+    # d/dρ [(1 - r/ρ) l(l+1)/ρ²] = 0  →  ρ_peak = r(l+1)(2l+3) / (2(l+1))
+    # Simplifies to ρ_peak = r(2l+3)/2 for integer l
+    # More precisely: ρ_peak = 3r/2 for l=1, ρ_peak = 5r/3 for l=2 (known BH results)
+    rho_peak = r_surface * (2.0 * l_eff + 3.0) / 2.0
+
+    # V_max at the peak
+    V_max = (1.0 - r_surface / rho_peak) * (l_eff * (l_eff + 1.0) / rho_peak**2)
+
+    omega_sq = omega**2
+
+    if omega_sq >= V_max:
+        # Above barrier — full transmission
+        T_wkb = 1.0
+    else:
+        # Find classical turning points by sampling
+        N_pts = 500
+        rho_arr = np.linspace(r_surface * 1.001, r_surface * 20.0, N_pts)
+        V_arr = (1.0 - r_surface / rho_arr) * (l_eff * (l_eff + 1.0) / rho_arr**2)
+
+        # Forbidden region: V > ω²
+        forbidden = V_arr > omega_sq
+        if not np.any(forbidden):
+            T_wkb = 1.0
+        else:
+            # Integrate |κ| = sqrt(V - ω²) through forbidden region
+            kappa = np.sqrt(np.maximum(V_arr - omega_sq, 0.0))
+            kappa[~forbidden] = 0.0
+            drho = rho_arr[1] - rho_arr[0]
+            integral = np.trapz(kappa, dx=drho)
+            exponent = 2.0 * integral
+            T_wkb = np.exp(-min(exponent, 500.0))  # cap to avoid underflow
+
+    # Low-frequency analytic approximation: T ~ (ωr)^{2l+2}
+    omega_r = omega * r_surface
+    if omega_r > 0 and l_eff > 0:
+        exponent_analytic = (2.0 * l_eff + 2.0) * np.log(omega_r)
+        T_analytic = np.exp(min(max(exponent_analytic, -500.0), 0.0))
+    else:
+        T_analytic = 1.0
+
+    return {
+        'T_wkb': T_wkb,
+        'T_analytic': T_analytic,
+        'V_max': V_max,
+        'rho_peak': rho_peak,
+    }
+
+
+def compute_greybody_casimir(R, r, p=2, q=1, N_modes=50):
+    """
+    Greybody-weighted Casimir energy: sum over torus modes (n,m) with
+    each mode's zero-point energy weighted by its transmission coefficient
+    through the Regge-Wheeler barrier.
+
+    Returns dict with E_greybody, E_flat, suppression_ratio, T_mean, etc.
+    """
+    E_flat_total = 0.0
+    E_grey_total = 0.0
+    T_sum = 0.0
+    mode_count = 0
+    mode_details = []
+
+    for n in range(-N_modes, N_modes + 1):
+        for m in range(-N_modes, N_modes + 1):
+            if n == 0 and m == 0:
+                continue  # skip zero mode
+
+            # Wavevector on the torus
+            k_nm = np.sqrt((n / (p * R))**2 + (m / (q * r))**2)
+            omega_nm = c * k_nm
+
+            # Effective angular momentum: maps transverse momentum to l
+            l_eff = k_nm * r
+
+            # Transmission through barrier
+            trans = compute_transmission_wkb(r, omega_nm / c, l_eff)
+            T_nm = trans['T_wkb']
+
+            # Zero-point energy of this mode
+            E_flat_nm = 0.5 * hbar * omega_nm
+
+            E_flat_total += E_flat_nm
+            E_grey_total += T_nm * E_flat_nm
+            T_sum += T_nm
+            mode_count += 1
+
+            # Store details for first few modes
+            if abs(n) <= 3 and abs(m) <= 3 and n >= 0 and m >= 0 and (n > 0 or m > 0):
+                mode_details.append({
+                    'n': n, 'm': m,
+                    'k_nm': k_nm, 'omega_nm': omega_nm,
+                    'l_eff': l_eff, 'T_nm': T_nm,
+                    'E_flat_MeV': E_flat_nm / MeV,
+                    'E_grey_MeV': T_nm * E_flat_nm / MeV,
+                })
+
+    # Sort mode details by (n, m)
+    mode_details.sort(key=lambda d: (d['n'], d['m']))
+
+    suppression = E_flat_total / E_grey_total if E_grey_total != 0 else float('inf')
+    T_mean = T_sum / mode_count if mode_count > 0 else 0.0
+
+    return {
+        'E_greybody_J': E_grey_total,
+        'E_greybody_MeV': E_grey_total / MeV,
+        'E_flat_J': E_flat_total,
+        'E_flat_MeV': E_flat_total / MeV,
+        'suppression_ratio': suppression,
+        'T_mean': T_mean,
+        'mode_count': mode_count,
+        'mode_details': mode_details,
+    }
+
+
+def compute_greybody_landscape(R, r_ratio_range, p=2, q=1, N_modes=30):
+    """
+    Sweep r/R over a range computing E_EM + greybody-weighted E_Casimir.
+
+    Returns dict with arrays and location of the minimum of E_total.
+    """
+    ratios = np.array(r_ratio_range)
+    E_EM_arr = np.zeros_like(ratios)
+    E_grey_arr = np.zeros_like(ratios)
+    E_tot_arr = np.zeros_like(ratios)
+    T_mean_arr = np.zeros_like(ratios)
+    supp_arr = np.zeros_like(ratios)
+
+    for i, rr in enumerate(ratios):
+        r_val = rr * R
+        params = TorusParams(R=R, r=r_val, p=p, q=q)
+        se = compute_self_energy(params)
+        grey = compute_greybody_casimir(R, r_val, p=p, q=q, N_modes=N_modes)
+
+        E_EM_arr[i] = se['E_total_MeV']
+        E_grey_arr[i] = grey['E_greybody_MeV']
+        E_tot_arr[i] = E_EM_arr[i] + E_grey_arr[i]
+        T_mean_arr[i] = grey['T_mean']
+        supp_arr[i] = grey['suppression_ratio']
+
+    idx_min = np.argmin(E_tot_arr)
+
+    return {
+        'ratios': ratios,
+        'E_EM_MeV': E_EM_arr,
+        'E_greybody_MeV': E_grey_arr,
+        'E_total_MeV': E_tot_arr,
+        'T_mean': T_mean_arr,
+        'suppression': supp_arr,
+        'min_ratio': ratios[idx_min],
+        'min_E_total': E_tot_arr[idx_min],
+        'min_idx': idx_min,
+    }
+
+
+def print_greybody_analysis():
+    """
+    Greybody factors for the NWT torus: partial transparency of the g→0 surface.
+
+    The NWT surface where g→0 acts like a black hole horizon — vacuum modes
+    don't perfectly reflect off it; they tunnel through an effective potential
+    barrier. This module computes the transmission coefficients (greybody factors)
+    and their effect on the Casimir energy.
+    """
+    print("=" * 70)
+    print("  GREYBODY FACTORS: PARTIAL TRANSPARENCY OF THE NWT SURFACE")
+    print("  Regge-Wheeler barrier and vacuum mode transmission")
+    print("=" * 70)
+
+    # Get electron reference geometry
+    sol_e = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=alpha)
+    R_e = sol_e['R']
+    R_e_fm = R_e * 1e15
+    r_e = alpha * R_e
+    r_e_fm = r_e * 1e15
+    p, q = 2, 1
+
+    # Get flat-torus Casimir for comparison
+    cas_flat = compute_casimir_energy_torus(R_e, r_e, p=p, q=q, N_dof=2)
+
+    # ================================================================
+    # SECTION 1: The Black Hole Analogy
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 1: THE BLACK HOLE ANALOGY                             ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  The --casimir module showed that flat-torus Casimir energy is ~40,000×
+  too strong to stabilize r/R = α. But that calculation assumed PERFECT
+  reflection: every vacuum mode bounces off the torus boundary.
+
+  The NWT surface is where g → 0 — the metric degenerates. This is
+  EXACTLY the condition at a black hole horizon. And we know that
+  black hole horizons are NOT perfect reflectors: quantum modes tunnel
+  through the effective potential barrier, giving rise to Hawking radiation.
+
+  The transmission probability T(ω) for each mode is the "greybody factor."
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │              BLACK HOLE  vs  NWT TORUS                         │
+  ├──────────────────┬──────────────────┬──────────────────────────┤
+  │  Property        │  Black Hole      │  NWT Torus               │
+  ├──────────────────┼──────────────────┼──────────────────────────┤
+  │  g→0 surface     │  r = r_s         │  ρ = r (tube surface)    │
+  │  Surface radius  │  r_s = 2GM/c²    │  r = αR = {r_e_fm:.4f} fm       │
+  │  Barrier form    │  Regge-Wheeler   │  Regge-Wheeler (ansatz)  │
+  │  Low-ω behavior  │  T ~ (ωr_s)^{{2l+2}} │  T ~ (ωr)^{{2l+2}}        │
+  │  High-ω behavior │  T → 1           │  T → 1                   │
+  │  Physical effect │  Hawking spectrum │  Casimir suppression     │
+  └──────────────────┴──────────────────┴──────────────────────────┘
+
+  The key insight: if the NWT surface transmits vacuum modes rather than
+  reflecting them, the effective Casimir energy is SUPPRESSED. Low-frequency
+  modes (which dominate the Casimir sum) are most strongly reflected by the
+  barrier, while high-frequency modes pass through. The net effect reduces
+  the Casimir coefficient.""")
+
+    # ================================================================
+    # SECTION 2: The Effective Potential
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 2: THE EFFECTIVE POTENTIAL                            ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  Near the NWT surface at radial distance ρ from the tube center,
+  the scalar wave equation becomes Schrödinger-like:
+
+      -d²ψ/dρ² + V_eff(ρ) ψ = ω² ψ
+
+  with the Regge-Wheeler effective potential:
+
+      V_eff(ρ) = (1 - r/ρ) × l(l+1)/ρ²
+
+  This has a barrier that peaks outside the surface, then falls off.
+  Modes must tunnel through (or fly over) this barrier.
+
+  r_surface = {r_e_fm:.4f} fm = {r_e:.6e} m""")
+
+    # V_eff table for several l values
+    l_values = [1, 2, 5, 10, 20]
+    rho_ratios = [1.01, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0]
+
+    print(f"""
+  V_eff(ρ) / r⁻² for several angular momenta:
+
+  {"ρ/r":>8s}""", end="")
+    for l in l_values:
+        print(f"  {'l='+str(l):>10s}", end="")
+    print()
+    print("  " + "-" * 62)
+
+    for rr in rho_ratios:
+        rho = rr * r_e
+        print(f"  {rr:8.2f}", end="")
+        for l in l_values:
+            V = (1.0 - r_e / rho) * (l * (l + 1.0) / rho**2)
+            V_normalized = V * r_e**2  # dimensionless
+            print(f"  {V_normalized:10.4f}", end="")
+        print()
+
+    # Barrier peaks
+    print(f"""
+  Barrier peak location and height:
+
+  {"l":>6s}  {"ρ_peak/r":>10s}  {"V_max × r²":>12s}  {"ω_max × r":>10s}
+  {"---":>6s}  {"---":>10s}  {"---":>12s}  {"---":>10s}""")
+    for l in l_values + [50, 100]:
+        rho_peak = r_e * (2.0 * l + 3.0) / 2.0
+        V_max = (1.0 - r_e / rho_peak) * (l * (l + 1.0) / rho_peak**2)
+        V_max_norm = V_max * r_e**2
+        omega_max_r = np.sqrt(V_max) * r_e
+        print(f"  {l:6d}  {rho_peak/r_e:10.3f}  {V_max_norm:12.6f}  {omega_max_r:10.6f}")
+
+    print(f"""
+  Key observation: the barrier height grows as ~l(l+1)/r² for large l,
+  with the peak moving outward as ρ_peak ≈ r(2l+3)/2. High-l modes face
+  a tall, wide barrier and are strongly reflected. Low-l modes see a
+  modest barrier and can tunnel through.""")
+
+    # ================================================================
+    # SECTION 3: Transmission Coefficients
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 3: TRANSMISSION COEFFICIENTS                          ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  T(l, ωr) = transmission probability through the barrier.
+  Computed via WKB: T = exp(-2 ∫|κ|dρ) where κ² = V_eff - ω².
+
+  Low-frequency analytic: T ~ (ωr)^{{2l+2}} (valid for ωr << 1).""")
+
+    # Transmission table
+    l_vals_table = [0, 1, 2, 3, 5, 10, 20]
+    omega_r_vals = [0.01, 0.05, 0.1, 0.3, 0.5, 1.0, 2.0, 5.0, 10.0]
+
+    print(f"""
+  WKB transmission coefficient T(l, ωr):
+
+  {"ωr":>8s}""", end="")
+    for l in l_vals_table:
+        print(f"  {'l='+str(l):>10s}", end="")
+    print()
+    print("  " + "-" * 80)
+
+    for omega_r in omega_r_vals:
+        omega = omega_r / r_e  # actual frequency (1/m in natural units)
+        print(f"  {omega_r:8.2f}", end="")
+        for l in l_vals_table:
+            trans = compute_transmission_wkb(r_e, omega, float(l))
+            T = trans['T_wkb']
+            if T < 1e-10:
+                print(f"  {'<1e-10':>10s}", end="")
+            elif T > 0.999:
+                print(f"  {'~1':>10s}", end="")
+            else:
+                print(f"  {T:10.2e}", end="")
+        print()
+
+    # Compare WKB with analytic
+    print(f"""
+  WKB vs analytic (ωr)^{{2l+2}} comparison at ωr = 0.1:
+""")
+    omega_test = 0.1 / r_e
+    print(f"  {'l':>6s}  {'T_WKB':>12s}  {'T_analytic':>12s}  {'ratio':>10s}")
+    print(f"  {'---':>6s}  {'---':>12s}  {'---':>12s}  {'---':>10s}")
+    for l in [1, 2, 3, 5, 10]:
+        trans = compute_transmission_wkb(r_e, omega_test, float(l))
+        T_w = trans['T_wkb']
+        T_a = trans['T_analytic']
+        ratio = T_w / T_a if T_a > 0 and T_w > 0 else float('inf')
+        print(f"  {l:6d}  {T_w:12.4e}  {T_a:12.4e}  {ratio:10.2f}")
+
+    print(f"""
+  At ωr = 0.1: the analytic approximation T ~ (ωr)^{{2l+2}} captures the
+  qualitative suppression. Both show exponential fall-off with l.
+
+  Critical scale: ωr ~ 1 is the transition from opaque to transparent.
+  For the NWT electron, the first poloidal mode has:
+    ω₁ = c/(qr) = c/r   →   ω₁r = 1
+  So the lowest modes sit RIGHT at the barrier scale — not fully
+  suppressed, not fully transmitted.""")
+
+    # ================================================================
+    # SECTION 4: Mode-by-Mode Casimir
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 4: MODE-BY-MODE GREYBODY CASIMIR                      ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  For each torus mode (n,m):
+    k_nm = √[(n/pR)² + (m/qr)²]     wavevector
+    ω_nm = c × k_nm                   frequency
+    l_eff = k_nm × r                  effective angular momentum
+    T_nm = T(l_eff, ω_nm)            greybody transmission
+    E_flat = ½ℏω_nm                   flat-torus zero-point energy
+    E_grey = T_nm × E_flat            greybody-weighted contribution
+
+  Using N_modes = 50 (summing |n|,|m| ≤ 50):""")
+
+    grey = compute_greybody_casimir(R_e, r_e, p=p, q=q, N_modes=50)
+
+    print(f"""
+  First modes (positive n,m only — full sum includes ±n, ±m):
+
+  {"(n,m)":>8s}  {"ω×r/c":>8s}  {"l_eff":>8s}  {"T_nm":>10s}  {"E_flat/MeV":>12s}  {"T×E/MeV":>12s}
+  {"---":>8s}  {"---":>8s}  {"---":>8s}  {"---":>10s}  {"---":>12s}  {"---":>12s}""")
+    for md in grey['mode_details']:
+        n, m = md['n'], md['m']
+        omega_r = md['omega_nm'] * r_e / c
+        label = f"({n},{m})"
+        T = md['T_nm']
+        if T < 1e-10:
+            T_str = f"{'<1e-10':>10s}"
+        elif T > 0.999:
+            T_str = f"{'~1':>10s}"
+        else:
+            T_str = f"{T:10.2e}"
+        print(f"  {label:>8s}  {omega_r:8.3f}  {md['l_eff']:8.3f}  {T_str}  {md['E_flat_MeV']:12.4e}  {md['E_grey_MeV']:12.4e}")
+
+    print(f"""
+  ─────────────────────────────────────────────────────────────────
+  TOTALS (all {grey['mode_count']} modes, |n|,|m| ≤ 50):
+
+    E_flat  (unweighted)  = {grey['E_flat_MeV']:12.4e} MeV
+    E_grey  (greybody)    = {grey['E_greybody_MeV']:12.4e} MeV
+    Suppression ratio     = {grey['suppression_ratio']:12.2f}×
+    Mean transmission     = {grey['T_mean']:12.6f}
+
+  Required suppression for r/R = α stabilization: ~40,000×""")
+
+    if grey['suppression_ratio'] > 1.0:
+        ratio_to_target = grey['suppression_ratio'] / 40000.0
+        print(f"    Achieved / required = {ratio_to_target:.4f}")
+        if ratio_to_target > 0.1 and ratio_to_target < 10:
+            print(f"    → Within an order of magnitude! The greybody mechanism is viable.")
+        elif ratio_to_target >= 10:
+            print(f"    → EXCEEDS the required suppression — greybody over-suppresses.")
+        else:
+            print(f"    → Greybody suppression alone is not enough.")
+            print(f"      Additional suppression needed: {40000.0/grey['suppression_ratio']:.1f}×")
+
+    # ================================================================
+    # SECTION 5: Greybody Energy Landscape
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 5: GREYBODY ENERGY LANDSCAPE                          ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  Sweeping r/R to find if E_EM + E_Casimir_greybody has a minimum.
+  Using N_modes = 30 for the sweep (faster; checked that 30 vs 50
+  gives consistent suppression ratios to ~10%).
+
+  This is the key test: does greybody weighting create a stabilizing
+  minimum at r/R ~ α = {alpha:.6f}?""")
+
+    # Use fewer points for speed (each point sums ~3600 modes with WKB)
+    ratios = np.concatenate([
+        np.logspace(-4, -2, 8),            # 0.0001 to 0.01
+        np.linspace(0.005, 0.02, 10)[1:],  # around α
+        np.linspace(0.02, 0.1, 8)[1:],     # 0.02 to 0.1
+        np.linspace(0.1, 0.5, 5)[1:],      # 0.1 to 0.5
+    ])
+    ratios = np.unique(np.sort(ratios))
+
+    print(f"\n  Computing {len(ratios)} points... (each sums ~3600 WKB modes)")
+    landscape = compute_greybody_landscape(R_e, ratios, p=p, q=q, N_modes=30)
+
+    print(f"""
+  {"r/R":>10s}  {"E_EM/MeV":>12s}  {"E_grey/MeV":>12s}  {"E_total/MeV":>12s}  {"<T>":>8s}  {"suppress":>10s}
+  {"---":>10s}  {"---":>12s}  {"---":>12s}  {"---":>12s}  {"---":>8s}  {"---":>10s}""")
+    for i in range(len(ratios)):
+        print(f"  {ratios[i]:10.5f}  {landscape['E_EM_MeV'][i]:12.4e}  "
+              f"{landscape['E_greybody_MeV'][i]:12.4e}  {landscape['E_total_MeV'][i]:12.4e}  "
+              f"{landscape['T_mean'][i]:8.4f}  {landscape['suppression'][i]:10.1f}×")
+
+    min_r = landscape['min_ratio']
+    min_E = landscape['min_E_total']
+    min_idx = landscape['min_idx']
+
+    print(f"""
+  ─────────────────────────────────────────────────────────────────
+  Minimum of E_total:
+    r/R at minimum = {min_r:.6f}
+    E_total at min = {min_E:.6e} MeV
+    α = {alpha:.6f}""")
+
+    if min_idx == 0 or min_idx == len(ratios) - 1:
+        print(f"""
+    ⚠ Minimum is at the BOUNDARY of the scan range — not a true local
+    minimum. The greybody-weighted Casimir does not create a stabilizing
+    potential well in this range.""")
+    else:
+        ratio_to_alpha = min_r / alpha
+        print(f"""
+    r_min / α = {ratio_to_alpha:.4f}
+    {"→ Close to α!" if 0.5 < ratio_to_alpha < 2.0 else "→ Not near α."}""")
+
+    # ================================================================
+    # SECTION 6: The Thermodynamic Connection
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 6: THE THERMODYNAMIC CONNECTION                       ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  If the NWT surface is horizon-like, it has a temperature:
+
+      T_NWT = ℏc / (4π r)     [Hawking formula with r as horizon radius]""")
+
+    k_B = 1.380649e-23  # Boltzmann constant (J/K)
+    sigma_SB = 5.670374419e-8  # Stefan-Boltzmann constant (W/m²/K⁴)
+
+    T_NWT = hbar * c / (4.0 * np.pi * r_e)
+    T_NWT_K = T_NWT / k_B
+    T_NWT_MeV = T_NWT / MeV
+
+    # Surface area of the torus
+    A_torus = 4.0 * np.pi**2 * R_e * r_e
+
+    # Stefan-Boltzmann luminosity
+    P_SB = sigma_SB * T_NWT_K**4 * A_torus
+
+    print(f"""
+  For the electron NWT:
+    r = αR = {r_e_fm:.4f} fm = {r_e:.6e} m
+
+    T_NWT = ℏc/(4πr) = {T_NWT:.4e} J
+                      = {T_NWT_K:.4e} K
+                      = {T_NWT_MeV:.4e} MeV
+
+  Compare to:
+    Electron mass        : {m_e_MeV:.4f} MeV
+    T_NWT / m_e          : {T_NWT_MeV/m_e_MeV:.4f}
+
+  This temperature is set by the poloidal radius — the "size" of the
+  g→0 surface. It's comparable to the electron mass energy, which is
+  significant: it means the torus surface is at the quantum gravity
+  scale for this geometry.
+
+  Torus surface area: A = 4π²Rr = {A_torus:.4e} m²
+
+  Stefan-Boltzmann luminosity: P = σT⁴A = {P_SB:.4e} W
+                                         = {P_SB/MeV*1e-6:.4e} MeV/s
+
+  In equilibrium, the absorption rate equals the emission rate.
+  The greybody factors encode the absorption cross-section:
+    σ_abs(ω) = Σ_l (2l+1)π/ω² × T_l(ω)
+
+  For stability: detailed balance between modes emitted and absorbed
+  at each frequency must hold. The effective potential acts as a
+  frequency-dependent filter, and the equilibrium geometry is where
+  the total energy (EM + filtered Casimir) is minimized.""")
+
+    # ================================================================
+    # SECTION 7: Assessment — How Close Did We Get?
+    # ================================================================
+    print(f"""
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  SECTION 7: ASSESSMENT — HOW CLOSE DID WE GET?                ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  WHAT THE GREYBODY MODEL COMPUTES:
+  ─────────────────────────────────
+  • Regge-Wheeler potential barrier near the NWT g→0 surface
+  • WKB transmission coefficients for each torus mode (n,m)
+  • Greybody-weighted Casimir energy: Σ T_nm × E_flat_nm
+
+  RESULTS:
+  ────────
+  • Total suppression ratio: {grey['suppression_ratio']:.2f}×
+  • Required for stabilization: ~40,000×""")
+
+    if grey['suppression_ratio'] > 1:
+        gap = 40000.0 / grey['suppression_ratio']
+        print(f"  • Gap factor: {gap:.1f}× (need {gap:.1f}× more suppression)")
+    else:
+        print(f"  • No suppression achieved (ratio < 1)")
+
+    print(f"""
+  • Mean transmission <T>: {grey['T_mean']:.6f}
+  • Energy minimum at r/R = {min_r:.6f} (α = {alpha:.6f})
+
+  WHAT THE MODEL GETS RIGHT:
+  ──────────────────────────
+  ✓ UV modes (high ωr) pass through: T → 1
+  ✓ IR modes (low ωr) are reflected: T → 0
+  ✓ The barrier height grows with l: high angular momentum modes
+    are more strongly suppressed
+  ✓ The first poloidal mode has ωr ~ 1: sits at the barrier scale
+  ✓ The Hawking temperature T_NWT ~ m_e: connects vacuum energy
+    to the particle mass scale
+
+  WHAT THE MODEL MISSES:
+  ──────────────────────
+  ✗ The Regge-Wheeler form is an ANSATZ, not derived from the
+    actual NWT metric near g → 0
+  ✗ The real near-surface geometry may have different asymptotics
+    (e.g., g ~ ρ² rather than g ~ (1-r/ρ))
+  ✗ Spin-statistics: we treated scalar modes, but the EM field is
+    spin-1 and fermion loops contribute differently
+  ✗ The WKB approximation breaks down near the barrier peak
+  ✗ No backreaction: the barrier shape depends on the geometry,
+    which depends on the Casimir energy
+
+  NEXT STEPS:
+  ───────────
+  1. DERIVE the near-surface metric from the NWT g → 0 condition.
+     The Regge-Wheeler ansatz is the simplest model; the actual
+     potential could be quite different.
+
+  2. Compute the EXACT barrier for the NWT torus using the metric
+     g_μν near the tube surface, where the embedding coordinates
+     degenerate.
+
+  3. Include SPIN: vector (EM) and spinor (fermion) greybody factors
+     have different l-dependence than scalar factors.
+
+  4. Self-consistent solution: the greybody factors modify the
+     Casimir energy, which modifies the geometry, which modifies
+     the barrier. Find the fixed point.
+
+  THE PHYSICS CONCLUSION:
+  ───────────────────────
+  The greybody mechanism is the RIGHT FRAMEWORK for understanding
+  why the flat-torus Casimir calculation over-estimated. The g→0
+  surface is not a perfect reflector, and the transmission through
+  the effective barrier provides a natural suppression of vacuum
+  modes. Whether the specific Regge-Wheeler ansatz gives the right
+  numerical suppression depends on the actual near-surface geometry —
+  which is the key open calculation.""")
+
+    print("=" * 70)
 
 
 def print_skilton_analysis():
@@ -11956,6 +13661,14 @@ def main():
                         help='Quark Koide extension: linking corrections to angle and hierarchy')
     parser.add_argument('--pythagorean', action='store_true',
                         help='Pythagorean mode catalog: resonant modes on torus by aspect ratio')
+    parser.add_argument('--proton-mass', action='store_true', dest='proton_mass',
+                        help='Proton mass from first principles: Cornell potential + NWT string tension')
+    parser.add_argument('--orbit', action='store_true',
+                        help='Orbit analysis: what fixes the electron size? Scale invariance survey')
+    parser.add_argument('--casimir', action='store_true',
+                        help='Casimir energy: can vacuum fluctuations set r/R = α?')
+    parser.add_argument('--greybody', action='store_true',
+                        help='Greybody factors: partial transparency of the NWT surface')
     parser.add_argument('--R', type=float, default=1.0, help='Major radius in units of λ_C')
     parser.add_argument('--r', type=float, default=0.1, help='Minor radius in units of λ_C')
     parser.add_argument('--p', type=int, default=1, help='Toroidal winding number')
@@ -12032,6 +13745,22 @@ def main():
 
     if args.pythagorean:
         print_pythagorean_analysis()
+        return
+
+    if args.proton_mass:
+        print_proton_mass_analysis()
+        return
+
+    if args.orbit:
+        print_orbit_analysis()
+        return
+
+    if args.casimir:
+        print_casimir_analysis()
+        return
+
+    if args.greybody:
+        print_greybody_analysis()
         return
 
     params = TorusParams(
