@@ -9833,6 +9833,653 @@ def print_settling_spectrum_analysis():
     print("=" * 70)
 
 
+# ────────────────────────────────────────────────────────────────────
+# Thevenin impedance matching: constraining r/R from two descriptions
+# ────────────────────────────────────────────────────────────────────
+
+def compute_thevenin_matching(R, r, p=2, q=1):
+    """
+    Compute matching metrics between the EM circuit model and the
+    Kelvin wave (fluid) model at a given (R, r).
+
+    The torus has two geometric parameters but only one equation
+    (E_total = m). The Thevenin insight: the steady-state (LC circuit)
+    and transient (Kelvin wave) descriptions have different functional
+    dependences on (R, r). Consistency between them pins r/R.
+
+    Returns dict with all quantities from both models plus six
+    matching metrics, each = 1.0 at exact consistency.
+    """
+    # ── EM circuit model ──
+    circ = compute_torus_circuit(R, r, p=p, q=q)
+    omega_LC = circ['omega_0']
+    omega_circ = circ['omega_circ']
+    Z_char = circ['Z_char']
+    Z0 = circ['Z_0']
+    R_rad = circ['R_rad']
+    Q_LC = circ['Q']
+    L = circ['L']
+    C = circ['C']
+
+    # ── Kelvin wave (fluid) model ──
+    settling = compute_settling_modes(R, r, p=p, q=q, N_modes=3)
+    mode1 = settling['modes'][0]  # fundamental (n=1)
+    omega_KW1 = mode1['omega']
+    Q_KW1 = mode1['Q']
+    gamma_KW1 = mode1['gamma']
+    P_KW1 = mode1['P_unit']
+    E_stored_KW1 = mode1['E_stored_unit']
+
+    # ── Circuit current for power comparison ──
+    # I = e × f_circ (one electron charge per circulation period)
+    I_circ = e_charge * omega_circ / (2 * np.pi)
+    P_circuit = I_circ**2 * R_rad  # Ohmic radiation from circuit model
+
+    # ── Circuit damping rate ──
+    gamma_circuit = R_rad / (2 * L) if L > 0 else 0.0
+
+    # ── Six matching metrics (each = 1.0 at consistency) ──
+    freq_ratio = omega_KW1 / omega_circ if omega_circ > 0 else np.inf
+    freq_ratio_LC = omega_KW1 / omega_LC if omega_LC > 0 else np.inf
+    Q_ratio = Q_KW1 / Q_LC if Q_LC > 0 and Q_LC != np.inf else np.inf
+    P_ratio = P_KW1 / P_circuit if P_circuit > 0 else np.inf
+    gamma_ratio = gamma_KW1 / gamma_circuit if gamma_circuit > 0 else np.inf
+    Z_ratio = Z_char / Z0 if Z0 > 0 else np.inf
+
+    return {
+        # Circuit model quantities
+        'omega_LC': omega_LC,
+        'omega_circ': omega_circ,
+        'Z_char': Z_char,
+        'Z_0': Z0,
+        'R_rad': R_rad,
+        'Q_LC': Q_LC,
+        'L': L,
+        'C': C,
+        'I_circ': I_circ,
+        'P_circuit': P_circuit,
+        'gamma_circuit': gamma_circuit,
+        # Kelvin wave quantities
+        'omega_KW1': omega_KW1,
+        'Q_KW1': Q_KW1,
+        'gamma_KW1': gamma_KW1,
+        'P_KW1': P_KW1,
+        'E_stored_KW1': E_stored_KW1,
+        # Matching metrics
+        'freq_ratio': freq_ratio,
+        'freq_ratio_LC': freq_ratio_LC,
+        'Q_ratio': Q_ratio,
+        'P_ratio': P_ratio,
+        'gamma_ratio': gamma_ratio,
+        'Z_ratio': Z_ratio,
+        # Geometry
+        'R': R,
+        'r': r,
+        'r_over_R': r / R if R > 0 else 0,
+        'ln_8Rr': settling['ln_8Rr'],
+    }
+
+
+def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200):
+    """
+    Sweep r/R along the mass shell, computing Thevenin matching metrics.
+
+    At each r/R, finds the self-consistent R (from E_total = mass_MeV),
+    then computes both EM circuit and Kelvin wave models.
+
+    Angular momentum is computed at a coarser grid (~40 points) because
+    it requires expensive N=2000 path integration, then interpolated.
+
+    Returns dict with arrays and crossing r/R values.
+    """
+    r_ratios = np.logspace(np.log10(0.001), np.log10(0.5), N_points)
+
+    # Storage arrays
+    Rs = np.zeros(N_points)
+    freq_ratios = np.zeros(N_points)
+    freq_ratios_LC = np.zeros(N_points)
+    Q_ratios = np.zeros(N_points)
+    P_ratios = np.zeros(N_points)
+    gamma_ratios = np.zeros(N_points)
+    Z_ratios = np.zeros(N_points)
+    omega_circs = np.zeros(N_points)
+    omega_KWs = np.zeros(N_points)
+    omega_LCs = np.zeros(N_points)
+    Q_LCs = np.zeros(N_points)
+    Q_KWs = np.zeros(N_points)
+    valid = np.zeros(N_points, dtype=bool)
+
+    for i, rr in enumerate(r_ratios):
+        sol = find_self_consistent_radius(mass_MeV, p=1, q=1, r_ratio=rr)
+        if sol is None:
+            continue
+        R_sol = sol['R']
+        r_sol = sol['r']
+        try:
+            match = compute_thevenin_matching(R_sol, r_sol, p=p, q=q)
+        except Exception:
+            continue
+        valid[i] = True
+        Rs[i] = R_sol
+        freq_ratios[i] = match['freq_ratio']
+        freq_ratios_LC[i] = match['freq_ratio_LC']
+        Q_ratios[i] = match['Q_ratio']
+        P_ratios[i] = match['P_ratio']
+        gamma_ratios[i] = match['gamma_ratio']
+        Z_ratios[i] = match['Z_ratio']
+        omega_circs[i] = match['omega_circ']
+        omega_KWs[i] = match['omega_KW1']
+        omega_LCs[i] = match['omega_LC']
+        Q_LCs[i] = match['Q_LC']
+        Q_KWs[i] = match['Q_KW1']
+
+    # ── Angular momentum at coarse grid ──
+    N_am = 40
+    am_indices = np.linspace(0, N_points - 1, N_am, dtype=int)
+    Lz_coarse = np.full(N_am, np.nan)
+    for j, idx in enumerate(am_indices):
+        if not valid[idx]:
+            continue
+        rr = r_ratios[idx]
+        R_sol = Rs[idx]
+        r_sol = rr * R_sol
+        params = TorusParams(R=R_sol, r=r_sol, p=1, q=1)
+        try:
+            am = compute_angular_momentum(params, N=2000)
+            Lz_coarse[j] = am['Lz_over_hbar']
+        except Exception:
+            pass
+
+    # Interpolate angular momentum to full grid
+    am_valid = ~np.isnan(Lz_coarse)
+    Lz_full = np.full(N_points, np.nan)
+    if np.sum(am_valid) >= 2:
+        Lz_full = np.interp(
+            np.arange(N_points),
+            am_indices[am_valid],
+            Lz_coarse[am_valid],
+        )
+
+    # ── Find crossings (where metric = 1.0) ──
+    def find_crossing(x_arr, y_arr, target, mask):
+        """Find x where y crosses target, using linear interpolation."""
+        crossings = []
+        xm = x_arr[mask]
+        ym = y_arr[mask]
+        for k in range(len(xm) - 1):
+            if (ym[k] - target) * (ym[k + 1] - target) < 0:
+                # Linear interpolation
+                frac = (target - ym[k]) / (ym[k + 1] - ym[k])
+                x_cross = xm[k] + frac * (xm[k + 1] - xm[k])
+                crossings.append(x_cross)
+        return crossings
+
+    freq_crossings = find_crossing(r_ratios, freq_ratios, 1.0, valid)
+    freq_LC_crossings = find_crossing(r_ratios, freq_ratios_LC, 1.0, valid)
+    Q_crossings = find_crossing(r_ratios, Q_ratios, 1.0, valid)
+    P_crossings = find_crossing(r_ratios, P_ratios, 1.0, valid)
+    gamma_crossings = find_crossing(r_ratios, gamma_ratios, 1.0, valid)
+    Z_crossings = find_crossing(r_ratios, Z_ratios, 1.0, valid)
+    Lz_crossings = find_crossing(r_ratios, Lz_full, 0.5,
+                                 valid & ~np.isnan(Lz_full))
+
+    return {
+        'r_ratios': r_ratios,
+        'valid': valid,
+        'Rs': Rs,
+        'freq_ratios': freq_ratios,
+        'freq_ratios_LC': freq_ratios_LC,
+        'Q_ratios': Q_ratios,
+        'P_ratios': P_ratios,
+        'gamma_ratios': gamma_ratios,
+        'Z_ratios': Z_ratios,
+        'omega_circs': omega_circs,
+        'omega_KWs': omega_KWs,
+        'omega_LCs': omega_LCs,
+        'Q_LCs': Q_LCs,
+        'Q_KWs': Q_KWs,
+        'Lz_full': Lz_full,
+        # Crossings
+        'freq_crossings': freq_crossings,
+        'freq_LC_crossings': freq_LC_crossings,
+        'Q_crossings': Q_crossings,
+        'P_crossings': P_crossings,
+        'gamma_crossings': gamma_crossings,
+        'Z_crossings': Z_crossings,
+        'Lz_crossings': Lz_crossings,
+        # Parameters
+        'mass_MeV': mass_MeV,
+        'p': p,
+        'q': q,
+    }
+
+
+def print_thevenin_analysis():
+    """
+    Thevenin impedance matching: constraining r/R from consistency
+    between the EM circuit (steady-state) and Kelvin wave (transient)
+    descriptions of the torus.
+
+    The electron torus has two geometric parameters (R, r) but only one
+    equation: E_total(R, r) = m_e, which pins R given r/R. The minor
+    radius r (or equivalently r/R) is unconstrained.
+
+    Circuit theory insight: the Thevenin equivalent is fully determined
+    by both the steady-state AND impulse response together. We have both:
+      - Steady-state: EM circuit model (L, C, Z_char, omega_LC, Q_LC)
+      - Transient: Kelvin wave settling (omega_KW, Q_KW, gamma_KW)
+
+    These have genuinely different functional dependences on (R, r).
+    The geometry where both descriptions are consistent is the physical
+    solution.
+    """
+    m_e_MeV = 0.51099895
+    m_pion_MeV = 139.57039
+    m_proton_MeV = 938.27208
+
+    print("=" * 70)
+    print("THEVENIN IMPEDANCE MATCHING: CONSTRAINING r/R")
+    print("  Two descriptions × two unknowns → determined geometry")
+    print("=" * 70)
+
+    # ────────────────────────────────────────────────────────────────
+    # 1. THE THEVENIN ARGUMENT
+    # ────────────────────────────────────────────────────────────────
+    print()
+    print("─" * 70)
+    print("  1. THE THEVENIN ARGUMENT")
+    print("─" * 70)
+    print()
+    print("  The electron torus has two geometric parameters (R, r) and")
+    print("  one equation: E_total(R, r) = m_e. This pins R as a function")
+    print("  of r/R but leaves r/R undetermined.")
+    print()
+    print("  In circuit theory, a Thevenin equivalent is fully determined")
+    print("  by both the steady-state AND impulse response together:")
+    print()
+    print("    Steady-state (EM circuit):  L, C, Z_char, omega_LC, Q_LC")
+    print("    Transient (Kelvin waves):   omega_KW, Q_KW, gamma_KW")
+    print()
+    print("  These are computed from the SAME torus geometry (R, r) but")
+    print("  via different physics (Maxwell vs Euler/Helmholtz). They")
+    print("  have genuinely different functional dependences on r/R.")
+    print()
+    print("  Demanding consistency (same frequencies, same Q-factors,")
+    print("  same radiation rates) over-constrains the system and")
+    print("  determines the remaining free parameter r/R.")
+
+    # ────────────────────────────────────────────────────────────────
+    # 2. FUNCTIONAL DEPENDENCES
+    # ────────────────────────────────────────────────────────────────
+    print()
+    print("─" * 70)
+    print("  2. FUNCTIONAL DEPENDENCES")
+    print("─" * 70)
+    print()
+    print("  Both models depend on geometry, but differently:")
+    print()
+    print(f"    {'Quantity':>18s}  {'EM circuit':>30s}  {'Kelvin wave':>25s}")
+    print(f"    {'─' * 18}  {'─' * 30}  {'─' * 25}")
+    print(f"    {'Frequency':>18s}  {'1/sqrt(LC) ~ 1/(R sqrt(lnR/r))':>30s}"
+          f"  {'n^2 r ln(8R/r) / R^2':>25s}")
+    print(f"    {'Q-factor':>18s}  {'sqrt(L/C) / R_rad':>30s}"
+          f"  {'omega / (2 gamma_rad)':>25s}")
+    print(f"    {'Impedance':>18s}  {'sqrt(L/C) ~ sqrt(mu0 R ln)':>30s}"
+          f"  {'(via radiation rate)':>25s}")
+    print(f"    {'Damping':>18s}  {'R_rad / (2L)':>30s}"
+          f"  {'P_rad / E_stored':>25s}")
+    print()
+    print("  Key difference: omega_circ ~ c/R (weakly depends on r/R)")
+    print("  while omega_KW ~ (r/R^2) ln(8R/r) (strongly depends on r/R).")
+    print("  These curves MUST cross — and the crossing is where r/R is")
+    print("  determined.")
+
+    # ────────────────────────────────────────────────────────────────
+    # 3. LANDSCAPE SWEEP
+    # ────────────────────────────────────────────────────────────────
+    print()
+    print("─" * 70)
+    print("  3. LANDSCAPE SWEEP (electron, on mass shell)")
+    print("─" * 70)
+    print()
+    print("  Sweeping r/R from 0.001 to 0.5, finding self-consistent R")
+    print("  at each point (E_total = m_e), then computing both models.")
+    print()
+
+    landscape = sweep_thevenin_landscape(m_e_MeV, p=2, q=1, N_points=200)
+    rr = landscape['r_ratios']
+    v = landscape['valid']
+
+    # Select ~20 representative points for table
+    indices = np.linspace(0, len(rr) - 1, 20, dtype=int)
+    indices = [i for i in indices if v[i]]
+
+    print(f"    {'r/R':>8s}  {'R (fm)':>9s}  {'freq':>7s}  {'freqLC':>7s}"
+          f"  {'Q_rat':>7s}  {'gam_rat':>8s}  {'Z_rat':>7s}  {'Lz/h':>7s}")
+    print(f"    {'─' * 8}  {'─' * 9}  {'─' * 7}  {'─' * 7}"
+          f"  {'─' * 7}  {'─' * 8}  {'─' * 7}  {'─' * 7}")
+
+    for i in indices:
+        R_fm = landscape['Rs'][i] * 1e15
+        Lz_val = landscape['Lz_full'][i]
+        Lz_str = f"{Lz_val:7.3f}" if not np.isnan(Lz_val) else "    ---"
+        print(f"    {rr[i]:8.4f}  {R_fm:9.3f}  {landscape['freq_ratios'][i]:7.3f}"
+              f"  {landscape['freq_ratios_LC'][i]:7.3f}"
+              f"  {landscape['Q_ratios'][i]:7.2e}"
+              f"  {landscape['gamma_ratios'][i]:8.2e}"
+              f"  {landscape['Z_ratios'][i]:7.3f}"
+              f"  {Lz_str}")
+
+    # ────────────────────────────────────────────────────────────────
+    # 4. FREQUENCY MATCHING
+    # ────────────────────────────────────────────────────────────────
+    print()
+    print("─" * 70)
+    print("  4. FREQUENCY MATCHING: omega_KW1 = omega_circ")
+    print("─" * 70)
+    print()
+    print("  The Kelvin wave frequency (n=1) is:")
+    print("    omega_KW1 = Gamma / (4 pi R^2) × ln(8R/r)")
+    print("             = (2 pi r c) / (4 pi R^2) × ln(8R/r)")
+    print("             = (r c / 2 R^2) × ln(8R/r)")
+    print()
+    print("  The circulation frequency for winding p=2 is:")
+    print("    omega_circ = 2 pi c / L_path")
+    print("    L_path ≈ 2p pi R = 4 pi R  (for small r/R, p=2)")
+    print("    so omega_circ ≈ c / (2R)")
+    print()
+    print("  Setting omega_KW1 = omega_circ:")
+    print("    (r c / 2R^2) × ln(8R/r) = c / (2R)")
+    print("    (r/R) × ln(8R/r) = 1")
+    print("    x × ln(8/x) = 1     where x = r/R")
+    print()
+
+    # Solve x * ln(8/x) = 1 numerically (bisection, no scipy needed)
+    def freq_condition(x):
+        return x * np.log(8.0 / x) - 1.0
+
+    # Bisection on [0.01, 0.9]
+    a, b = 0.01, 0.9
+    for _ in range(60):
+        mid = (a + b) / 2.0
+        if freq_condition(mid) < 0:
+            a = mid
+        else:
+            b = mid
+    x_freq = (a + b) / 2.0
+
+    print(f"  Analytical condition: x × ln(8/x) = 1")
+    print(f"  Numerical solution:   x = r/R = {x_freq:.6f}")
+    print(f"  Compare:              alpha = {alpha:.6f}")
+    print(f"  Ratio x/alpha:        {x_freq / alpha:.3f}")
+    print()
+
+    freq_cross = landscape['freq_crossings']
+    if freq_cross:
+        print(f"  From landscape sweep (numerical crossing):")
+        for fc in freq_cross:
+            print(f"    r/R = {fc:.6f}")
+    else:
+        print("  No frequency crossing found in sweep range.")
+    print()
+    print("  This condition depends ONLY on r/R, not on R itself —")
+    print("  so it is universal across all particle masses.")
+
+    # ────────────────────────────────────────────────────────────────
+    # 5. Q-FACTOR MATCHING
+    # ────────────────────────────────────────────────────────────────
+    print()
+    print("─" * 70)
+    print("  5. Q-FACTOR MATCHING: Q_KW = Q_LC")
+    print("─" * 70)
+    print()
+    print("  Q_LC  = Z_char / R_rad ~ sqrt(L/C) / R_rad")
+    print("  Q_KW1 = omega_KW1 / (2 gamma_KW1)")
+    print()
+    print("  These have different r-dependences:")
+    print("    R_rad ~ (omega r^2)^2 ~ r^4  →  Q_LC ~ 1/r^4")
+    print("    gamma_KW1 ~ P_dipole/E_stored  →  Q_KW ~ different power")
+    print("  The different power laws guarantee a crossing.")
+    print()
+
+    Q_cross = landscape['Q_crossings']
+    if Q_cross:
+        print(f"  Q-factor crossings (Q_KW1 / Q_LC = 1):")
+        for qc in Q_cross:
+            print(f"    r/R = {qc:.6f}")
+    else:
+        print("  No Q-factor crossing found in sweep range.")
+        # Report closest approach
+        v_mask = landscape['valid']
+        if np.any(v_mask):
+            q_arr = landscape['Q_ratios'][v_mask]
+            q_finite = np.isfinite(q_arr)
+            if np.any(q_finite):
+                closest_idx = np.argmin(np.abs(np.log10(q_arr[q_finite])))
+                rr_v = rr[v_mask][q_finite]
+                print(f"  Closest approach: Q_ratio = {q_arr[q_finite][closest_idx]:.3e}"
+                      f" at r/R = {rr_v[closest_idx]:.4f}")
+
+    # ────────────────────────────────────────────────────────────────
+    # 6. IMPEDANCE MATCHING
+    # ────────────────────────────────────────────────────────────────
+    print()
+    print("─" * 70)
+    print("  6. IMPEDANCE MATCHING: Z_char = Z_0")
+    print("─" * 70)
+    print()
+    print("  Characteristic impedance: Z_char = sqrt(L/C)")
+    print("  Free-space impedance:     Z_0 = mu_0 × c ≈ 376.7 Ω")
+    print()
+    print("  Z_char / Z_0 = 1 is the Thevenin impedance match condition:")
+    print("  the torus is impedance-matched to the vacuum, meaning it")
+    print("  radiates maximally efficiently — no impedance mismatch.")
+    print()
+
+    Z_cross = landscape['Z_crossings']
+    if Z_cross:
+        print(f"  Impedance match crossings (Z_char / Z_0 = 1):")
+        for zc in Z_cross:
+            print(f"    r/R = {zc:.6f}")
+    else:
+        # Check if Z_ratio is always > 1 or < 1
+        v_mask = landscape['valid']
+        if np.any(v_mask):
+            Z_arr = landscape['Z_ratios'][v_mask]
+            Z_finite = np.isfinite(Z_arr) & (Z_arr > 0)
+            if np.any(Z_finite):
+                Z_min = Z_arr[Z_finite].min()
+                Z_max = Z_arr[Z_finite].max()
+                print(f"  No crossing in sweep range.")
+                print(f"  Z_char/Z_0 range: [{Z_min:.3f}, {Z_max:.3f}]")
+                if Z_min > 1:
+                    print(f"  Always > 1 (torus impedance exceeds vacuum)")
+                elif Z_max < 1:
+                    print(f"  Always < 1 (torus impedance below vacuum)")
+
+    # ────────────────────────────────────────────────────────────────
+    # 7. ANGULAR MOMENTUM CROSS-CHECK
+    # ────────────────────────────────────────────────────────────────
+    print()
+    print("─" * 70)
+    print("  7. ANGULAR MOMENTUM CROSS-CHECK: L_z = hbar/2")
+    print("─" * 70)
+    print()
+    print("  Independent constraint: fermion spin requires L_z = hbar/2.")
+    print("  This is a mechanical property of the circulating photon,")
+    print("  computed by path integration over the torus knot curve.")
+    print()
+
+    Lz_cross = landscape['Lz_crossings']
+    if Lz_cross:
+        print(f"  L_z/hbar = 0.5 crossings:")
+        for lc in Lz_cross:
+            print(f"    r/R = {lc:.6f}")
+        print()
+        # Check if it coincides with any Thevenin condition
+        all_crossings = {
+            'freq': freq_cross,
+            'Q': Q_cross,
+            'Z': Z_cross,
+        }
+        for name, crosses in all_crossings.items():
+            if crosses and Lz_cross:
+                for lc in Lz_cross:
+                    for tc in crosses:
+                        if abs(lc - tc) / max(lc, tc) < 0.1:
+                            print(f"  ** L_z and {name} crossings within 10%:"
+                                  f" {lc:.4f} vs {tc:.4f} **")
+    else:
+        # Report Lz range
+        Lz_arr = landscape['Lz_full']
+        Lz_valid = Lz_arr[~np.isnan(Lz_arr) & v]
+        if len(Lz_valid) > 0:
+            print(f"  No L_z = 0.5 crossing found in sweep range.")
+            print(f"  L_z/hbar range: [{Lz_valid.min():.4f}, {Lz_valid.max():.4f}]")
+        else:
+            print("  Angular momentum data not available.")
+
+    # ────────────────────────────────────────────────────────────────
+    # 8. CONVERGENCE AND UNIVERSALITY
+    # ────────────────────────────────────────────────────────────────
+    print()
+    print("─" * 70)
+    print("  8. CONVERGENCE AND UNIVERSALITY")
+    print("─" * 70)
+    print()
+
+    # Collect all crossing values
+    all_named_crossings = [
+        ('omega_KW = omega_circ', freq_cross),
+        ('omega_KW = omega_LC', landscape['freq_LC_crossings']),
+        ('Q_KW = Q_LC', Q_cross),
+        ('gamma_KW = gamma_circ', landscape['gamma_crossings']),
+        ('Z_char = Z_0', Z_cross),
+        ('L_z = hbar/2', Lz_cross),
+    ]
+
+    print("  Summary of all crossing r/R values:")
+    print()
+    print(f"    {'Condition':>22s}  {'r/R crossings':>30s}")
+    print(f"    {'─' * 22}  {'─' * 30}")
+
+    all_crossing_values = []
+    for name, crosses in all_named_crossings:
+        if crosses:
+            cross_str = ', '.join(f"{c:.5f}" for c in crosses)
+            all_crossing_values.extend(crosses)
+        else:
+            cross_str = "none in [0.001, 0.5]"
+        print(f"    {name:>22s}  {cross_str:>30s}")
+
+    if len(all_crossing_values) >= 2:
+        arr = np.array(all_crossing_values)
+        mean_x = np.mean(arr)
+        std_x = np.std(arr)
+        spread = std_x / mean_x if mean_x > 0 else np.inf
+        print()
+        print(f"  Mean crossing r/R:  {mean_x:.5f}")
+        print(f"  Std deviation:      {std_x:.5f}")
+        print(f"  Relative spread:    {spread:.1%}")
+        if spread < 0.1:
+            print("  → Crossings CLUSTER tightly (< 10% spread)")
+        elif spread < 0.3:
+            print("  → Crossings show moderate clustering (10-30% spread)")
+        else:
+            print("  → Crossings are dispersed (> 30% spread)")
+
+    # ── Universality check: same frequency condition for pion, proton ──
+    print()
+    print("  Universality check: frequency matching for different particles")
+    print("  (The condition x × ln(8/x) = 1 should give the same x for all,")
+    print("  since it depends only on r/R, not on R or mass.)")
+    print()
+
+    # The analytical condition is mass-independent, so the numerical
+    # crossing should be the same. Verify by sweeping pion and proton
+    # with fewer points.
+    for name, mass in [('pion', m_pion_MeV), ('proton', m_proton_MeV)]:
+        land = sweep_thevenin_landscape(mass, p=2, q=1, N_points=80)
+        fc = land['freq_crossings']
+        if fc:
+            print(f"    {name:>8s} (m = {mass:9.3f} MeV):  r/R = "
+                  + ', '.join(f"{c:.5f}" for c in fc))
+        else:
+            print(f"    {name:>8s} (m = {mass:9.3f} MeV):  no crossing")
+
+    print(f"    {'electron':>8s} (m = {m_e_MeV:9.5f} MeV):  r/R = "
+          + ', '.join(f"{c:.5f}" for c in freq_cross) if freq_cross
+          else f"    {'electron':>8s}: no crossing")
+
+    # ────────────────────────────────────────────────────────────────
+    # 9. ASSESSMENT
+    # ────────────────────────────────────────────────────────────────
+    print()
+    print("─" * 70)
+    print("  9. ASSESSMENT")
+    print("─" * 70)
+    print()
+
+    # Prepare summary values
+    freq_val = freq_cross[0] if freq_cross else None
+    Q_val = Q_cross[0] if Q_cross else None
+    Z_val = Z_cross[0] if Z_cross else None
+    Lz_val = Lz_cross[0] if Lz_cross else None
+
+    # Determine outcome
+    determined_vals = [v for v in [freq_val, Q_val, Z_val, Lz_val]
+                       if v is not None]
+
+    print(f"  ┌──────────────────────────────────────────────────────────────┐")
+    print(f"  │  THEVENIN IMPEDANCE MATCHING — RESULTS                      │")
+    print(f"  │                                                              │")
+    if freq_val is not None:
+        print(f"  │  Frequency match (omega_KW = omega_circ):                   │")
+        print(f"  │    r/R = {freq_val:.6f}"
+              f"  (analytic: x ln(8/x) = 1)"
+              f"{'':>12s}│")
+    if Q_val is not None:
+        print(f"  │  Q-factor match (Q_KW = Q_LC):                              │")
+        print(f"  │    r/R = {Q_val:.6f}"
+              f"{'':>38s}│")
+    if Z_val is not None:
+        print(f"  │  Impedance match (Z_char = Z_0):                            │")
+        print(f"  │    r/R = {Z_val:.6f}"
+              f"{'':>38s}│")
+    if Lz_val is not None:
+        print(f"  │  Angular momentum (L_z = hbar/2):                           │")
+        print(f"  │    r/R = {Lz_val:.6f}"
+              f"{'':>38s}│")
+    if not determined_vals:
+        print(f"  │  No crossings found in [0.001, 0.5] — widen search range.  │")
+    print(f"  │                                                              │")
+    if len(determined_vals) >= 2:
+        arr = np.array(determined_vals)
+        mean_v = np.mean(arr)
+        spread_v = np.std(arr) / mean_v if mean_v > 0 else np.inf
+        print(f"  │  Mean r/R = {mean_v:.5f}, "
+              f"spread = {spread_v:.1%}"
+              f"{'':>23s}│")
+        if spread_v < 0.1:
+            print(f"  │  → Conditions CONVERGE: "
+                  f"r/R ≈ {mean_v:.4f} is determined"
+                  f"{'':>10s}│")
+        else:
+            print(f"  │  → Conditions do NOT converge: "
+                  f"spread {spread_v:.0%}"
+                  f"{'':>18s}│")
+    print(f"  │                                                              │")
+    print(f"  │  Analytic:  x × ln(8/x) = 1  →  "
+          f"r/R = {x_freq:.5f} (universal)"
+          f"{'':>4s}│")
+    print(f"  │  Compare:   alpha          =  "
+          f"r/R = {alpha:.5f}"
+          f"{'':>14s}│")
+    print(f"  └──────────────────────────────────────────────────────────────┘")
+    print()
+    print("=" * 70)
+
+
 def print_skilton_analysis():
     """
     Skilton's integer-based cosmological model (1986-1988): α⁻¹ = √(137² + π²)
@@ -17410,6 +18057,8 @@ def main():
                         help='Field gradients, LCFA validity, violence parameter')
     parser.add_argument('--settling-spectrum', action='store_true', dest='settling_spectrum',
                         help='Settling radiation: Kelvin wave spectrum from vortex relaxation')
+    parser.add_argument('--thevenin', action='store_true',
+                        help='Thevenin impedance matching: constrain r/R from circuit + Kelvin wave consistency')
     parser.add_argument('--R', type=float, default=1.0, help='Major radius in units of λ_C')
     parser.add_argument('--r', type=float, default=0.1, help='Minor radius in units of λ_C')
     parser.add_argument('--p', type=int, default=1, help='Toroidal winding number')
@@ -17526,6 +18175,10 @@ def main():
 
     if args.settling_spectrum:
         print_settling_spectrum_analysis()
+        return
+
+    if args.thevenin:
+        print_thevenin_analysis()
         return
 
     params = TorusParams(
