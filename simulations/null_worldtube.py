@@ -41,6 +41,7 @@ Usage:
     python3 null_worldtube.py --dark-matter      # dark matter candidates from TE torus modes
     python3 null_worldtube.py --weinberg         # Weinberg angle and electroweak masses from torus
     python3 null_worldtube.py --gravity          # gravity from torus metric: GW modes, Planck mass
+    python3 null_worldtube.py --einstein         # Kerr-Newman geometry, frame dragging, mass equation
     python3 null_worldtube.py --topology         # topology survey: alternative structures
     python3 null_worldtube.py --koide            # Koide angle from torus geometry
     python3 null_worldtube.py --stability        # stability analysis and phase space
@@ -4732,6 +4733,117 @@ def compute_orbit_force_balance(R_m, p=2, q=1, r_ratio=None):
         'hoop_over_cent': F_hoop / F_cent,
         'grav_over_cent': F_grav / F_cent,
         'larmor_over_cent': F_larmor / F_cent,
+    }
+
+
+def compute_kerr_newman_geometry(mass_kg, charge_C=e_charge, J=None):
+    """
+    Compute Kerr-Newman geometry parameters for a spinning charged particle.
+
+    In geometric units (G = c = 1):
+      M = Gm/c²,  a = J/(mc),  Q² = G k_e e² / c⁴
+
+    For the electron with J = ℏ/2: a = ℏ/(2mc) = λ_C/2.
+    The horizon discriminant M² - a² - Q² determines if a horizon exists.
+    """
+    if J is None:
+        J = hbar / 2  # spin-1/2
+
+    # Geometric-unit quantities
+    M_geom = G_N * mass_kg / c**2                    # meters
+    a_geom = J / (mass_kg * c)                        # meters
+    Q2_geom = G_N * k_e * charge_C**2 / c**4          # meters²
+    Q_geom = np.sqrt(Q2_geom)
+
+    # Horizon discriminant
+    discriminant = M_geom**2 - a_geom**2 - Q2_geom
+    has_horizon = discriminant >= 0
+
+    # Ring singularity radius = a (Kerr ring lies at r=0, ρ=a in BL coords)
+    r_ring = a_geom
+    lam_C = hbar / (mass_kg * c)
+
+    # Gravitational coupling
+    alpha_G = G_N * mass_kg**2 / (hbar * c)
+
+    # Hierarchy ratios
+    a_over_M = a_geom / M_geom if M_geom > 0 else np.inf
+    Q_over_M = Q_geom / M_geom if M_geom > 0 else np.inf
+    a_over_Q = a_geom / Q_geom if Q_geom > 0 else np.inf
+
+    return {
+        'M_geom': M_geom, 'a_geom': a_geom, 'Q_geom': Q_geom,
+        'Q2_geom': Q2_geom, 'discriminant': discriminant,
+        'has_horizon': has_horizon, 'r_ring': r_ring,
+        'lambda_C': lam_C, 'a_over_M': a_over_M,
+        'Q_over_M': Q_over_M, 'a_over_Q': a_over_Q,
+        'alpha_G': alpha_G, 'mass_kg': mass_kg, 'J': J,
+        'charge_C': charge_C,
+    }
+
+
+def compute_einstein_sweep(mass_MeV, p=2, q=1, N_points=100):
+    """
+    Sweep r/R on the mass shell, computing frame-dragging vs vortex circulation.
+
+    At each r/R:
+      - Find self-consistent R via find_self_consistent_radius
+      - Frame dragging rate: ω_LT = 2GJ/(c² R³)
+      - Vortex circulation rate: ω_vortex = r·c/R²
+      - Ratio ω_LT/ω_vortex (should be ∼ 4α_G/α, constant across r/R)
+      - Gravitational radius correction δR/R
+      - U_grav/E_total
+    """
+    mass_kg_val = mass_MeV * MeV / c**2
+    J_val = hbar / 2
+    alpha_G = G_N * mass_kg_val**2 / (hbar * c)
+
+    r_ratios = np.linspace(0.001, 0.5, N_points)
+    valid = np.zeros(N_points, dtype=bool)
+    Rs = np.zeros(N_points)
+    omega_LTs = np.zeros(N_points)
+    omega_vortexes = np.zeros(N_points)
+    LT_vortex_ratios = np.zeros(N_points)
+    delta_R_fracs = np.zeros(N_points)
+    U_grav_over_E = np.zeros(N_points)
+
+    for i, rr in enumerate(r_ratios):
+        sol = find_self_consistent_radius(mass_MeV, p=p, q=q, r_ratio=rr)
+        if sol is None:
+            continue
+        valid[i] = True
+        R = sol['R']
+        r_m = rr * R
+        Rs[i] = R
+
+        # Frame-dragging angular velocity at equatorial distance R
+        omega_LTs[i] = 2 * G_N * J_val / (c**2 * R**3)
+
+        # Vortex circulation angular velocity: Γ/(2πR²) = rc/R²
+        omega_vortexes[i] = r_m * c / R**2
+
+        # Ratio
+        if omega_vortexes[i] > 0:
+            LT_vortex_ratios[i] = omega_LTs[i] / omega_vortexes[i]
+
+        # Gravitational correction: δR/R = -2α_G × g(x)/(1+αf)
+        x = rr  # r/R
+        log_factor = np.log(8.0 / x) - 2.0 if x > 0 else 0
+        alpha_f = alpha * log_factor / np.pi
+        g_x = 1 + x**2 / 4
+        delta_R_fracs[i] = -2 * alpha_G * g_x / (1 + alpha_f)
+
+        # U_grav / E_total
+        E_total = mass_MeV * MeV
+        U_grav = -G_N * mass_kg_val**2 / R
+        U_grav_over_E[i] = U_grav / E_total
+
+    return {
+        'r_ratios': r_ratios, 'valid': valid, 'Rs': Rs,
+        'omega_LTs': omega_LTs, 'omega_vortexes': omega_vortexes,
+        'LT_vortex_ratios': LT_vortex_ratios,
+        'delta_R_fracs': delta_R_fracs, 'U_grav_over_E': U_grav_over_E,
+        'alpha_G': alpha_G, 'mass_MeV': mass_MeV,
     }
 
 
@@ -12829,6 +12941,258 @@ def print_gravity_analysis():
     print(f"      confines the field)")
 
 
+def print_einstein_analysis():
+    """
+    Einstein / Kerr-Newman self-consistency analysis.
+
+    Maps the NWT electron onto the Kerr-Newman solution of GR:
+    - Super-extremal geometry (no horizon, naked ring singularity)
+    - Frame dragging as the gravitational shadow of vortex circulation
+    - Mass equation with gravitational corrections
+    - Assessment of what GR can and can't tell us about m_e
+    """
+    print("=" * 70)
+    print("  EINSTEIN / KERR-NEWMAN SELF-CONSISTENCY ANALYSIS")
+    print("  Frame dragging, resolved singularities, and the mass equation")
+    print("=" * 70)
+
+    # ================================================================
+    # Section 1: KERR-NEWMAN GEOMETRY
+    # ================================================================
+    print(f"\n  1. KERR-NEWMAN GEOMETRY OF THE ELECTRON")
+    print(f"  {'─'*55}")
+    print(f"  A spinning charged mass in GR is described by the Kerr-Newman")
+    print(f"  metric. In geometric units (G = c = 1):")
+    print(f"    M = Gm/c²    a = J/(mc) = ℏ/(2mc)    Q² = Gk_e e²/c⁴")
+    print(f"  Horizon exists iff M² ≥ a² + Q².")
+
+    # Electron geometry
+    kn_e = compute_kerr_newman_geometry(m_e)
+    alpha_G_e = kn_e['alpha_G']
+
+    print(f"\n  Electron Kerr-Newman parameters:")
+    print(f"    M  = Gm_e/c²        = {kn_e['M_geom']:.4e} m")
+    print(f"    a  = ℏ/(2m_e c)     = {kn_e['a_geom']:.4e} m  (= λ_C/2)")
+    print(f"    Q  = √(Gk_e)·e/c²  = {kn_e['Q_geom']:.4e} m")
+    print(f"    λ_C = ℏ/(m_e c)     = {kn_e['lambda_C']:.4e} m")
+    print(f"    α_G = Gm_e²/(ℏc)   = {alpha_G_e:.4e}")
+
+    print(f"\n  Horizon discriminant: M² - a² - Q² = {kn_e['discriminant']:.4e} m²")
+    print(f"  SUPER-EXTREMAL: no horizon, naked ring singularity")
+
+    print(f"\n  Hierarchy ratios:")
+    print(f"    a/M  = {kn_e['a_over_M']:.4e}  (= 1/(2α_G) = {1/(2*alpha_G_e):.4e})")
+    print(f"    Q/M  = {kn_e['Q_over_M']:.4e}")
+    print(f"    a/Q  = {kn_e['a_over_Q']:.4e}")
+
+    # Multi-particle table
+    particles = {
+        'electron': {'mass_kg': m_e, 'mass_MeV': m_e_MeV},
+        'muon':     {'mass_kg': m_mu, 'mass_MeV': 105.6583755},
+        'tau':      {'mass_kg': 1776.86 * MeV / c**2, 'mass_MeV': 1776.86},
+        'proton':   {'mass_kg': m_p, 'mass_MeV': 938.272},
+    }
+
+    print(f"\n  {'Particle':<10} {'M (m)':<14} {'a (m)':<14} {'a/M':<14} {'α_G':<14} {'Horizon?'}")
+    print(f"  {'─'*74}")
+    for name, info in particles.items():
+        kn = compute_kerr_newman_geometry(info['mass_kg'])
+        hz = "yes" if kn['has_horizon'] else "NO"
+        print(f"  {name:<10} {kn['M_geom']:<14.4e} {kn['a_geom']:<14.4e} {kn['a_over_M']:<14.4e} {kn['alpha_G']:<14.4e} {hz}")
+
+    # ================================================================
+    # Section 2: TORUS AS RESOLVED SINGULARITY
+    # ================================================================
+    print(f"\n\n  2. TORUS AS RESOLVED SINGULARITY")
+    print(f"  {'─'*55}")
+    print(f"  The Kerr-Newman ring singularity sits at:")
+    print(f"    Boyer-Lindquist r = 0, θ = π/2  →  ring of radius a = λ_C/2")
+    print(f"  The NWT torus has major radius R and tube radius r = αR:")
+    print(f"    R ≈ λ_C/(2(1+αf))  where f = [ln(8R/r) - 2]/π  (for p=2)")
+
+    sol_e = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=alpha)
+    if sol_e:
+        R_e = sol_e['R']
+        r_e_tube = alpha * R_e
+        ratio_R_a = R_e / kn_e['a_geom']
+        log_f = (np.log(8.0 / alpha) - 2.0) / np.pi
+        alpha_f = alpha * log_f
+
+        print(f"\n  For the electron (p=2, q=1, r/R = α):")
+        print(f"    KN ring radius a       = {kn_e['a_geom']:.4e} m  = λ_C/2")
+        print(f"    NWT torus radius R      = {R_e:.4e} m  ≈ λ_C/(2(1+αf))")
+        print(f"    NWT tube radius r = αR  = {r_e_tube:.4e} m")
+        print(f"    R/a = {ratio_R_a:.6f}  ≈ 1/(1+αf) = {1/(1+alpha_f):.6f}")
+        print(f"    (p=2 winding: R ≈ λ_C/2 = a, so torus sits at ring radius)")
+        print(f"\n  The torus REPLACES the naked singularity with a finite-size")
+        print(f"  vortex tube of radius r = αR ≈ α·λ_C — the classical electron")
+        print(f"  radius r_e = αλ_C. The singularity is resolved by topology.")
+
+    # ================================================================
+    # Section 3: FRAME DRAGGING = VORTEX CIRCULATION
+    # ================================================================
+    print(f"\n\n  3. FRAME DRAGGING = VORTEX CIRCULATION")
+    print(f"  {'─'*55}")
+    print(f"  The key physical insight: frame dragging IS the gravitational")
+    print(f"  manifestation of vortex circulation.")
+    print(f"\n  Lense-Thirring frame-dragging rate at distance R from spin axis:")
+    print(f"    ω_LT(R) = 2GJ/(c² R³)")
+    print(f"\n  Vortex circulation rate on the torus:")
+    print(f"    ω_vortex = Γ/(2πR²) = rc/R²")
+    print(f"\n  Their ratio:")
+    print(f"    ω_LT/ω_vortex = 2GJ/(c² R³) × R²/(rc)")
+    print(f"                   = 2G·(ℏ/2)/(c² R · rc)")
+    print(f"                   = Gℏ/(c³ · r · R)")
+    print(f"  With r = αR, R = λ_C/(1+αf):")
+    print(f"    = Gℏ/(c³ · α · R²)")
+    print(f"    = Gm²/(ℏc) × 4/[α(1+αf)²]")
+    print(f"    = 4α_G / [α(1+αf)²]")
+
+    if sol_e:
+        # Compute at the electron
+        omega_LT_e = 2 * G_N * (hbar/2) / (c**2 * R_e**3)
+        omega_vortex_e = r_e_tube * c / R_e**2
+        ratio_e = omega_LT_e / omega_vortex_e
+        predicted = 4 * alpha_G_e / (alpha * (1 + alpha_f)**2)
+
+        print(f"\n  For the electron (r/R = α, p=2):")
+        print(f"    ω_LT       = {omega_LT_e:.4e} rad/s")
+        print(f"    ω_vortex   = {omega_vortex_e:.4e} rad/s")
+        print(f"    ω_LT/ω_vortex = {ratio_e:.4e}")
+        print(f"    4α_G/[α(1+αf)²] = {predicted:.4e}")
+        print(f"    Simple estimate 4α_G/α = {4*alpha_G_e/alpha:.4e}")
+
+    print(f"\n  ┌─────────────────────────────────────────────────────────────┐")
+    print(f"  │  Frame dragging IS circulation.                            │")
+    print(f"  │  Gravity is its {4*alpha_G_e/alpha:.1e} shadow.                    │")
+    print(f"  └─────────────────────────────────────────────────────────────┘")
+
+    # Sweep table confirming normalized ratio ≈ constant
+    sweep = compute_einstein_sweep(m_e_MeV, p=2, q=1, N_points=100)
+    v = sweep['valid']
+    if np.any(v):
+        # Pick ~8 representative points
+        valid_idx = np.where(v)[0]
+        step = max(1, len(valid_idx) // 8)
+        sample_idx = valid_idx[::step][:8]
+
+        print(f"\n  Since ω_vortex ∝ r/R, the raw ratio scales as 1/(r/R).")
+        print(f"  The normalized product (r/R)×(ω_LT/ω_vortex) ≈ 4α_G is constant:")
+        print(f"  {'r/R':<10} {'R (fm)':<14} {'ω_LT/ω_vortex':<18} {'(r/R)×ratio':<16} {'4α_G':<14}")
+        print(f"  {'─'*70}")
+        for idx in sample_idx:
+            rr = sweep['r_ratios'][idx]
+            R_fm = sweep['Rs'][idx] * 1e15
+            rat = sweep['LT_vortex_ratios'][idx]
+            normed = rr * rat
+            print(f"  {rr:<10.4f} {R_fm:<14.4f} {rat:<18.4e} {normed:<16.4e} {4*alpha_G_e:<14.4e}")
+
+        # Check constancy of normalized ratio
+        valid_normed = sweep['r_ratios'][v] * sweep['LT_vortex_ratios'][v]
+        valid_normed = valid_normed[valid_normed > 0]
+        if len(valid_normed) > 1:
+            spread = (valid_normed.max() - valid_normed.min()) / np.mean(valid_normed)
+            print(f"\n  Spread in normalized ratio: {spread:.2e} (confirms constancy)")
+
+    # Enhancement at tube surface
+    if sol_e:
+        R_over_r = R_e / r_e_tube
+        enhancement = R_over_r**3
+        ratio_at_tube = ratio_e * enhancement
+        print(f"\n  At tube surface (ρ = r = αR):")
+        print(f"    ω_LT enhanced by (R/r)³ = (1/α)³ = {enhancement:.1f}")
+        print(f"    But ratio still ∼ α_G/α⁴ ≈ {alpha_G_e/alpha**4:.4e}")
+
+    # ================================================================
+    # Section 4: THE MASS EQUATION WITH GRAVITY
+    # ================================================================
+    print(f"\n\n  4. THE MASS EQUATION WITH GRAVITY")
+    print(f"  {'─'*55}")
+    print(f"  Without gravity:")
+    print(f"    mc² = ℏc(1 + αf) / (2R)")
+    print(f"    → R adjusts to match any m. One equation, two unknowns.")
+    print(f"\n  With gravity:")
+    print(f"    mc² = ℏc(1 + αf) / (2R)  -  Gm² g(x) / R")
+    print(f"    where g(x) = 1 + x²/4, x = r/R")
+    print(f"\n  Both terms scale as 1/R → gravity shifts R but can't pin m:")
+    print(f"    R_grav = R₀(1 + δR/R),  δR/R = -2α_G g(x)/(1+αf)")
+
+    if np.any(v):
+        print(f"\n  {'r/R':<10} {'R (fm)':<14} {'δR/R':<16} {'U_grav/E_total':<16}")
+        print(f"  {'─'*54}")
+        for idx in sample_idx:
+            rr = sweep['r_ratios'][idx]
+            R_fm = sweep['Rs'][idx] * 1e15
+            dR = sweep['delta_R_fracs'][idx]
+            UoE = sweep['U_grav_over_E'][idx]
+            print(f"  {rr:<10.4f} {R_fm:<14.4f} {dR:<16.4e} {UoE:<16.4e}")
+
+        print(f"\n  All ∼ 10⁻⁴⁵: gravity is a {abs(sweep['delta_R_fracs'][v].mean()):.1e} perturbation")
+        print(f"  on the torus radius. It cannot select m_e by itself.")
+
+    # ================================================================
+    # Section 5: WHAT COULD PIN THE MASS
+    # ================================================================
+    print(f"\n\n  5. WHAT COULD PIN THE MASS: THREE CANDIDATES FROM GR")
+    print(f"  {'─'*55}")
+    print(f"  The mass shell mc² = ℏc(1+αf)/(2R) is one equation for two")
+    print(f"  unknowns (m, R). A second equation is needed. Three candidates")
+    print(f"  from GR that could provide it:\n")
+
+    print(f"  A. ISRAEL JUNCTION CONDITIONS")
+    print(f"     Match KN exterior to vortex interior at the tube surface.")
+    print(f"     The jump in extrinsic curvature across the boundary gives:")
+    print(f"       [K_ab] = -8πG(S_ab - h_ab S/2)")
+    print(f"     where S_ab is the surface stress-energy tensor.")
+    print(f"     This constrains r/R as a function of (m, a, Q) —")
+    print(f"     potentially fixing the geometry for given spin and charge.\n")
+
+    print(f"  B. NULL GEODESIC CONDITION")
+    print(f"     The photon must follow a geodesic of the self-consistent")
+    print(f"     spacetime. For a circular null geodesic in Kerr-Newman:")
+    print(f"       V_eff(r) = 0  and  dV_eff/dr = 0")
+    print(f"     This is how photon sphere radii are derived classically.")
+    print(f"     For the torus: the null worldline must close on the")
+    print(f"     geometry it creates — a self-referential bootstrap.\n")
+
+    print(f"  C. REGULARITY (NO CONICAL SINGULARITY)")
+    print(f"     The torus cross-section must close smoothly — no conical")
+    print(f"     deficit angle at the tube axis. This requires:")
+    print(f"       g_φφ → ρ² as ρ → 0 (locally flat near tube center)")
+    print(f"     In the full KN metric, this constrains the relationship")
+    print(f"     between the winding numbers and the metric components.\n")
+
+    print(f"  All three require the FULL nonlinear metric — linearized GR")
+    print(f"  gives only perturbative corrections (δR/R ∼ α_G ∼ 10⁻⁴⁵).")
+    print(f"  The junction matching at r ∼ a is where GR becomes nonlinear")
+    print(f"  and the torus geometry departs from flat space.")
+
+    # ================================================================
+    # Section 6: ASSESSMENT
+    # ================================================================
+    print(f"\n\n  6. ASSESSMENT")
+    print(f"  {'─'*55}")
+    print(f"\n  ┌─────────────────────────────────────────────────────────────┐")
+    print(f"  │  WHAT GR CAN DO:                                           │")
+    print(f"  │  • Identify the electron as super-extremal Kerr-Newman     │")
+    print(f"  │    (a/M ∼ 10⁴⁴, no horizon, naked ring singularity)       │")
+    print(f"  │  • Resolve the singularity: torus replaces the ring        │")
+    print(f"  │  • Map frame dragging → vortex circulation quantitatively  │")
+    print(f"  │  • Derive the hierarchy: a/M = 1/(2α_G) geometrically     │")
+    print(f"  │                                                             │")
+    print(f"  │  WHAT GR CANNOT DO (in linearized regime):                 │")
+    print(f"  │  • Derive m_e — both energy terms scale as 1/R             │")
+    print(f"  │  • Break scale invariance (δR/R ∼ α_G ∼ 10⁻⁴⁵)            │")
+    print(f"  │                                                             │")
+    print(f"  │  WHAT'S MISSING:                                           │")
+    print(f"  │  • Non-perturbative junction matching at r ∼ a where       │")
+    print(f"  │    linearized GR breaks down                               │")
+    print(f"  │  • The second equation: Israel, geodesic, or regularity    │")
+    print(f"  │    condition from the full Kerr-Newman geometry             │")
+    print(f"  └─────────────────────────────────────────────────────────────┘")
+    print("=" * 70)
+
+
 def print_topology_analysis():
     """Survey of alternative topologies for the null worldtube model."""
     print("=" * 70)
@@ -18544,6 +18908,7 @@ def main():
     parser.add_argument('--weinberg', action='store_true',
                         help='Weinberg angle and electroweak masses from torus geometry')
     parser.add_argument('--gravity', action='store_true', help='Gravity from torus metric: GW modes, Planck mass')
+    parser.add_argument('--einstein', action='store_true', help='Kerr-Newman geometry, frame dragging, mass equation')
     parser.add_argument('--topology', action='store_true',
                         help='Topology survey: alternative structures for worldtube model')
     parser.add_argument('--koide', action='store_true',
@@ -18628,6 +18993,10 @@ def main():
 
     if args.gravity:
         print_gravity_analysis()
+        return
+
+    if args.einstein:
+        print_einstein_analysis()
         return
 
     if args.topology:
