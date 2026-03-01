@@ -9935,7 +9935,8 @@ def compute_thevenin_matching(R, r, p=2, q=1):
     }
 
 
-def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200):
+def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200,
+                             r_ratio_max=0.5):
     """
     Sweep r/R along the mass shell, computing Thevenin matching metrics.
 
@@ -9947,7 +9948,7 @@ def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200):
 
     Returns dict with arrays and crossing r/R values.
     """
-    r_ratios = np.logspace(np.log10(0.001), np.log10(0.5), N_points)
+    r_ratios = np.logspace(np.log10(0.001), np.log10(r_ratio_max), N_points)
 
     # Storage arrays
     Rs = np.zeros(N_points)
@@ -10157,11 +10158,12 @@ def print_thevenin_analysis():
     print("  3. LANDSCAPE SWEEP (electron, on mass shell)")
     print("─" * 70)
     print()
-    print("  Sweeping r/R from 0.001 to 0.5, finding self-consistent R")
+    print("  Sweeping r/R from 0.001 to 0.9, finding self-consistent R")
     print("  at each point (E_total = m_e), then computing both models.")
     print()
 
-    landscape = sweep_thevenin_landscape(m_e_MeV, p=2, q=1, N_points=200)
+    landscape = sweep_thevenin_landscape(m_e_MeV, p=2, q=1, N_points=300,
+                                         r_ratio_max=0.9)
     rr = landscape['r_ratios']
     v = landscape['valid']
 
@@ -10412,7 +10414,7 @@ def print_thevenin_analysis():
             cross_str = ', '.join(f"{c:.5f}" for c in crosses)
             all_crossing_values.extend(crosses)
         else:
-            cross_str = "none in [0.001, 0.5]"
+            cross_str = "none in [0.001, 0.9]"
         print(f"    {name:>22s}  {cross_str:>30s}")
 
     if len(all_crossing_values) >= 2:
