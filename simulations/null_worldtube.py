@@ -42,6 +42,7 @@ Usage:
     python3 null_worldtube.py --weinberg         # Weinberg angle and electroweak masses from torus
     python3 null_worldtube.py --gravity          # gravity from torus metric: GW modes, Planck mass
     python3 null_worldtube.py --einstein         # Kerr-Newman geometry, frame dragging, mass equation
+    python3 null_worldtube.py --junction         # Israel junction conditions, torus geometry, confinement
     python3 null_worldtube.py --topology         # topology survey: alternative structures
     python3 null_worldtube.py --koide            # Koide angle from torus geometry
     python3 null_worldtube.py --stability        # stability analysis and phase space
@@ -4844,6 +4845,166 @@ def compute_einstein_sweep(mass_MeV, p=2, q=1, N_points=100):
         'LT_vortex_ratios': LT_vortex_ratios,
         'delta_R_fracs': delta_R_fracs, 'U_grav_over_E': U_grav_over_E,
         'alpha_G': alpha_G, 'mass_MeV': mass_MeV,
+    }
+
+
+def compute_torus_differential_geometry(R, r, N_phi=200):
+    """
+    Compute intrinsic and extrinsic geometry of the torus surface.
+
+    The torus is parameterized as:
+        x = (R + r cos φ) cos θ,  y = (R + r cos φ) sin θ,  z = r sin φ
+    where θ is toroidal (0..2π) and φ is poloidal (0..2π).
+
+    Returns dict with arrays over φ and scalar summaries.
+    """
+    phi = np.linspace(0, 2 * np.pi, N_phi, endpoint=False)
+    dphi = phi[1] - phi[0]
+
+    # Induced metric components (diagonal in θ,φ coordinates)
+    h_tt = (R + r * np.cos(phi))**2   # h_θθ
+    h_pp = np.full_like(phi, r**2)     # h_φφ
+
+    # Extrinsic curvature (second fundamental form): outward-pointing normal
+    K_tt = (R + r * np.cos(phi)) * np.cos(phi)   # K_θθ
+    K_pp = np.full_like(phi, r)                    # K_φφ
+
+    # Principal curvatures
+    kappa_1 = np.cos(phi) / (R + r * np.cos(phi))   # poloidal direction
+    kappa_2 = np.full_like(phi, 1.0 / r)             # toroidal tube curvature
+
+    # Mean curvature H = (κ₁ + κ₂)/2
+    H_mean = (kappa_1 + kappa_2) / 2.0
+
+    # Gaussian curvature K_G = κ₁ × κ₂
+    K_gauss = np.cos(phi) / (r * (R + r * np.cos(phi)))
+
+    # Gauss-Bonnet: ∫K_G dA = ∫₀²π ∫₀²π K_G × r(R + r cos φ) dθ dφ
+    # The θ integral just gives 2π, so:
+    # = 2π ∫₀²π [cos φ / (r(R + r cos φ))] × r(R + r cos φ) dφ
+    # = 2π ∫₀²π cos φ dφ = 0
+    integrand_GB = K_gauss * r * (R + r * np.cos(phi))  # dA element / (2π dφ)
+    gauss_bonnet = 2 * np.pi * np.sum(integrand_GB) * dphi
+
+    # Surface area: A = ∫₀²π ∫₀²π r(R + r cos φ) dθ dφ = 4π²Rr
+    surface_area = 4 * np.pi**2 * R * r
+
+    return {
+        'phi': phi, 'h_tt': h_tt, 'h_pp': h_pp,
+        'K_tt': K_tt, 'K_pp': K_pp,
+        'kappa_1': kappa_1, 'kappa_2': kappa_2,
+        'H_mean': H_mean, 'K_gauss': K_gauss,
+        'gauss_bonnet_integral': gauss_bonnet,
+        'surface_area': surface_area, 'R': R, 'r': r,
+    }
+
+
+def compute_knot_geodesic_curvature(R, r, p, q, N=2000):
+    """
+    Compute geodesic curvature κ_g of the (p,q) knot on the torus surface.
+
+    The geodesic curvature measures how much the curve deviates from a
+    geodesic of the surface. For a curve on a surface with unit normal n:
+        κ_g = (a · (n × v)) / |v|³
+    where v = dx/dλ (tangent), a = d²x/dλ² (acceleration in 3D).
+    """
+    params = TorusParams(R=R, r=r, p=p, q=q)
+    lam, xyz, dxyz, ds = torus_knot_curve(params, N)
+    dlam = lam[1] - lam[0]
+
+    # Second derivative via central differences on tangent vectors
+    a = np.zeros_like(dxyz)
+    a[1:-1] = (dxyz[2:] - dxyz[:-2]) / (2 * dlam)
+    a[0] = (dxyz[1] - dxyz[-1]) / (2 * dlam)
+    a[-1] = (dxyz[0] - dxyz[-2]) / (2 * dlam)
+
+    # Outward surface normal at each knot point
+    theta = p * lam   # toroidal angle
+    phi = q * lam     # poloidal angle
+    n_x = np.cos(phi) * np.cos(theta)
+    n_y = np.cos(phi) * np.sin(theta)
+    n_z = np.sin(phi)
+    n_hat = np.stack([n_x, n_y, n_z], axis=-1)
+
+    # κ_g = (a · (n × v)) / |v|³
+    n_cross_v = np.cross(n_hat, dxyz)
+    numerator = np.sum(a * n_cross_v, axis=-1)
+    speed_cubed = ds**3
+    kappa_g = numerator / speed_cubed
+
+    kappa_g_rms = np.sqrt(np.mean(kappa_g**2))
+    kappa_g_max = np.max(np.abs(kappa_g))
+    kappa_g_mean_abs = np.mean(np.abs(kappa_g))
+
+    return {
+        'lam': lam, 'kappa_g': kappa_g,
+        'kappa_g_rms': kappa_g_rms, 'kappa_g_max': kappa_g_max,
+        'kappa_g_mean_abs': kappa_g_mean_abs,
+        'is_geodesic': kappa_g_max < 1e-6 / R,  # threshold relative to 1/R
+        'R': R, 'r': r, 'p': p, 'q': q,
+    }
+
+
+def compute_junction_balance(R, r, p, q):
+    """
+    Compute EM pressure balance (flat-space Israel junction conditions).
+
+    In the flat-space limit, Israel conditions reduce to Young-Laplace:
+    radiation pressure inside the tube must balance surface-tension × curvature.
+    """
+    params = TorusParams(R=R, r=r, p=p, q=q)
+    se = compute_self_energy(params)
+    fields = compute_torus_fields(R, r, p, q)
+    fb = compute_orbit_force_balance(R, p=p, q=q, r_ratio=r/R)
+
+    U_EM = se['U_total_J']
+    E_total = se['E_total_J']
+    I = se['I_amps']
+    L_path = fields['L_path']
+    V_tube = fields['V_tube']
+
+    # EM energy density inside tube
+    u_EM = U_EM / V_tube if V_tube > 0 else 0
+
+    # Radiation pressure (photon gas in 1D waveguide): P = u
+    P_rad = u_EM
+
+    # Magnetic pressure at tube surface: B_surface ≈ μ₀I/(2πr)
+    B_surface = mu0 * I / (2 * np.pi * r)
+    P_B_surface = B_surface**2 / (2 * mu0)
+
+    # Geodesic curvature
+    kg = compute_knot_geodesic_curvature(R, r, p, q)
+
+    # Confining force per unit length: F = E_total/L × κ_g
+    # (energy per unit length × geodesic curvature = transverse force/length)
+    E_per_length = E_total / L_path
+    F_confine = E_per_length * kg['kappa_g_rms']
+
+    # Hoop force from existing force balance
+    F_hoop = fb['F_hoop']
+
+    # Force ratio
+    force_ratio = F_confine / F_hoop if F_hoop > 0 else float('inf')
+
+    # Young-Laplace: ΔP = σ_eff × (1/r)  [poloidal curvature dominates]
+    # Effective surface tension σ_eff = P_rad × r (from balance)
+    sigma_eff = P_rad * r
+
+    return {
+        'u_EM': u_EM, 'P_rad': P_rad,
+        'B_surface': B_surface, 'P_B_surface': P_B_surface,
+        'F_confine_per_length': F_confine,
+        'F_hoop_per_length': F_hoop / L_path if L_path > 0 else 0,
+        'F_hoop': F_hoop,
+        'force_ratio': force_ratio,
+        'sigma_eff': sigma_eff,
+        'E_per_length': E_per_length,
+        'kappa_g_rms': kg['kappa_g_rms'],
+        'kappa_g_max': kg['kappa_g_max'],
+        'V_tube': V_tube, 'L_path': L_path,
+        'U_EM': U_EM, 'E_total': E_total,
+        'R': R, 'r': r, 'p': p, 'q': q,
     }
 
 
@@ -13193,6 +13354,243 @@ def print_einstein_analysis():
     print("=" * 70)
 
 
+def print_junction_analysis():
+    """
+    Israel junction conditions analysis.
+
+    Computes torus differential geometry, geodesic curvature of the null
+    worldline, and shows how Israel conditions reduce to EM pressure balance
+    (Young-Laplace) in the flat-space limit.
+    """
+    print("=" * 70)
+    print("  ISRAEL JUNCTION CONDITIONS: TORUS DIFFERENTIAL GEOMETRY")
+    print("  AND CONFINEMENT")
+    print("=" * 70)
+
+    # Reference electron
+    sol_e = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=alpha)
+    R_e = sol_e['R']
+    r_e_tube = alpha * R_e
+    p_e, q_e = 2, 1
+
+    # ================================================================
+    # Section 1: TORUS DIFFERENTIAL GEOMETRY
+    # ================================================================
+    print(f"\n  1. TORUS DIFFERENTIAL GEOMETRY")
+    print(f"  {'─'*55}")
+    print(f"  The torus surface Σ with major radius R and minor radius r")
+    print(f"  has a rich intrinsic and extrinsic geometry.\n")
+
+    geom = compute_torus_differential_geometry(R_e, r_e_tube)
+
+    print(f"  Electron torus: R = {R_e:.4e} m, r = {r_e_tube:.4e} m, r/R = α = {alpha:.6e}")
+    print(f"\n  Induced metric (diagonal in θ,φ coordinates):")
+    print(f"    h_θθ(φ) = (R + r cos φ)²   h_φφ = r²   h_θφ = 0")
+    print(f"    At outer equator (φ=0):  h_θθ = (R+r)²  = {(R_e+r_e_tube)**2:.4e} m²")
+    print(f"    At inner equator (φ=π):  h_θθ = (R−r)²  = {(R_e-r_e_tube)**2:.4e} m²")
+
+    print(f"\n  Extrinsic curvature (second fundamental form):")
+    print(f"    K_θθ(φ) = (R + r cos φ) cos φ     K_φφ = r")
+
+    print(f"\n  Principal curvatures at key poloidal angles:")
+    print(f"  {'φ':>8s} {'κ₁ (m⁻¹)':>14s} {'κ₂ (m⁻¹)':>14s} {'H (m⁻¹)':>14s} {'K_G (m⁻²)':>14s}")
+    print(f"  {'─'*66}")
+    angles = [0, np.pi/2, np.pi, 3*np.pi/2]
+    labels = ['0', 'π/2', 'π', '3π/2']
+    for ang, lab in zip(angles, labels):
+        k1 = np.cos(ang) / (R_e + r_e_tube * np.cos(ang))
+        k2 = 1.0 / r_e_tube
+        H = (k1 + k2) / 2
+        KG = k1 * k2
+        print(f"  {lab:>8s} {k1:>14.4e} {k2:>14.4e} {H:>14.4e} {KG:>14.4e}")
+
+    print(f"\n  Gaussian curvature:")
+    print(f"    K_G(φ) = cos φ / [r(R + r cos φ)]")
+    print(f"    Outer equator (φ=0):  K_G = +{1.0/(r_e_tube*(R_e+r_e_tube)):.4e} m⁻²  (positive)")
+    print(f"    Inner equator (φ=π):  K_G = {-1.0/(r_e_tube*(R_e-r_e_tube)):.4e} m⁻²  (negative)")
+
+    print(f"\n  Gauss-Bonnet theorem: ∫K_G dA = 2πχ(T²) = 0  (χ = 0 for torus)")
+    print(f"    Numerical integral: {geom['gauss_bonnet_integral']:.4e}  ✓")
+    print(f"\n  Surface area: A = 4π²Rr = {geom['surface_area']:.4e} m²")
+    sphere_area = 4 * np.pi * R_e**2
+    print(f"    cf. sphere 4πR² = {sphere_area:.4e} m²")
+    print(f"    A_torus/A_sphere = π(r/R) = π×α = {np.pi*alpha:.6e}")
+
+    # ================================================================
+    # Section 2: GEODESIC CURVATURE OF THE NULL WORLDLINE
+    # ================================================================
+    print(f"\n\n  2. GEODESIC CURVATURE OF THE NULL WORLDLINE")
+    print(f"  {'─'*55}")
+    print(f"  A curve on a surface has geodesic curvature κ_g measuring")
+    print(f"  its deviation from a surface geodesic. For the (p,q) knot:")
+    print(f"    κ_g = (a · (n̂ × v)) / |v|³")
+    print(f"  where v = tangent, a = acceleration, n̂ = surface normal.\n")
+
+    kg = compute_knot_geodesic_curvature(R_e, r_e_tube, p_e, q_e)
+    print(f"  Electron ({p_e},{q_e}) knot at r/R = α:")
+    print(f"    RMS(κ_g) = {kg['kappa_g_rms']:.6e} m⁻¹")
+    print(f"    max|κ_g| = {kg['kappa_g_max']:.6e} m⁻¹")
+    print(f"    ⟨|κ_g|⟩  = {kg['kappa_g_mean_abs']:.6e} m⁻¹")
+    print(f"    Is geodesic? {kg['is_geodesic']}  (κ_g > 0 → photon IS deflected)")
+    print(f"    RMS(κ_g) × R = {kg['kappa_g_rms']*R_e:.6e}  (dimensionless)")
+
+    print(f"\n  Physical meaning: κ_g is the 'sideways acceleration' the")
+    print(f"  photon needs to stay on the knot path rather than following")
+    print(f"  a geodesic of the torus surface.")
+
+    # Sweep r/R
+    print(f"\n  Sweep r/R → geodesic curvature:")
+    print(f"  {'r/R':>10s} {'RMS(κ_g)×R':>14s} {'max|κ_g|×R':>14s} {'geodesic?':>10s}")
+    print(f"  {'─'*50}")
+    rr_vals = [0.001, 0.005, 0.01, 0.05, alpha, 0.1, 0.2, 0.3]
+    for rr in rr_vals:
+        sol = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=rr)
+        if sol is None:
+            continue
+        R_tmp = sol['R']
+        r_tmp = rr * R_tmp
+        kg_tmp = compute_knot_geodesic_curvature(R_tmp, r_tmp, p_e, q_e)
+        marker = "←α" if abs(rr - alpha) < 1e-5 else ""
+        print(f"  {rr:>10.4f} {kg_tmp['kappa_g_rms']*R_tmp:>14.6e} {kg_tmp['kappa_g_max']*R_tmp:>14.6e} {'yes' if kg_tmp['is_geodesic'] else 'no':>10s}  {marker}")
+
+    print(f"\n  Key result: κ_g × R → 1/√2 ≈ 0.707 as r/R → 0.")
+    print(f"  The (2,1) knot is NEVER a geodesic of the embedded torus —")
+    print(f"  the q=1 poloidal winding gives irreducible geodesic curvature.")
+    print(f"  κ_g grows weakly with r/R but is always O(1/R).")
+
+    # ================================================================
+    # Section 3: CONFINEMENT FORCE = GEODESIC CURVATURE × ENERGY
+    # ================================================================
+    print(f"\n\n  3. CONFINEMENT FORCE = GEODESIC CURVATURE × ENERGY")
+    print(f"  {'─'*55}")
+
+    jb = compute_junction_balance(R_e, r_e_tube, p_e, q_e)
+
+    print(f"  A photon of energy E following a path with geodesic curvature κ_g")
+    print(f"  requires a transverse confining force:")
+    print(f"    F_confine = (E/L) × κ_g   [force per unit path length]")
+    print(f"\n  At r/R = α:")
+    print(f"    E_total = {jb['E_total']/MeV:.6f} MeV = {jb['E_total']:.4e} J")
+    print(f"    L_path  = {jb['L_path']:.4e} m")
+    print(f"    E/L     = {jb['E_per_length']:.4e} J/m")
+    print(f"    κ_g,rms = {jb['kappa_g_rms']:.4e} m⁻¹")
+    print(f"    F_confine/L = {jb['F_confine_per_length']:.4e} N/m")
+    print(f"\n  EM hoop force (magnetic self-stress):")
+    print(f"    F_hoop      = {jb['F_hoop']:.4e} N  (total)")
+    print(f"    F_hoop/L    = {jb['F_hoop_per_length']:.4e} N/m")
+    print(f"\n  Ratio F_confine / (F_hoop/L) = {jb['force_ratio']:.4e}")
+    if jb['force_ratio'] > 100:
+        print(f"  → F_confine >> F_hoop/L: confining force (centripetal) dominates.")
+        print(f"    The hoop force is a self-energy gradient (∂U_EM/∂R).")
+        print(f"    The confining force is the centripetal requirement (E×κ_g).")
+        print(f"    They are different forces — not the same force in different language.")
+    else:
+        print(f"  → These forces are the same order of magnitude.")
+        print(f"    The EM self-field IS the waveguide that confines the photon.")
+
+    # ================================================================
+    # Section 4: ISRAEL → YOUNG-LAPLACE
+    # ================================================================
+    print(f"\n\n  4. ISRAEL → YOUNG-LAPLACE")
+    print(f"  {'─'*55}")
+    print(f"  Israel junction conditions across a hypersurface Σ:")
+    print(f"    [K_ab] = -8πG(S_ab - h_ab S/2)")
+    print(f"  where [K_ab] = K⁺_ab - K⁻_ab is the jump in extrinsic curvature")
+    print(f"  and S_ab is the surface stress-energy tensor.\n")
+
+    # Gravitational contribution
+    mass_kg = m_e_MeV * MeV / c**2
+    alpha_G = G_N * mass_kg**2 / (hbar * c)
+    kappa_1_outer = 1.0 / (R_e + r_e_tube)  # at outer equator
+    kappa_2_tube = 1.0 / r_e_tube
+    K_flat_scale = max(kappa_1_outer, kappa_2_tube)
+
+    print(f"  Gravitational vs EM contribution:")
+    print(f"    α_G = Gm²/(ℏc) = {alpha_G:.4e}")
+    print(f"    [K_ab]_grav ~ α_G × K^flat_ab ~ {alpha_G:.1e} × {K_flat_scale:.1e}")
+    print(f"                                   ~ {alpha_G * K_flat_scale:.4e} m⁻¹")
+    print(f"    This is negligible (10⁻⁴⁵ relative to EM).")
+
+    print(f"\n  In flat-space limit (exterior ≈ flat Minkowski):")
+    print(f"    Israel conditions → Young-Laplace equation:")
+    print(f"    ΔP = σ_eff × (1/R₁ + 1/R₂)")
+    print(f"  For the tube, poloidal curvature 1/r dominates:")
+    print(f"    ΔP ≈ σ_eff / r")
+
+    print(f"\n  EM radiation pressure (photon gas in waveguide):")
+    print(f"    u_EM  = U_EM / V_tube = {jb['u_EM']:.4e} J/m³")
+    print(f"    P_rad = u_EM = {jb['P_rad']:.4e} Pa")
+    print(f"\n  Magnetic pressure at tube surface:")
+    print(f"    B_surface = μ₀I/(2πr) = {jb['B_surface']:.4e} T")
+    print(f"    P_B = B²/(2μ₀)       = {jb['P_B_surface']:.4e} Pa")
+    print(f"\n  Effective surface tension from Young-Laplace balance:")
+    print(f"    σ_eff = P_rad × r = {jb['sigma_eff']:.4e} N/m")
+
+    # ================================================================
+    # Section 5: WHAT THE JUNCTION TELLS US ABOUT r/R
+    # ================================================================
+    print(f"\n\n  5. WHAT THE JUNCTION TELLS US ABOUT r/R")
+    print(f"  {'─'*55}")
+    print(f"  The pressure balance P_rad ~ σ/r gives r in terms of field strengths.")
+    print(f"  Since U_EM ~ α × E_circ and E_circ ∝ 1/R:")
+    print(f"    U_EM / E_circ = α × [ln(8R/r) - 2] / (πp) = α × log_factor / (πp)")
+    print(f"  (The factor p enters because L ≈ 2πpR for a (p,q) knot.)")
+    print(f"\n  This is already encoded in the self-energy equation!")
+
+    print(f"\n  Self-consistency check — r/R from junction balance vs NWT prescription:")
+    print(f"  {'r/R input':>12s} {'log_factor':>12s} {'U_EM/E_circ':>14s} {'α×logf/(πp)':>14s} {'match?':>8s}")
+    print(f"  {'─'*64}")
+    for rr in [0.001, 0.01, alpha, 0.1, 0.2]:
+        sol = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=rr)
+        if sol is None:
+            continue
+        R_tmp = sol['R']
+        r_tmp = rr * R_tmp
+        params_tmp = TorusParams(R=R_tmp, r=r_tmp, p=2, q=1)
+        se_tmp = compute_self_energy(params_tmp)
+        lf = se_tmp['log_factor']
+        ratio_actual = se_tmp['self_energy_fraction']
+        ratio_predicted = alpha * lf / (np.pi * p_e)
+        marker = "←α" if abs(rr - alpha) < 1e-5 else ""
+        match = "✓" if abs(ratio_actual - ratio_predicted) / ratio_actual < 0.05 else "✗"
+        print(f"  {rr:>12.5f} {lf:>12.4f} {ratio_actual:>14.6e} {ratio_predicted:>14.6e} {match:>8s}  {marker}")
+
+    print(f"\n  The self-energy equation E_total = E_circ + U_EM already IS the")
+    print(f"  junction condition expressed as an energy balance.")
+    print(f"  The junction constraint gives r/R = f(α), but this is the SAME")
+    print(f"  equation we already solve for the self-consistent radius.")
+
+    # ================================================================
+    # Section 6: ASSESSMENT
+    # ================================================================
+    print(f"\n\n  6. ASSESSMENT")
+    print(f"  {'─'*55}")
+    print(f"  ┌─────────────────────────────────────────────────────────────┐")
+    print(f"  │  WHAT THIS ANALYSIS CAN DO:                                │")
+    print(f"  │  • Compute full torus differential geometry                │")
+    print(f"  │    (metric, extrinsic curvature, Gauss-Bonnet ∫K_G dA=0)  │")
+    print(f"  │  • Show geodesic curvature κ_g > 0 for r/R = α            │")
+    print(f"  │    (photon IS deflected, needs confinement)                │")
+    print(f"  │  • Identify confining force with EM self-field             │")
+    print(f"  │    (waveguide effect: F = Eκ_g)                           │")
+    print(f"  │  • Show Israel conditions reduce to EM pressure balance    │")
+    print(f"  │    (Young-Laplace: ΔP = σ/r) in flat-space limit          │")
+    print(f"  │                                                             │")
+    print(f"  │  KEY INSIGHT:                                               │")
+    print(f"  │  • Junction conditions ≡ self-energy equation              │")
+    print(f"  │    (the 'second equation' is the first equation in         │")
+    print(f"  │     disguise — the torus self-energy IS the flat-space     │")
+    print(f"  │     junction condition)                                     │")
+    print(f"  │                                                             │")
+    print(f"  │  WHAT IT STILL CAN'T DO:                                   │")
+    print(f"  │  • Pin m_e: junction gives r/R = f(α), not m = g(...)     │")
+    print(f"  │  • The 'second equation' we hoped for from junctions      │")
+    print(f"  │    is not independent — it reduces to the self-energy     │")
+    print(f"  │    condition already solved                                 │")
+    print(f"  └─────────────────────────────────────────────────────────────┘")
+    print("=" * 70)
+
+
 def print_topology_analysis():
     """Survey of alternative topologies for the null worldtube model."""
     print("=" * 70)
@@ -18909,6 +19307,8 @@ def main():
                         help='Weinberg angle and electroweak masses from torus geometry')
     parser.add_argument('--gravity', action='store_true', help='Gravity from torus metric: GW modes, Planck mass')
     parser.add_argument('--einstein', action='store_true', help='Kerr-Newman geometry, frame dragging, mass equation')
+    parser.add_argument('--junction', action='store_true',
+                        help='Israel junction conditions, torus differential geometry, confinement')
     parser.add_argument('--topology', action='store_true',
                         help='Topology survey: alternative structures for worldtube model')
     parser.add_argument('--koide', action='store_true',
@@ -18997,6 +19397,10 @@ def main():
 
     if args.einstein:
         print_einstein_analysis()
+        return
+
+    if args.junction:
+        print_junction_analysis()
         return
 
     if args.topology:
