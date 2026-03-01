@@ -9834,6 +9834,113 @@ def print_settling_spectrum_analysis():
 
 
 # ────────────────────────────────────────────────────────────────────
+# Distributed-element Thevenin matching
+# ────────────────────────────────────────────────────────────────────
+
+def compute_distributed_matching(R, r, p=2, q=1):
+    """
+    Distributed-element matching metrics using TL standing wave physics.
+
+    The lumped model treats the torus as a single L and C, giving
+    Q_circuit_ED = Z_char / R_rad_ED. But the torus is a distributed
+    resonator with standing wave current I(s) = I_0 sin(2πs/L_path).
+
+    The sinusoidal current distribution changes both stored energy
+    (sin² averages to 1/2) and the effective radiation coupling
+    (form factor from overlap of current with ED radiation pattern).
+
+    Returns dict with distributed Q-factor, damping rate, and
+    impedance matching metrics.
+    """
+    # ── Uniform TL parameters ──
+    tl = compute_transmission_line(R, r, p, q)
+    L_total = tl['L_total']
+    C_total = tl['C_total']
+    L_path = tl['L_path']
+    omega_circ = tl['omega_circ']
+    Z_line = tl['Z_line']
+    v_p = tl['v_p']
+    beta = tl['beta']
+
+    # ── Nonuniform TL parameters ──
+    nutl = compute_nonuniform_tl(R, r, p, q)
+    Z_mean = nutl['Z_mean']
+    Z_modulation = nutl['Z_modulation']
+
+    # ── Standing wave energy ──
+    # For n=1 mode on a ring of length L, current I(s) = I_0 sin(2πs/L).
+    # Stored energy: E = (1/2) integral[l(s) I(s)^2 ds]
+    #              = (1/2) L_total I_0^2 × <sin^2> = L_total I_0^2 / 4
+    # Compare lumped: E_lumped = (1/2) L_total I_0^2
+    # Ratio: E_SW / E_lumped = 1/2  (sin^2 average)
+    energy_factor = 0.5  # <sin^2(2πs/L)> = 1/2
+
+    # ── Standing wave radiation form factor ──
+    # The ED radiation couples to the dipole moment:
+    #   d_eff = (e/omega) integral[I(s)/I_0 × r_perp(s) ds]
+    # For a ring, r_perp(s) = R cos(2πs/L) (projection onto radiation axis).
+    # With I(s) = I_0 sin(2πs/L):
+    #   d_eff ~ integral[sin(2πs/L) cos(2πs/L)] ds = 0  (orthogonal!)
+    #
+    # The n=1 current mode sin(βs) on a ring has its radiation set by
+    # the overlap integral with cos(βs) (dipole pattern). For exact
+    # standing wave, sin × cos integrates to zero, but the physical
+    # current is a TRAVELLING wave I_0 e^{i(βs - ωt)}, decomposed as:
+    #   sin(βs)cos(ωt) + cos(βs)sin(ωt)
+    # The cos(βs) component couples to the ED field.
+    # Net: |d_eff|^2 = (eR)^2/4 vs lumped (eR)^2
+    # So radiation_factor = 1/4 for standing wave, but since physical
+    # mode is travelling: radiation_factor = 1/2
+    #
+    # For a travelling wave on a ring (which is the physical situation
+    # for a circulating charge), the time-averaged radiation is:
+    #   P_SW = P_lumped × radiation_factor
+    radiation_factor = 0.5
+
+    # ── Distributed Q-factor ──
+    # Q_dist = omega × E_stored / P_radiated
+    # Q_dist = Q_lumped × (energy_factor / radiation_factor)
+    # Since both factors = 1/2: Q_dist = Q_lumped × 1.0
+    # But with nonuniform impedance, Z_mean differs from Z_line:
+    form_factor = energy_factor / radiation_factor
+    Z_correction = Z_mean / Z_line if Z_line > 0 else 1.0
+
+    # Electric dipole radiation resistance (same as in Thevenin matching)
+    R_rad_ED = 2 * np.pi * omega_circ**2 * R**2 / (3 * eps0 * c**3)
+
+    # Lumped Q
+    Z_char = np.sqrt(L_total / C_total)
+    Q_lumped_ED = Z_char / R_rad_ED if R_rad_ED > 0 else np.inf
+
+    # Distributed Q with form factor and impedance correction
+    Q_distributed = Q_lumped_ED * form_factor * Z_correction
+
+    # Distributed damping rate
+    gamma_distributed = (omega_circ / (2 * Q_distributed)
+                         if Q_distributed > 0 and Q_distributed != np.inf
+                         else 0.0)
+
+    return {
+        'Q_distributed': Q_distributed,
+        'Q_lumped_ED': Q_lumped_ED,
+        'gamma_distributed': gamma_distributed,
+        'form_factor': form_factor,
+        'energy_factor': energy_factor,
+        'radiation_factor': radiation_factor,
+        'Z_correction': Z_correction,
+        'VSWR': tl['VSWR'],
+        'power_coupling': tl['power_coupling'],
+        'return_loss_dB': tl['return_loss_dB'],
+        'Z_mean': Z_mean,
+        'Z_modulation': Z_modulation,
+        'Z_line': Z_line,
+        'v_p_over_c': tl['v_p_over_c'],
+        'n_eff': tl['n_eff'],
+        'R_rad_ED': R_rad_ED,
+    }
+
+
+# ────────────────────────────────────────────────────────────────────
 # Thevenin impedance matching: constraining r/R from two descriptions
 # ────────────────────────────────────────────────────────────────────
 
@@ -9889,7 +9996,12 @@ def compute_thevenin_matching(R, r, p=2, q=1):
     gamma_circuit_MD = R_rad / (2 * L) if L > 0 else 0.0
     gamma_circuit_ED = R_rad_ED / (2 * L) if L > 0 else 0.0
 
-    # ── Six matching metrics (each = 1.0 at consistency) ──
+    # ── Distributed-element model ──
+    dist = compute_distributed_matching(R, r, p=p, q=q)
+    Q_distributed = dist['Q_distributed']
+    gamma_distributed = dist['gamma_distributed']
+
+    # ── Six lumped matching metrics (each = 1.0 at consistency) ──
     freq_ratio = omega_KW1 / omega_circ if omega_circ > 0 else np.inf
     freq_ratio_LC = omega_KW1 / omega_LC if omega_LC > 0 else np.inf
     Q_ratio = Q_KW1 / Q_circuit_ED if (Q_circuit_ED > 0
@@ -9897,6 +10009,22 @@ def compute_thevenin_matching(R, r, p=2, q=1):
     gamma_ratio = gamma_KW1 / gamma_circuit_ED if gamma_circuit_ED > 0 else np.inf
     P_ratio = P_KW1 / (I_circ**2 * R_rad_ED) if (I_circ**2 * R_rad_ED) > 0 else np.inf
     Z_ratio = Z_char / Z0 if Z0 > 0 else np.inf
+
+    # ── Distributed matching metrics ──
+    Q_ratio_dist = (Q_KW1 / Q_distributed
+                    if (Q_distributed > 0 and Q_distributed != np.inf)
+                    else np.inf)
+    gamma_ratio_dist = (gamma_KW1 / gamma_distributed
+                        if gamma_distributed > 0 else np.inf)
+
+    # ── Euler-Heisenberg mode coupling ──
+    eh = compute_eh_mode_coupling(R, r, p=p, q=q)
+    Q_EH = eh['Q_EH']
+    gamma_EH = eh['gamma_EH']
+    Q_ratio_EH = (Q_KW1 / Q_EH
+                  if (Q_EH > 0 and Q_EH != np.inf) else np.inf)
+    gamma_ratio_EH = (gamma_KW1 / gamma_EH
+                      if gamma_EH > 0 else np.inf)
 
     return {
         # Circuit model quantities
@@ -9914,24 +10042,187 @@ def compute_thevenin_matching(R, r, p=2, q=1):
         'P_circuit_MD': P_circuit_MD,
         'gamma_circuit_MD': gamma_circuit_MD,
         'gamma_circuit_ED': gamma_circuit_ED,
+        # Distributed model quantities
+        'Q_distributed': Q_distributed,
+        'gamma_distributed': gamma_distributed,
+        'form_factor': dist['form_factor'],
+        'Z_correction': dist['Z_correction'],
+        'Z_mean': dist['Z_mean'],
+        'Z_modulation': dist['Z_modulation'],
+        'VSWR': dist['VSWR'],
+        'v_p_over_c': dist['v_p_over_c'],
         # Kelvin wave quantities
         'omega_KW1': omega_KW1,
         'Q_KW1': Q_KW1,
         'gamma_KW1': gamma_KW1,
         'P_KW1': P_KW1,
         'E_stored_KW1': E_stored_KW1,
-        # Matching metrics
+        # Matching metrics (lumped)
         'freq_ratio': freq_ratio,
         'freq_ratio_LC': freq_ratio_LC,
         'Q_ratio': Q_ratio,
         'P_ratio': P_ratio,
         'gamma_ratio': gamma_ratio,
         'Z_ratio': Z_ratio,
+        # Matching metrics (distributed)
+        'Q_ratio_dist': Q_ratio_dist,
+        'gamma_ratio_dist': gamma_ratio_dist,
+        # Euler-Heisenberg mode coupling
+        'Q_EH': Q_EH,
+        'gamma_EH': gamma_EH,
+        'Q_ratio_EH': Q_ratio_EH,
+        'gamma_ratio_EH': gamma_ratio_EH,
+        'Q_EH_uncapped': eh['Q_EH_uncapped'],
+        'gamma_EH_uncapped': eh['gamma_EH_uncapped'],
+        'E_tube_over_ES': eh['E_tube_over_ES'],
+        'delta_eps_max': eh['delta_eps_max'],
+        'R_rad_EH': eh['R_rad_EH'],
         # Geometry
         'R': R,
         'r': r,
         'r_over_R': r / R if R > 0 else 0,
         'ln_8Rr': settling['ln_8Rr'],
+    }
+
+
+def compute_eh_mode_coupling(R, r, p=2, q=1, N_radial=500):
+    """
+    Compute Euler-Heisenberg mode coupling: the nonlinear vacuum
+    permittivity ε(E) dissipates Kelvin wave perturbations via
+    polarization currents, providing an additional damping channel.
+
+    The EH effective permittivity is:
+        ε_eff(E) = ε₀ [1 + (8α²/45)(E/E_S)²]
+    where E_S = m_e²c³/(eℏ) is the Schwinger critical field.
+
+    A Kelvin wave wobble δR modulates the field: δE/E ~ -2δR/R.
+    The resulting nonlinear polarization current J_NL = ∂(δε·E)/∂t
+    radiates, draining energy from the mode.
+
+    Where E > E_S (near tube surface), the perturbative EH expansion
+    breaks down. We cap δε/ε₀ ≤ 1 (vacuum can't become a conductor)
+    and also compute uncapped for comparison.
+    """
+    # Schwinger critical field
+    E_S = m_e**2 * c**3 / (e_charge * hbar)
+
+    # Kelvin wave mode data
+    settling = compute_settling_modes(R, r, p=p, q=q, N_modes=3)
+    mode1 = settling['modes'][0]
+    omega_KW = mode1['omega']
+    E_stored_unit = mode1['E_stored_unit']
+
+    # Circuit current (for radiation resistance comparison)
+    circ = compute_torus_circuit(R, r, p=p, q=q)
+    I_circ = e_charge * circ['omega_circ'] / (2 * np.pi)
+
+    # Radial integration from tube surface to cutoff
+    # E(ρ) = e/(4πε₀ρ²) = k_e × e / ρ²
+    # Cutoff where E/E_S < 1e-6
+    rho_min = r
+    E_at_rmin = k_e * e_charge / rho_min**2
+    rho_max = rho_min * (E_at_rmin / (1e-6 * E_S))**0.5
+    rho_max = min(rho_max, 100 * R)  # sanity cap
+
+    # Log-spaced grid (integrand ~ ρ⁻⁷, need fine sampling near r)
+    log_rho = np.linspace(np.log(rho_min), np.log(rho_max), N_radial)
+    rho = np.exp(log_rho)
+    drho = np.diff(rho)
+
+    # Field at each grid point
+    E_field = k_e * e_charge / rho**2
+    E_over_ES = E_field / E_S
+
+    # EH correction: δε/ε₀ = (8α²/45)(E/E_S)²
+    delta_eps_raw = (8 * alpha**2 / 45) * E_over_ES**2
+
+    # Capped version (saturation: can't exceed ε₀)
+    delta_eps_capped = np.minimum(delta_eps_raw, 1.0)
+
+    # Integrand: δε(ρ) × ε₀ × E² × (2/R)² × ω_KW × 2πρ × 2πR
+    # The (2/R)² factor is |δE/E|² per unit (A/R)²
+    prefactor = eps0 * (2.0 / R)**2 * omega_KW * 2 * np.pi * R
+
+    integrand_capped = delta_eps_capped * eps0 * E_field**2 * prefactor * 2 * np.pi * rho
+    integrand_uncapped = delta_eps_raw * eps0 * E_field**2 * prefactor * 2 * np.pi * rho
+
+    # Wait — the δε in the formula is δε = (δε/ε₀) × ε₀, which is
+    # delta_eps_raw × ε₀. But we already have δε/ε₀ in delta_eps_raw.
+    # Integrand = (δε/ε₀) × ε₀ × ε₀ × E² × (2/R)² × ω × 2πρ × 2πR
+    # Let me redo this more carefully:
+    #   P_EH/A² = ω × 2πR × ∫ (∂ε/∂(E²)) × E² × (2/R)² × 2πρ dρ
+    # where ∂ε/∂(E²) = (8α²ε₀/45E_S²) in perturbative regime
+    # So integrand = (8α²ε₀/45E_S²) × E⁴ × (2/R)² × 2πρ
+    # and P_EH/A² = ω × 2πR × integral
+    # With capping: replace (8α²/45)(E/E_S)² by min(..., 1), so
+    # ∂ε/∂(E²) is capped at ε₀/E² (when δε/ε₀ = 1).
+
+    deps_dE2_perturbative = 8 * alpha**2 * eps0 / (45 * E_S**2)
+
+    # Perturbative integrand: dε/d(E²) × E⁴ × (2/R)² × 2πρ
+    integrand_pert = deps_dE2_perturbative * E_field**4 * (2.0/R)**2 * 2*np.pi * rho
+
+    # Capped integrand: where E > E_S, cap δε/ε₀ at 1 → ∂ε_eff/∂(E²) = ε₀/E²
+    # so contribution = ε₀ × E² × (2/R)² × 2πρ
+    deps_dE2_capped = np.where(
+        delta_eps_raw <= 1.0,
+        deps_dE2_perturbative * np.ones_like(E_field),
+        eps0 / E_field**2
+    )
+    integrand_cap = deps_dE2_capped * E_field**4 * (2.0/R)**2 * 2*np.pi * rho
+
+    # Trapezoidal integration (midpoint values × drho)
+    integral_capped = np.sum(0.5 * (integrand_cap[:-1] + integrand_cap[1:]) * drho)
+    integral_uncapped = np.sum(0.5 * (integrand_pert[:-1] + integrand_pert[1:]) * drho)
+
+    # P_EH per unit displacement² (δ in meters) — multiply by ω × 2πR
+    # The (2/R)² in the integrand means P_EH is per unit δ² (meters²).
+    P_EH_per_delta2_cap = omega_KW * 2 * np.pi * R * integral_capped
+    P_EH_per_delta2_unc = omega_KW * 2 * np.pi * R * integral_uncapped
+
+    # Convert to per unit dimensionless amplitude A² (matching settling modes).
+    # In settling modes, A is dimensionless; displacement δ = A × R.
+    # E_stored_unit = (1/2) m ω² R² is energy per A².
+    # P_unit = e² ω⁴ R² / (...) is power per A².
+    # So: P_EH per A² = P_EH_per_delta2 × R²
+    P_EH_capped = P_EH_per_delta2_cap * R**2
+    P_EH_uncapped = P_EH_per_delta2_unc * R**2
+
+    # gamma_EH = P_EH / (2 E_stored), both per unit A² (dimensionless)
+    if E_stored_unit > 0:
+        gamma_EH_capped = P_EH_capped / (2.0 * E_stored_unit)
+        gamma_EH_uncapped = P_EH_uncapped / (2.0 * E_stored_unit)
+    else:
+        gamma_EH_capped = 0.0
+        gamma_EH_uncapped = 0.0
+
+    Q_EH_capped = omega_KW / (2.0 * gamma_EH_capped) if gamma_EH_capped > 0 else np.inf
+    Q_EH_uncapped = omega_KW / (2.0 * gamma_EH_uncapped) if gamma_EH_uncapped > 0 else np.inf
+
+    # Effective EH radiation resistance: R_rad_EH = P_EH / I²
+    R_rad_EH = P_EH_capped / I_circ**2 if I_circ > 0 else 0.0
+
+    # Diagnostics
+    E_tube_over_ES = E_over_ES[0]  # at tube surface
+    delta_eps_max = delta_eps_raw[0]  # max correction (before cap)
+    # Effective integrated correction (weighted mean)
+    weights = integrand_cap[:-1] * drho
+    if np.sum(weights) > 0:
+        delta_eps_eff = np.sum(0.5*(delta_eps_capped[:-1]+delta_eps_capped[1:]) * weights) / np.sum(weights)
+    else:
+        delta_eps_eff = 0.0
+
+    return {
+        'Q_EH': Q_EH_capped,
+        'gamma_EH': gamma_EH_capped,
+        'P_EH_unit': P_EH_capped,
+        'Q_EH_uncapped': Q_EH_uncapped,
+        'gamma_EH_uncapped': gamma_EH_uncapped,
+        'E_tube_over_ES': E_tube_over_ES,
+        'delta_eps_max': delta_eps_max,
+        'delta_eps_eff': delta_eps_eff,
+        'coupling_integral': integral_capped,
+        'R_rad_EH': R_rad_EH,
     }
 
 
@@ -9963,6 +10254,10 @@ def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200,
     omega_LCs = np.zeros(N_points)
     Q_LCs = np.zeros(N_points)
     Q_KWs = np.zeros(N_points)
+    Q_ratios_dist = np.zeros(N_points)
+    gamma_ratios_dist = np.zeros(N_points)
+    Q_ratios_EH = np.zeros(N_points)
+    gamma_ratios_EH = np.zeros(N_points)
     valid = np.zeros(N_points, dtype=bool)
 
     for i, rr in enumerate(r_ratios):
@@ -9983,6 +10278,10 @@ def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200,
         P_ratios[i] = match['P_ratio']
         gamma_ratios[i] = match['gamma_ratio']
         Z_ratios[i] = match['Z_ratio']
+        Q_ratios_dist[i] = match['Q_ratio_dist']
+        gamma_ratios_dist[i] = match['gamma_ratio_dist']
+        Q_ratios_EH[i] = match['Q_ratio_EH']
+        gamma_ratios_EH[i] = match['gamma_ratio_EH']
         omega_circs[i] = match['omega_circ']
         omega_KWs[i] = match['omega_KW1']
         omega_LCs[i] = match['omega_LC']
@@ -10036,6 +10335,10 @@ def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200,
     P_crossings = find_crossing(r_ratios, P_ratios, 1.0, valid)
     gamma_crossings = find_crossing(r_ratios, gamma_ratios, 1.0, valid)
     Z_crossings = find_crossing(r_ratios, Z_ratios, 1.0, valid)
+    Q_dist_crossings = find_crossing(r_ratios, Q_ratios_dist, 1.0, valid)
+    gamma_dist_crossings = find_crossing(r_ratios, gamma_ratios_dist, 1.0, valid)
+    Q_EH_crossings = find_crossing(r_ratios, Q_ratios_EH, 1.0, valid)
+    gamma_EH_crossings = find_crossing(r_ratios, gamma_ratios_EH, 1.0, valid)
     Lz_crossings = find_crossing(r_ratios, Lz_full, 0.5,
                                  valid & ~np.isnan(Lz_full))
 
@@ -10049,6 +10352,10 @@ def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200,
         'P_ratios': P_ratios,
         'gamma_ratios': gamma_ratios,
         'Z_ratios': Z_ratios,
+        'Q_ratios_dist': Q_ratios_dist,
+        'gamma_ratios_dist': gamma_ratios_dist,
+        'Q_ratios_EH': Q_ratios_EH,
+        'gamma_ratios_EH': gamma_ratios_EH,
         'omega_circs': omega_circs,
         'omega_KWs': omega_KWs,
         'omega_LCs': omega_LCs,
@@ -10062,6 +10369,10 @@ def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200,
         'P_crossings': P_crossings,
         'gamma_crossings': gamma_crossings,
         'Z_crossings': Z_crossings,
+        'Q_dist_crossings': Q_dist_crossings,
+        'gamma_dist_crossings': gamma_dist_crossings,
+        'Q_EH_crossings': Q_EH_crossings,
+        'gamma_EH_crossings': gamma_EH_crossings,
         'Lz_crossings': Lz_crossings,
         # Parameters
         'mass_MeV': mass_MeV,
@@ -10243,36 +10554,52 @@ def print_thevenin_analysis():
     print("  so it is universal across all particle masses.")
 
     # ────────────────────────────────────────────────────────────────
-    # 5. Q-FACTOR MATCHING
+    # 5. Q-FACTOR MATCHING: LUMPED vs DISTRIBUTED
     # ────────────────────────────────────────────────────────────────
     print()
     print("─" * 70)
-    print("  5. Q-FACTOR MATCHING: Q_KW = Q_LC")
+    print("  5. Q-FACTOR MATCHING: LUMPED vs DISTRIBUTED")
     print("─" * 70)
     print()
-    print("  The original Q_LC (using magnetic dipole R_rad) is ~10^29 while")
-    print("  Q_KW (using electric dipole Larmor) is ~10^1. The 28-order gap")
-    print("  reflects different radiation channels, not a geometric mismatch.")
+    print("  5a. Why the lumped Q fails")
+    print("  ─────────────────────────")
     print()
-    print("  Fix: compare both Q-factors using the SAME radiation mechanism.")
-    print("  The Kelvin wave is an ED oscillation (charge wobbles), so we")
-    print("  compute the circuit Q with electric dipole radiation resistance:")
+    print("  The lumped model treats the torus as a single L and C, giving")
+    print("  Q_circuit_ED = Z_char / R_rad_ED. But the torus is a distributed")
+    print("  resonator. The current is not uniform: on a TL ring of length L,")
+    print("  the n=1 standing wave has I(s) = I_0 sin(2πs/L).")
+    print()
+    print("  This sinusoidal distribution changes BOTH the stored energy")
+    print("  and the effective radiation coupling:")
+    print()
+    print("    Stored energy:  E_SW = (L_total I_0^2 / 4) × <sin^2>")
+    print("                        = E_lumped × 1/2")
+    print()
+    print("    ED radiation:   The current form factor reduces the effective")
+    print("                    dipole moment. For a travelling wave on a ring,")
+    print("                    the radiation power = P_lumped × 1/2")
+    print()
+    print("    Form factor:    F = E_factor / P_factor = (1/2)/(1/2) = 1.0")
+    print()
+    print("  Additionally, the nonuniform impedance Z(s) along the (2,1) knot")
+    print("  (from compute_nonuniform_tl) gives Z_mean ≠ Z_line, providing")
+    print("  a Z_correction factor.")
+    print()
+    print("  5b. Lumped Q-factor (apples-to-apples ED radiation)")
+    print("  ───────────────────────────────────────────────────")
     print()
     print("    R_rad_ED = 2π ω² R² / (3 ε₀ c³)   (Larmor, not loop)")
     print("    Q_circuit_ED = Z_char / R_rad_ED")
     print("    Q_KW = omega_KW / (2 gamma_KW)")
     print()
-    print("  Now both Q-factors use ED radiation — apples to apples.")
-    print()
 
     Q_cross = landscape['Q_crossings']
     if Q_cross:
-        print(f"  Q-factor crossings (Q_KW1 / Q_LC = 1):")
+        print(f"  Lumped Q crossings (Q_KW1 / Q_circuit_ED = 1):")
         for qc in Q_cross:
             print(f"    r/R = {qc:.6f}")
     else:
-        print("  No Q-factor crossing found in sweep range.")
-        # Report closest approach
+        print("  No lumped Q crossing found in sweep range.")
         v_mask = landscape['valid']
         if np.any(v_mask):
             q_arr = landscape['Q_ratios'][v_mask]
@@ -10282,6 +10609,127 @@ def print_thevenin_analysis():
                 rr_v = rr[v_mask][q_finite]
                 print(f"  Closest approach: Q_ratio = {q_arr[q_finite][closest_idx]:.3e}"
                       f" at r/R = {rr_v[closest_idx]:.4f}")
+
+    print()
+    print("  5c. Distributed Q-factor (standing wave correction)")
+    print("  ───────────────────────────────────────────────────")
+    print()
+    print("    Q_distributed = Q_lumped_ED × form_factor × Z_correction")
+    print()
+
+    # Compute distributed metrics at a few representative r/R values
+    sample_ratios = [0.01, 0.05, 0.1, 0.2, alpha, 0.5]
+    print(f"    {'r/R':>8s}  {'Q_lumped':>12s}  {'Q_dist':>12s}  {'Q_KW':>12s}"
+          f"  {'Q_KW/Q_lump':>12s}  {'Q_KW/Q_dist':>12s}")
+    print(f"    {'─' * 8}  {'─' * 12}  {'─' * 12}  {'─' * 12}"
+          f"  {'─' * 12}  {'─' * 12}")
+
+    for sr in sample_ratios:
+        sol = find_self_consistent_radius(m_e_MeV, p=1, q=1, r_ratio=sr)
+        if sol is None:
+            continue
+        try:
+            m = compute_thevenin_matching(sol['R'], sol['r'], p=2, q=1)
+        except Exception:
+            continue
+        label = f"  α" if abs(sr - alpha) < 1e-6 else f""
+        print(f"    {sr:8.4f}{label:>2s}"
+              f"  {m['Q_circuit_ED']:12.3e}"
+              f"  {m['Q_distributed']:12.3e}"
+              f"  {m['Q_KW1']:12.3e}"
+              f"  {m['Q_ratio']:12.3e}"
+              f"  {m['Q_ratio_dist']:12.3e}")
+
+    print()
+
+    Q_dist_cross = landscape['Q_dist_crossings']
+    if Q_dist_cross:
+        print(f"  Distributed Q crossings (Q_KW1 / Q_distributed = 1):")
+        for qc in Q_dist_cross:
+            print(f"    r/R = {qc:.6f}")
+    else:
+        print("  No distributed Q crossing found in sweep range.")
+        v_mask = landscape['valid']
+        if np.any(v_mask):
+            qd_arr = landscape['Q_ratios_dist'][v_mask]
+            qd_finite = np.isfinite(qd_arr) & (qd_arr > 0)
+            if np.any(qd_finite):
+                closest_idx = np.argmin(np.abs(np.log10(qd_arr[qd_finite])))
+                rr_v = rr[v_mask][qd_finite]
+                print(f"  Closest approach: Q_ratio_dist = "
+                      f"{qd_arr[qd_finite][closest_idx]:.3e}"
+                      f" at r/R = {rr_v[closest_idx]:.4f}")
+
+    gamma_dist_cross = landscape['gamma_dist_crossings']
+    if gamma_dist_cross:
+        print()
+        print(f"  Distributed gamma crossings (gamma_KW / gamma_dist = 1):")
+        for gc in gamma_dist_cross:
+            print(f"    r/R = {gc:.6f}")
+
+    print()
+    print("  5d. Euler-Heisenberg mode coupling")
+    print("  ───────────────────────────────────")
+    print()
+    print("  The vacuum has a field-dependent permittivity (Euler-Heisenberg):")
+    print("    ε(E) = ε₀ [1 + (8α²/45)(E/E_S)²]")
+    print("  where E_S = m_e²c³/(eℏ) ≈ 1.32×10¹⁸ V/m (Schwinger field).")
+    print()
+    print("  A Kelvin wave wobble modulates the near-field: δE/E ~ -2δR/R.")
+    print("  The nonlinear polarization current J_NL = ∂(δε·E)/∂t drains")
+    print("  energy from the mode — an additional dissipation channel beyond")
+    print("  direct radiation.")
+    print()
+
+    # Show E_tube/E_S at representative r/R
+    E_S = m_e**2 * c**3 / (e_charge * hbar)
+    print(f"  Schwinger field E_S = {E_S:.3e} V/m")
+    print()
+    print(f"    {'r/R':>8s}  {'E_tube/E_S':>12s}  {'δε/ε₀ (raw)':>12s}"
+          f"  {'Q_EH(cap)':>12s}  {'Q_KW/Q_EH':>12s}")
+    print(f"    {'─' * 8}  {'─' * 12}  {'─' * 12}  {'─' * 12}  {'─' * 12}")
+
+    for sr in sample_ratios:
+        sol = find_self_consistent_radius(m_e_MeV, p=1, q=1, r_ratio=sr)
+        if sol is None:
+            continue
+        try:
+            m = compute_thevenin_matching(sol['R'], sol['r'], p=2, q=1)
+        except Exception:
+            continue
+        label = f"  α" if abs(sr - alpha) < 1e-6 else f""
+        print(f"    {sr:8.4f}{label:>2s}"
+              f"  {m['E_tube_over_ES']:12.3e}"
+              f"  {m['delta_eps_max']:12.3e}"
+              f"  {m['Q_EH']:12.3e}"
+              f"  {m['Q_ratio_EH']:12.3e}")
+
+    print()
+
+    Q_EH_cross = landscape['Q_EH_crossings']
+    if Q_EH_cross:
+        print(f"  EH Q crossings (Q_KW / Q_EH = 1):")
+        for qc in Q_EH_cross:
+            print(f"    r/R = {qc:.6f}")
+    else:
+        print("  No EH Q crossing found in sweep range.")
+        v_mask = landscape['valid']
+        if np.any(v_mask):
+            qeh_arr = landscape['Q_ratios_EH'][v_mask]
+            qeh_finite = np.isfinite(qeh_arr) & (qeh_arr > 0)
+            if np.any(qeh_finite):
+                closest_idx = np.argmin(np.abs(np.log10(qeh_arr[qeh_finite])))
+                rr_v = rr[v_mask][qeh_finite]
+                print(f"  Closest approach: Q_ratio_EH = "
+                      f"{qeh_arr[qeh_finite][closest_idx]:.3e}"
+                      f" at r/R = {rr_v[closest_idx]:.4f}")
+
+    gamma_EH_cross = landscape['gamma_EH_crossings']
+    if gamma_EH_cross:
+        print()
+        print(f"  EH gamma crossings (gamma_KW / gamma_EH = 1):")
+        for gc in gamma_EH_cross:
+            print(f"    r/R = {gc:.6f}")
 
     # ────────────────────────────────────────────────────────────────
     # 6. IMPEDANCE MATCHING
@@ -10394,11 +10842,20 @@ def print_thevenin_analysis():
     print()
 
     # Collect all crossing values
+    Q_dist_cross = landscape['Q_dist_crossings']
+    gamma_dist_cross = landscape['gamma_dist_crossings']
+    Q_EH_cross = landscape['Q_EH_crossings']
+    gamma_EH_cross = landscape['gamma_EH_crossings']
+
     all_named_crossings = [
         ('omega_KW = omega_circ', freq_cross),
         ('omega_KW = omega_LC', landscape['freq_LC_crossings']),
         ('Q_KW = Q_circ (ED)', Q_cross),
+        ('Q_KW = Q_dist (ED)', Q_dist_cross),
+        ('Q_KW = Q_EH', Q_EH_cross),
         ('gamma_KW = gamma_ED', landscape['gamma_crossings']),
+        ('gamma_KW = gamma_dist', gamma_dist_cross),
+        ('gamma_KW = gamma_EH', gamma_EH_cross),
         ('Z_char = Z_0', Z_cross),
         ('L_z = hbar/2', Lz_cross),
     ]
@@ -10468,11 +10925,14 @@ def print_thevenin_analysis():
     # Prepare summary values
     freq_val = freq_cross[0] if freq_cross else None
     Q_val = Q_cross[0] if Q_cross else None
+    Q_dist_val = Q_dist_cross[0] if Q_dist_cross else None
+    Q_EH_val = Q_EH_cross[0] if Q_EH_cross else None
     Z_val = Z_cross[0] if Z_cross else None
     Lz_val = Lz_cross[0] if Lz_cross else None
 
-    # Determine outcome
-    determined_vals = [v for v in [freq_val, Q_val, Z_val, Lz_val]
+    # Determine outcome (include distributed Q and EH Q if available)
+    determined_vals = [v for v in [freq_val, Q_val, Q_dist_val, Q_EH_val,
+                                   Z_val, Lz_val]
                        if v is not None]
 
     print(f"  ┌──────────────────────────────────────────────────────────────┐")
@@ -10484,8 +10944,16 @@ def print_thevenin_analysis():
               f"  (analytic: x ln(8/x) = 1)"
               f"{'':>12s}│")
     if Q_val is not None:
-        print(f"  │  Q-factor match (Q_KW = Q_LC):                              │")
+        print(f"  │  Q-factor match, lumped (Q_KW = Q_ED):                     │")
         print(f"  │    r/R = {Q_val:.6f}"
+              f"{'':>38s}│")
+    if Q_dist_val is not None:
+        print(f"  │  Q-factor match, distributed (Q_KW = Q_dist):              │")
+        print(f"  │    r/R = {Q_dist_val:.6f}"
+              f"{'':>38s}│")
+    if Q_EH_val is not None:
+        print(f"  │  Q-factor match, EH (Q_KW = Q_EH):                        │")
+        print(f"  │    r/R = {Q_EH_val:.6f}"
               f"{'':>38s}│")
     if Z_val is not None:
         print(f"  │  Impedance match (Z_char = Z_0):                            │")
@@ -10496,7 +10964,15 @@ def print_thevenin_analysis():
         print(f"  │    r/R = {Lz_val:.6f}"
               f"{'':>38s}│")
     if not determined_vals:
-        print(f"  │  No crossings found in [0.001, 0.5] — widen search range.  │")
+        print(f"  │  No crossings found in [0.001, 0.9] — check sweep range.  │")
+    print(f"  │                                                              │")
+    if Q_val is not None and Q_dist_val is not None:
+        gap = abs(Q_dist_val - Q_val) / Q_val if Q_val > 0 else np.inf
+        print(f"  │  Q gap: lumped vs distributed = {gap:.1%} "
+              f"{'(closed!)' if gap < 0.1 else '(still open)'}"
+              f"{'':>10s}│")
+    elif Q_val is None and Q_dist_val is None:
+        print(f"  │  Q-factor: no crossing (lumped or distributed)             │")
     print(f"  │                                                              │")
     if len(determined_vals) >= 2:
         arr = np.array(determined_vals)
