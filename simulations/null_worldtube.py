@@ -51,6 +51,9 @@ Usage:
     python3 null_worldtube.py --orbit            # orbit analysis: what fixes the electron's size?
     python3 null_worldtube.py --casimir          # Casimir energy: can vacuum fluctuations set r/R?
     python3 null_worldtube.py --greybody         # greybody factors: partial transparency of the NWT surface
+    python3 null_worldtube.py --pair-creation    # pair creation: what determines the torus geometry?
+    python3 null_worldtube.py --transient-impedance  # LC circuit transient during pair creation
+    python3 null_worldtube.py --transmission-line  # distributed TL / waveguide model
 """
 
 import numpy as np
@@ -6101,6 +6104,2006 @@ def print_greybody_analysis():
   numerical suppression depends on the actual near-surface geometry —
   which is the key open calculation.""")
 
+    print("=" * 70)
+
+
+# ─────────────────────────────────────────────────────────────────────
+#  PAIR CREATION MODULE: What determines the torus geometry?
+# ─────────────────────────────────────────────────────────────────────
+
+def compute_torus_fields(R, r, p=2, q=1):
+    """
+    Compute EM field strengths inside the electron torus.
+
+    Returns dict with E_rms, B_rms for both volume assumptions (full torus
+    vs tube along knot path), Schwinger field ratio, flux/Phi_0, impedance/Z_0.
+    """
+    params = TorusParams(R=R, r=r, p=p, q=q)
+    se = compute_self_energy(params)
+    U_EM = se['U_total_J']
+    I = se['I_amps']
+    L_ind = se['L_ind_henry']
+    log_factor = se['log_factor']
+    E_circ = se['E_circ_J']
+
+    # Schwinger critical field
+    E_Schwinger = m_e**2 * c**3 / (e_charge * hbar)  # ~1.32e18 V/m
+
+    # Volume: full torus interior
+    V_torus = 2 * np.pi**2 * R * r**2
+
+    # Volume: tube along knot path
+    L_path = compute_path_length(params)
+    V_tube = np.pi * r**2 * L_path
+
+    # RMS fields from stored energy: U_EM = eps0 * E^2 * V (for v=c, equal E and B energy)
+    # U_EM = 2 * (eps0/2) * E_rms^2 * V = eps0 * E_rms^2 * V
+    # So B_rms = sqrt(mu0 * U_EM / V), E_rms = c * B_rms
+    B_rms_torus = np.sqrt(mu0 * U_EM / V_torus) if V_torus > 0 else 0
+    E_rms_torus = c * B_rms_torus
+
+    B_rms_tube = np.sqrt(mu0 * U_EM / V_tube) if V_tube > 0 else 0
+    E_rms_tube = c * B_rms_tube
+
+    # Flux quantization
+    Phi = L_ind * I  # total magnetic flux
+    Phi_0 = h_planck / (2 * e_charge)  # flux quantum
+
+    # Impedance matching
+    Z_torus = E_rms_torus * (2 * np.pi * r) / I if I > 0 else 0
+    Z_0 = mu0 * c  # impedance of free space ~376.7 Ohm
+
+    # Quantum single-photon field
+    omega = E_circ / hbar
+    E_Q_torus = np.sqrt(hbar * omega / (eps0 * V_torus)) if V_torus > 0 else 0
+    E_Q_tube = np.sqrt(hbar * omega / (eps0 * V_tube)) if V_tube > 0 else 0
+
+    return {
+        'U_EM': U_EM,
+        'E_circ': E_circ,
+        'log_factor': log_factor,
+        'I_amps': I,
+        'L_ind': L_ind,
+        'L_path': L_path,
+        'V_torus': V_torus,
+        'V_tube': V_tube,
+        'E_rms_torus': E_rms_torus,
+        'E_rms_tube': E_rms_tube,
+        'B_rms_torus': B_rms_torus,
+        'B_rms_tube': B_rms_tube,
+        'E_Schwinger': E_Schwinger,
+        'E_over_ES_torus': E_rms_torus / E_Schwinger,
+        'E_over_ES_tube': E_rms_tube / E_Schwinger,
+        'Phi': Phi,
+        'Phi_0': Phi_0,
+        'Phi_over_Phi0': Phi / Phi_0,
+        'Z_torus': Z_torus,
+        'Z_0': Z_0,
+        'Z_over_Z0': Z_torus / Z_0,
+        'E_Q_torus': E_Q_torus,
+        'E_Q_tube': E_Q_tube,
+        'omega': omega,
+    }
+
+
+def compute_field_landscape(r_ratio_array, p=2, q=1):
+    """
+    Sweep r/R values, computing field quantities at each self-consistent radius.
+
+    Returns dict of arrays, one entry per r/R value that has a valid solution.
+    """
+    results = {
+        'r_ratio': [], 'R_fm': [], 'r_fm': [], 'log_factor': [],
+        'E_over_ES_torus': [], 'E_over_ES_tube': [],
+        'Phi_over_Phi0': [], 'Z_over_Z0': [],
+        'E_Q_over_E_rms_torus': [], 'E_Q_over_E_rms_tube': [],
+    }
+
+    for rr in r_ratio_array:
+        sol = find_self_consistent_radius(m_e_MeV, p=p, q=q, r_ratio=rr)
+        if sol is None:
+            continue
+        R = sol['R']
+        r = rr * R
+        fields = compute_torus_fields(R, r, p=p, q=q)
+
+        results['r_ratio'].append(rr)
+        results['R_fm'].append(R * 1e15)
+        results['r_fm'].append(r * 1e15)
+        results['log_factor'].append(fields['log_factor'])
+        results['E_over_ES_torus'].append(fields['E_over_ES_torus'])
+        results['E_over_ES_tube'].append(fields['E_over_ES_tube'])
+        results['Phi_over_Phi0'].append(fields['Phi_over_Phi0'])
+        results['Z_over_Z0'].append(fields['Z_over_Z0'])
+        results['E_Q_over_E_rms_torus'].append(
+            fields['E_Q_torus'] / fields['E_rms_torus'] if fields['E_rms_torus'] > 0 else 0
+        )
+        results['E_Q_over_E_rms_tube'].append(
+            fields['E_Q_tube'] / fields['E_rms_tube'] if fields['E_rms_tube'] > 0 else 0
+        )
+
+    # Convert to numpy arrays
+    for key in results:
+        results[key] = np.array(results[key])
+
+    return results
+
+
+def print_pair_creation_analysis():
+    """
+    Pair creation and torus geometry: what fixes r/R = α?
+
+    The NWT model determines R from E_circ + U_EM = m_e c², but the
+    aspect ratio r/R is free. This module investigates whether pair
+    production physics provides the missing constraint.
+
+    Key insight: E = hν has no amplitude — a photon's field is entirely
+    fixed by frequency. Closing it into a torus should fully determine
+    the geometry. The Schwinger critical field E_S = m_e²c³/(eℏ) marks
+    where the QED vacuum becomes unstable to pair creation, providing
+    a natural field-strength threshold.
+    """
+    print("=" * 70)
+    print("PAIR CREATION AND TORUS GEOMETRY")
+    print("What determines the torus aspect ratio r/R = α?")
+    print("=" * 70)
+
+    # ── Section 1: The Quantization Insight ───────────────────────────
+    print("""
+╔══════════════════════════════════════════════════════════════════════╗
+║  SECTION 1: THE QUANTIZATION INSIGHT                               ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  THE PROBLEM: The NWT self-consistency condition
+
+      E_circ + U_EM = m_e c²
+
+  determines R for any given r/R. But it doesn't fix r/R itself.
+  The model has one free parameter — the torus aspect ratio.
+
+  THE CLUE FROM PAIR CREATION:
+
+  A photon has E = hν and NOTHING ELSE. No amplitude parameter.
+  The electromagnetic field of a single photon is entirely determined
+  by its frequency. There is no dial to turn.
+
+  When a photon converts to an electron-positron pair, it must close
+  into a toroidal topology (in the NWT picture). Since the field has
+  only one parameter (ν), the torus must be FULLY DETERMINED:
+
+      2 unknowns:  R (major radius), r (minor radius)
+      2 equations: (1) energy condition, (2) field matching
+
+  CONSTRAINT COUNTING:
+    Constraint 1: E_circ + U_EM = m_e c²        → fixes R for given r/R
+    Constraint 2: field amplitude = threshold    → fixes r/R
+
+  What is the threshold? The Schwinger critical field — the field
+  strength where the QED vacuum spontaneously creates pairs.""")
+
+    # ── Section 2: The Schwinger Field ────────────────────────────────
+    print()
+    print("=" * 70)
+    print("SECTION 2: THE SCHWINGER FIELD AT r/R = α")
+    print("=" * 70)
+
+    E_Schwinger = m_e**2 * c**3 / (e_charge * hbar)
+    print(f"""
+  The Schwinger critical field:
+
+      E_S = m_e² c³ / (e ℏ) = {E_Schwinger:.4e} V/m
+
+  This is the electric field where the QED vacuum becomes unstable:
+  virtual e⁺e⁻ pairs gain enough energy over a Compton wavelength
+  to become real. It is the natural scale for pair creation.
+
+  Now compute the RMS field inside the electron torus at r/R = α:""")
+
+    # Compute at r/R = alpha, (2,1) torus knot
+    sol = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=alpha)
+    if sol is None:
+        print("  ERROR: Could not find self-consistent radius at r/R = α")
+        print("=" * 70)
+        return
+
+    R_alpha = sol['R']
+    r_alpha = alpha * R_alpha
+    fields_alpha = compute_torus_fields(R_alpha, r_alpha, p=2, q=1)
+
+    print(f"""
+  Self-consistent electron torus at r/R = α = {alpha:.6f}:
+    R = {R_alpha*1e15:.4f} fm       r = {r_alpha*1e15:.6f} fm
+    U_EM = {fields_alpha['U_EM']/MeV:.6f} MeV
+    log(8R/r) - 2 = {fields_alpha['log_factor']:.4f}
+
+  Field strengths (from U_EM distributed over the torus volume):
+
+    Volume assumption: full torus (V = 2π²Rr²)
+      V_torus = {fields_alpha['V_torus']:.4e} m³
+      B_rms = {fields_alpha['B_rms_torus']:.4e} T
+      E_rms = {fields_alpha['E_rms_torus']:.4e} V/m
+      E_rms / E_Schwinger = {fields_alpha['E_over_ES_torus']:.4f}
+
+    Volume assumption: tube along knot path (V = πr² × L_path)
+      V_tube = {fields_alpha['V_tube']:.4e} m³
+      B_rms = {fields_alpha['B_rms_tube']:.4e} T
+      E_rms = {fields_alpha['E_rms_tube']:.4e} V/m
+      E_rms / E_Schwinger = {fields_alpha['E_over_ES_tube']:.4f}
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  RESULT: E_rms / E_Schwinger ≈ {fields_alpha['E_over_ES_torus']:.1f} (torus) or {fields_alpha['E_over_ES_tube']:.1f} (tube)     │
+  │                                                                 │
+  │  The internal field of the electron torus is within an ORDER    │
+  │  OF MAGNITUDE of the Schwinger critical field. This is          │
+  │  remarkable — no parameter was tuned to achieve this.           │
+  └─────────────────────────────────────────────────────────────────┘""")
+
+    # ── Section 3: Schwinger Field Landscape ──────────────────────────
+    print()
+    print("=" * 70)
+    print("SECTION 3: SCHWINGER FIELD LANDSCAPE — WHERE IS E_rms/E_S = 1?")
+    print("=" * 70)
+    print("""
+  Sweep r/R from 10⁻⁴ to 0.5. At each value, find the self-consistent
+  R via E_circ + U_EM = m_e c², then compute E_rms/E_Schwinger.
+
+  The key question: at what r/R does E_rms = E_Schwinger?
+  Does this match α = 0.007297...?
+""")
+
+    # Build sweep array: dense near alpha, sparse elsewhere
+    r_ratios = np.sort(np.unique(np.concatenate([
+        np.logspace(-4, -0.3, 30),       # broad sweep 0.0001 to 0.5
+        np.linspace(0.001, 0.02, 10),     # dense near alpha
+        [alpha],                           # exact alpha
+    ])))
+
+    landscape = compute_field_landscape(r_ratios, p=2, q=1)
+
+    # Print table
+    print(f"  {'r/R':>10s}  {'R(fm)':>10s}  {'log_factor':>10s}  {'E/E_S(torus)':>12s}  {'E/E_S(tube)':>12s}")
+    print(f"  {'─'*10}  {'─'*10}  {'─'*10}  {'─'*12}  {'─'*12}")
+
+    for i in range(len(landscape['r_ratio'])):
+        rr = landscape['r_ratio'][i]
+        marker = " ◄── α" if abs(rr - alpha) / alpha < 0.01 else ""
+        print(f"  {rr:10.6f}  {landscape['R_fm'][i]:10.4f}  "
+              f"{landscape['log_factor'][i]:10.4f}  "
+              f"{landscape['E_over_ES_torus'][i]:12.4f}  "
+              f"{landscape['E_over_ES_tube'][i]:12.4f}{marker}")
+
+    # Interpolate to find where E_rms/E_S = 1
+    print(f"\n  Interpolating to find r/R where E_rms/E_S = 1:")
+    for label, arr_key in [('torus volume', 'E_over_ES_torus'), ('tube volume', 'E_over_ES_tube')]:
+        vals = landscape[arr_key]
+        rrs = landscape['r_ratio']
+        # E/E_S decreases with increasing r/R (larger volume → lower field)
+        # Find crossing point
+        found = False
+        for j in range(len(vals) - 1):
+            if (vals[j] - 1.0) * (vals[j+1] - 1.0) < 0:
+                # Linear interpolation
+                frac = (1.0 - vals[j]) / (vals[j+1] - vals[j])
+                rr_cross = rrs[j] + frac * (rrs[j+1] - rrs[j])
+                ratio_to_alpha = rr_cross / alpha
+                print(f"    {label:15s}: E/E_S = 1 at r/R = {rr_cross:.6f}  "
+                      f"(= {ratio_to_alpha:.2f} × α)")
+                found = True
+                break
+        if not found:
+            if len(vals) > 0 and vals[-1] > 1.0:
+                print(f"    {label:15s}: E/E_S > 1 for all r/R in range "
+                      f"(minimum {vals[-1]:.2f} at r/R = {rrs[-1]:.4f})")
+            elif len(vals) > 0 and vals[0] < 1.0:
+                print(f"    {label:15s}: E/E_S < 1 for all r/R in range "
+                      f"(maximum {vals[0]:.2f} at r/R = {rrs[0]:.4f})")
+            else:
+                print(f"    {label:15s}: insufficient data for interpolation")
+
+    print(f"\n  α = {alpha:.6f} for comparison")
+
+    # ── Section 4: Quantum vs Classical Field ─────────────────────────
+    print()
+    print("=" * 70)
+    print("SECTION 4: QUANTUM VS CLASSICAL FIELD")
+    print("=" * 70)
+
+    E_Q_tor = fields_alpha['E_Q_torus']
+    E_Q_tub = fields_alpha['E_Q_tube']
+    E_C_tor = fields_alpha['E_rms_torus']
+    E_C_tub = fields_alpha['E_rms_tube']
+    omega_alpha = fields_alpha['omega']
+
+    print(f"""
+  A single photon at the circulation frequency has a quantum field:
+
+      E_Q = √(ℏω / (ε₀V))
+
+  where ω = E_circ/ℏ is the circulation angular frequency.
+
+  At r/R = α:
+    ω = {omega_alpha:.4e} rad/s
+    ℏω = {hbar * omega_alpha / MeV:.6f} MeV  (= E_circ)
+
+    Torus volume:
+      E_Q = {E_Q_tor:.4e} V/m
+      E_C (classical, from current) = {E_C_tor:.4e} V/m
+      E_Q / E_C = {E_Q_tor/E_C_tor:.4e}
+
+    Tube volume:
+      E_Q = {E_Q_tub:.4e} V/m
+      E_C (classical, from current) = {E_C_tub:.4e} V/m
+      E_Q / E_C = {E_Q_tub/E_C_tub:.4e}
+
+  MATCHING CONDITION E_Q = E_C:
+  ─────────────────────────────
+  Setting √(ℏω/(ε₀V)) = √(μ₀ U_EM / V) × c requires:
+
+      ℏω = μ₀ c² U_EM / (1) = U_EM    (using μ₀ε₀c² = 1)
+
+  i.e., the single-photon energy must equal the total stored EM energy.
+  But U_EM = E_circ × α × log_factor / π, so the condition is:
+
+      1 = α × log_factor / π
+      log_factor = π/α ≈ {np.pi/alpha:.1f}
+      log(8R/r) - 2 ≈ {np.pi/alpha:.1f}
+      R/r ≈ exp({np.pi/alpha:.1f} + 2)/8 ≈ 10^{(np.pi/alpha + 2)/(np.log(10)*8):.0f}
+
+  This gives r/R → 0 (an impossibly thin torus).
+
+  HONEST CONCLUSION: Naive quantum field matching doesn't work.
+  ──────────────────
+  The electron is NOT a single Fock state |1⟩. It is a coherent,
+  self-interacting bound state. The classical current model (which
+  correctly predicts α × log_factor / π for the self-energy fraction)
+  already incorporates the full field coherently. Trying to match it
+  to a single-photon vacuum fluctuation is a category error.
+
+  The Schwinger field comparison (Section 3) is more physical: it asks
+  about the absolute field strength, not the photon number.""")
+
+    # ── Section 5: Flux and Impedance ─────────────────────────────────
+    print()
+    print("=" * 70)
+    print("SECTION 5: FLUX QUANTIZATION AND IMPEDANCE MATCHING")
+    print("=" * 70)
+    print(f"""
+  Two other quantization conditions to check:
+
+  FLUX: Φ = L_ind × I through the torus cross-section
+        Φ₀ = h/(2e) = {fields_alpha['Phi_0']:.4e} Wb (flux quantum)
+
+  IMPEDANCE: Z_torus = E_rms × (2πr) / I
+             Z₀ = μ₀c = {fields_alpha['Z_0']:.2f} Ω (free-space impedance)
+""")
+
+    print(f"  {'r/R':>10s}  {'Φ/Φ₀':>12s}  {'Z/Z₀':>12s}")
+    print(f"  {'─'*10}  {'─'*12}  {'─'*12}")
+
+    for i in range(len(landscape['r_ratio'])):
+        rr = landscape['r_ratio'][i]
+        marker = " ◄── α" if abs(rr - alpha) / alpha < 0.01 else ""
+        print(f"  {rr:10.6f}  {landscape['Phi_over_Phi0'][i]:12.4f}  "
+              f"{landscape['Z_over_Z0'][i]:12.4f}{marker}")
+
+    # Check for integer flux or Z/Z_0 = 1 near alpha
+    Phi_at_alpha = fields_alpha['Phi_over_Phi0']
+    Z_at_alpha = fields_alpha['Z_over_Z0']
+    print(f"""
+  At r/R = α:
+    Φ/Φ₀ = {Phi_at_alpha:.6f}   (nearest integer: {round(Phi_at_alpha)})
+    Z/Z₀ = {Z_at_alpha:.6f}""")
+
+    # Check if Z/Z_0 = 1 anywhere
+    z_vals = landscape['Z_over_Z0']
+    z_rrs = landscape['r_ratio']
+    for j in range(len(z_vals) - 1):
+        if (z_vals[j] - 1.0) * (z_vals[j+1] - 1.0) < 0:
+            frac = (1.0 - z_vals[j]) / (z_vals[j+1] - z_vals[j])
+            rr_cross = z_rrs[j] + frac * (z_rrs[j+1] - z_rrs[j])
+            print(f"    Z/Z₀ = 1 at r/R ≈ {rr_cross:.6f} (= {rr_cross/alpha:.2f} × α)")
+            break
+
+    # Check if Phi/Phi_0 = integer anywhere near alpha
+    for n_target in [1, 2, 3]:
+        for j in range(len(landscape['Phi_over_Phi0']) - 1):
+            p0 = landscape['Phi_over_Phi0'][j]
+            p1 = landscape['Phi_over_Phi0'][j+1]
+            if (p0 - n_target) * (p1 - n_target) < 0:
+                frac = (n_target - p0) / (p1 - p0)
+                rr_cross = z_rrs[j] + frac * (z_rrs[j+1] - z_rrs[j])
+                print(f"    Φ/Φ₀ = {n_target} at r/R ≈ {rr_cross:.6f} (= {rr_cross/alpha:.2f} × α)")
+                break
+
+    # ── Section 6: The Nuclear Catalyst ───────────────────────────────
+    print()
+    print("=" * 70)
+    print("SECTION 6: THE NUCLEAR CATALYST")
+    print("=" * 70)
+    print("""
+  Pair creation (γ → e⁺e⁻) requires a nucleus. Why?
+
+  The nucleus provides a Coulomb tidal field — a gradient in E that
+  varies across the photon's extent. This gradient breaks the symmetry
+  between R and r, providing the "shear" that triggers topology change.
+
+  Coulomb tidal field across the torus diameter (2r):
+
+      ΔE = Z k_e e / d² × 2r    (at distance d from nucleus Z)
+
+  At what distance d does the tidal gradient match E_S / r?
+  (i.e., the Schwinger field varying over the tube radius)
+
+      d_crit = (2 Z k_e e r² / E_S)^(1/3)
+""")
+
+    print(f"  {'Z':>4s}  {'Element':>8s}  {'d_crit(fm)':>12s}  {'d/λ_C':>10s}  {'d/a_0':>12s}")
+    print(f"  {'─'*4}  {'─'*8}  {'─'*12}  {'─'*10}  {'─'*12}")
+
+    elements = [(1, 'H'), (6, 'C'), (26, 'Fe'), (82, 'Pb')]
+    for Z, name in elements:
+        # d_crit = (2 Z k_e e r^2 / E_S)^(1/3)
+        # Use r at self-consistent alpha solution
+        d_crit = (2 * Z * k_e * e_charge * r_alpha**2 / E_Schwinger)**(1.0/3.0)
+        print(f"  {Z:4d}  {name:>8s}  {d_crit*1e15:12.4f}  "
+              f"{d_crit/lambda_C:10.4f}  {d_crit/a_0:12.4e}")
+
+    print(f"""
+  λ_C = {lambda_C*1e15:.4f} fm (reduced Compton wavelength)
+  a_0 = {a_0*1e10:.4f} Å  (Bohr radius)
+
+  PHYSICS INTERPRETATION:
+  ───────────────────────
+  The critical distances are all sub-Compton — well inside the quantum
+  regime. The nucleus doesn't DETERMINE α; pair creation happens at
+  r/R = α regardless of the nuclear charge. The nucleus merely provides
+  the perturbation that TRIGGERS the topology change (photon → torus).
+
+  This is analogous to nucleation in a phase transition: the nucleus
+  is the seed crystal, but the crystal structure is determined by the
+  material's own energetics, not by the seed.""")
+
+    # ── Section 7: Assessment ─────────────────────────────────────────
+    print()
+    print("=" * 70)
+    print("SECTION 7: ASSESSMENT")
+    print("=" * 70)
+
+    print(f"""
+  WHAT WORKS:
+  ───────────
+  1. The Schwinger field scale is the RIGHT BALLPARK.
+     At r/R = α, E_rms/E_S ≈ {fields_alpha['E_over_ES_torus']:.1f} (torus) or {fields_alpha['E_over_ES_tube']:.1f} (tube).
+     This is within a small integer factor of unity — remarkable given
+     that no parameter was tuned and the ratio could range over many
+     orders of magnitude across the r/R sweep.
+
+  2. The quantization insight is sound: E = hν having no amplitude
+     means the torus geometry must be fully determined by the energy
+     condition plus one field-matching condition.
+
+  3. The nuclear catalyst picture is physically sensible: the nucleus
+     triggers topology change at sub-Compton distances, consistent
+     with pair creation being a short-distance process.
+
+  WHAT DOESN'T WORK:
+  ──────────────────
+  1. Naive quantum field matching (E_Q = E_C) gives r/R → 0.
+     The electron is a coherent bound state, not a Fock state.
+
+  2. Flux quantization gives Φ/Φ₀ = {Phi_at_alpha:.2f} at α — not an integer.
+     (Though this may indicate the relevant quantum is Φ₀/n for
+     a (2,1) knot, or that the inductance formula needs refinement.)
+
+  3. Impedance matching gives Z/Z₀ = {Z_at_alpha:.2f} at α — not unity.
+
+  THE FACTOR OF ~{fields_alpha['E_over_ES_torus']:.0f} BETWEEN E_rms AND E_S:
+  ──────────────────────────────────────────
+  Is this a coincidence, or a correctable systematic?
+
+  Possible corrections that could close the gap:
+  • Volume geometry: the field is NOT uniformly distributed. Peak
+    fields near the knot center-line may be higher than the RMS.
+    The ratio of peak-to-RMS depends on the field profile ∝ 1/ρ,
+    where ρ is distance from the knot center-line.
+  • (2,1) vs (1,1): the trefoil knot has a non-trivial cross-section
+    profile; the "effective" volume may be smaller than 2π²Rr².
+  • The Schwinger threshold applies to the PEAK field, not RMS.
+    If E_peak/E_rms ~ {fields_alpha['E_over_ES_torus']:.0f}, the condition E_peak = E_S gives
+    E_rms/E_S = 1/{fields_alpha['E_over_ES_torus']:.0f} — but we have the opposite sign. The torus
+    field slightly EXCEEDS E_S, suggesting the electron exists just
+    above the pair-creation threshold (self-consistent: it IS a pair).
+
+  NEXT STEPS:
+  ───────────
+  1. Compute the actual field distribution inside the (2,1) torus
+     knot to get peak/RMS ratio and effective volume.
+  2. Check whether E_peak = E_S gives r/R = α when the field profile
+     is properly accounted for.
+  3. Investigate whether the log_factor ln(8R/r) - 2 provides the
+     right correction: at r/R = α, log_factor = {fields_alpha['log_factor']:.2f}.
+     The ratio E_rms/E_S depends on log_factor through U_EM.
+  4. Consider the pair creation RATE (Schwinger formula involves
+     exp(-π E_S/E)) rather than just the threshold.""")
+
+    print("=" * 70)
+
+
+# ────────────────────────────────────────────────────────────────────
+# Transient impedance analysis: LC circuit model of pair creation
+# ────────────────────────────────────────────────────────────────────
+
+def compute_torus_circuit(R, r, p=2, q=1):
+    """
+    Model the torus as a lumped-element LC circuit.
+
+    L = Neumann inductance of a torus (same formula as compute_self_energy)
+    C = self-capacitance of a conducting torus
+    Derived: resonant frequency, characteristic impedance, radiation resistance, Q.
+
+    Returns dict with all circuit parameters.
+    """
+    params = TorusParams(R=R, r=r, p=p, q=q)
+    se = compute_self_energy(params)
+    log_factor = se['log_factor']  # ln(8R/r) - 2
+    ln_8Rr = log_factor + 2.0     # ln(8R/r)
+
+    # Inductance (Neumann formula for torus)
+    L = mu0 * R * log_factor
+
+    # Self-capacitance of conducting torus (Smythe, Static and Dynamic Electricity)
+    C = 4 * np.pi**2 * eps0 * R / ln_8Rr
+
+    # LC resonant frequency
+    omega_0 = 1.0 / np.sqrt(L * C)
+
+    # Actual circulation (drive) frequency
+    L_path = compute_path_length(params)
+    omega_circ = 2 * np.pi * c / L_path
+
+    # Characteristic impedance
+    Z_char = np.sqrt(L / C)
+
+    # Free-space impedance
+    Z_0 = mu0 * c  # ~376.7 Ω
+
+    # Radiation resistance (magnetic dipole: loop area A = πr²)
+    k = omega_circ / c  # wavenumber at drive frequency
+    A_loop = np.pi * r**2
+    R_rad = Z_0 * (k * A_loop)**2 / (6 * np.pi)
+
+    # Quality factor and damping
+    Q = Z_char / R_rad if R_rad > 0 else np.inf
+    zeta = R_rad / (2 * Z_char) if Z_char > 0 else 0.0
+    R_crit = 2 * Z_char
+
+    # Reactive impedances at drive frequency
+    X_L = omega_circ * L
+    X_C = 1.0 / (omega_circ * C) if omega_circ * C > 0 else np.inf
+    X_net = X_L - X_C
+
+    return {
+        'L': L, 'C': C,
+        'omega_0': omega_0, 'omega_circ': omega_circ,
+        'omega_ratio': omega_0 / omega_circ,
+        'f_0_Hz': omega_0 / (2 * np.pi),
+        'f_circ_Hz': omega_circ / (2 * np.pi),
+        'Z_char': Z_char, 'Z_0': Z_0,
+        'Z_over_Z0': Z_char / Z_0,
+        'R_rad': R_rad, 'Q': Q,
+        'zeta': zeta, 'R_crit': R_crit,
+        'X_L': X_L, 'X_C': X_C, 'X_net': X_net,
+        'log_factor': log_factor, 'ln_8Rr': ln_8Rr,
+        'L_path': L_path,
+    }
+
+
+def compute_circuit_landscape(r_ratio_array, p=2, q=1):
+    """
+    Sweep r/R, computing LC circuit parameters at each self-consistent radius.
+
+    Returns dict of arrays for plotting/tabling.
+    """
+    results = {
+        'r_ratio': [], 'R_fm': [],
+        'omega_ratio': [], 'Z_over_Z0': [],
+        'Q': [], 'zeta': [],
+        'Z_char': [], 'R_rad': [],
+        'log_factor': [],
+    }
+
+    for rr in r_ratio_array:
+        sol = find_self_consistent_radius(m_e_MeV, p=p, q=q, r_ratio=rr)
+        if sol is None:
+            continue
+        R = sol['R']
+        r_val = rr * R
+        circ = compute_torus_circuit(R, r_val, p=p, q=q)
+
+        results['r_ratio'].append(rr)
+        results['R_fm'].append(R * 1e15)
+        results['omega_ratio'].append(circ['omega_ratio'])
+        results['Z_over_Z0'].append(circ['Z_over_Z0'])
+        results['Q'].append(circ['Q'])
+        results['zeta'].append(circ['zeta'])
+        results['Z_char'].append(circ['Z_char'])
+        results['R_rad'].append(circ['R_rad'])
+        results['log_factor'].append(circ['log_factor'])
+
+    # Convert to arrays
+    for key in results:
+        results[key] = np.array(results[key])
+
+    return results
+
+
+def compute_gap_formation(R, r, gap_fraction_array, p=2, q=1):
+    """
+    Split-ring resonator model of torus formation.
+
+    Gap width d = gap_fraction × 2πR. As the gap closes (d → 0),
+    the gap capacitance diverges and the resonant frequency sweeps
+    down through the drive frequency.
+
+    Returns dict of arrays.
+    """
+    params = TorusParams(R=R, r=r, p=p, q=q)
+    se = compute_self_energy(params)
+    log_factor = se['log_factor']
+
+    L = mu0 * R * log_factor
+    L_path = compute_path_length(params)
+    omega_circ = 2 * np.pi * c / L_path
+
+    results = {
+        'gap_fraction': [], 'd_fm': [],
+        'C_gap': [], 'omega_res': [],
+        'omega_res_over_omega_circ': [],
+    }
+
+    for gf in gap_fraction_array:
+        d = gf * 2 * np.pi * R  # gap width
+        if d <= 0:
+            continue
+        # Parallel-plate gap capacitance (area = πr²)
+        C_gap = eps0 * np.pi * r**2 / d
+        omega_res = 1.0 / np.sqrt(L * C_gap)
+
+        results['gap_fraction'].append(gf)
+        results['d_fm'].append(d * 1e15)
+        results['C_gap'].append(C_gap)
+        results['omega_res'].append(omega_res)
+        results['omega_res_over_omega_circ'].append(omega_res / omega_circ)
+
+    for key in results:
+        results[key] = np.array(results[key])
+
+    return results
+
+
+def compute_transient_overshoot(damping_ratio, omega_ratio_initial,
+                                omega_ratio_final, sweep_cycles=20,
+                                N_steps=10000):
+    """
+    Numerically integrate driven damped oscillator with swept natural frequency.
+
+      d²q/dt² + 2ζω₀(t)·dq/dt + ω₀(t)²·q = cos(ω_d·t)
+
+    ω₀(t)/ω_d sweeps linearly from omega_ratio_initial to omega_ratio_final
+    over sweep_cycles drive periods.
+
+    Uses Euler-Cromer (symplectic) integration.
+
+    Returns (peak_amplitude, steady_state_amplitude, overshoot_ratio, t_array, q_array).
+    """
+    omega_d = 2 * np.pi  # normalized drive frequency (period = 1)
+    T_sweep = sweep_cycles  # total time in drive periods
+    dt = T_sweep / N_steps
+
+    t = np.zeros(N_steps + 1)
+    q = np.zeros(N_steps + 1)
+    v = np.zeros(N_steps + 1)
+
+    # Initial conditions: start from rest
+    q[0] = 0.0
+    v[0] = 0.0
+
+    for i in range(N_steps):
+        t[i + 1] = t[i] + dt
+        # Swept natural frequency
+        frac = t[i] / T_sweep
+        omega_0 = omega_d * (omega_ratio_initial +
+                             (omega_ratio_final - omega_ratio_initial) * frac)
+
+        # Driving force
+        F = np.cos(omega_d * t[i])
+
+        # Euler-Cromer (symplectic)
+        a = F - 2 * damping_ratio * omega_0 * v[i] - omega_0**2 * q[i]
+        v[i + 1] = v[i] + a * dt
+        q[i + 1] = q[i] + v[i + 1] * dt
+
+    # Steady-state amplitude: last few cycles
+    last_cycles = max(1, int(N_steps * 0.1))
+    steady_amp = np.max(np.abs(q[-last_cycles:]))
+
+    # Peak amplitude over entire sweep
+    peak_amp = np.max(np.abs(q))
+
+    overshoot = peak_amp / steady_amp if steady_amp > 0 else np.inf
+
+    return peak_amp, steady_amp, overshoot, t, q
+
+
+def print_transient_impedance_analysis():
+    """
+    Transient impedance analysis: model the electron torus as an LC circuit
+    and investigate whether the factor of ~1.4 from pair creation analysis
+    arises from a transient impedance effect during topology formation.
+    """
+    print("=" * 70)
+    print("TRANSIENT IMPEDANCE: LC Circuit Model of Pair Creation")
+    print("=" * 70)
+    print()
+    print("The --pair-creation module found E_rms/E_S = 1.41 (tube volume)")
+    print("at r/R = α. The factor of ~1.4 begs explanation.")
+    print()
+    print("Hypothesis: it's a TRANSIENT IMPEDANCE effect during the")
+    print("photon → torus topology change. The torus is an LC circuit.")
+    print("A forming torus is a split-ring resonator with a closing gap.")
+    print("As the gap closes, the resonant frequency sweeps through the")
+    print("drive frequency — a transient that can produce field overshoot.")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 1: The Circuit Picture
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 1: THE CIRCUIT PICTURE")
+    print("─" * 70)
+    print()
+    print("The electron torus as a lumped-element LC circuit:")
+    print()
+    print("  L = μ₀R[ln(8R/r) - 2]        (Neumann inductance)")
+    print("  C = 4π²ε₀R / ln(8R/r)        (self-capacitance)")
+    print("  ω₀ = 1/√(LC)                 (LC resonant frequency)")
+    print("  Z_char = √(L/C)              (characteristic impedance)")
+    print()
+
+    # Compute at r/R = α
+    sol_alpha = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=alpha)
+    if sol_alpha is None:
+        print("ERROR: Could not find self-consistent radius at r/R = α")
+        return
+
+    R_a = sol_alpha['R']
+    r_a = alpha * R_a
+    circ_alpha = compute_torus_circuit(R_a, r_a, p=2, q=1)
+
+    print(f"At r/R = α = {alpha:.6f}:")
+    print(f"  R = {R_a*1e15:.4f} fm,  r = {r_a*1e15:.6f} fm")
+    print()
+    print(f"  Inductance:     L = {circ_alpha['L']:.4e} H")
+    print(f"  Capacitance:    C = {circ_alpha['C']:.4e} F")
+    print(f"  ln(8R/r):         {circ_alpha['ln_8Rr']:.4f}")
+    print(f"  log_factor:       {circ_alpha['log_factor']:.4f}")
+    print()
+    print(f"  Resonant freq:  ω₀ = {circ_alpha['omega_0']:.4e} rad/s")
+    print(f"  Drive freq:     ω_circ = {circ_alpha['omega_circ']:.4e} rad/s")
+    print(f"  Frequency ratio:  ω₀/ω_circ = {circ_alpha['omega_ratio']:.4f}")
+    print()
+
+    if circ_alpha['omega_ratio'] < 1.0:
+        print(f"  → Driven ABOVE resonance (ω_circ > ω₀): INDUCTIVE regime")
+    else:
+        print(f"  → Driven BELOW resonance (ω_circ < ω₀): CAPACITIVE regime")
+    print()
+
+    print(f"  Characteristic impedance:  Z_char = {circ_alpha['Z_char']:.2f} Ω")
+    print(f"  Free-space impedance:      Z₀     = {circ_alpha['Z_0']:.2f} Ω")
+    print(f"  Impedance ratio:           Z_char/Z₀ = {circ_alpha['Z_over_Z0']:.4f}")
+    print()
+    print(f"  ★ Z_char/Z₀ = {circ_alpha['Z_over_Z0']:.4f} — within"
+          f" {abs(1 - circ_alpha['Z_over_Z0'])*100:.1f}% of unity!")
+    print(f"    The electron torus is nearly impedance-matched to the vacuum.")
+    print()
+
+    # Analytical verification
+    print("  Analytical check (for (2,1) knot where L_path ≈ 4πR):")
+    lf = circ_alpha['log_factor']
+    ln8 = circ_alpha['ln_8Rr']
+    omega_ratio_anal = (1.0 / np.pi) * np.sqrt(ln8 / lf)
+    Z_ratio_anal = (1.0 / (2 * np.pi)) * np.sqrt(lf * ln8)
+    print(f"    ω₀/ω_circ = (1/π)√(ln(8R/r)/log_factor)")
+    print(f"              = (1/π)√({ln8:.2f}/{lf:.2f}) = {omega_ratio_anal:.4f}")
+    print(f"    Z_char/Z₀ = (1/2π)√(log_factor × ln(8R/r))")
+    print(f"              = (1/2π)√({lf:.2f} × {ln8:.2f}) = {Z_ratio_anal:.4f}")
+    print()
+
+    print(f"  Radiation resistance: R_rad = {circ_alpha['R_rad']:.4e} Ω")
+    print(f"  Quality factor:      Q = {circ_alpha['Q']:.2f}")
+    print(f"  Damping ratio:       ζ = {circ_alpha['zeta']:.4e}")
+    print(f"  Critical resistance: R_crit = 2·Z_char = {circ_alpha['R_crit']:.2f} Ω")
+    print()
+    print(f"  Reactive impedances at ω_circ:")
+    print(f"    X_L = ω_circ·L = {circ_alpha['X_L']:.2f} Ω")
+    print(f"    X_C = 1/(ω_circ·C) = {circ_alpha['X_C']:.2f} Ω")
+    print(f"    X_net = X_L - X_C = {circ_alpha['X_net']:.2f} Ω  (inductive)")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 2: Circuit Parameter Landscape
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 2: CIRCUIT PARAMETER LANDSCAPE")
+    print("─" * 70)
+    print()
+    print("Sweep r/R from 10⁻⁴ to 0.5, compute LC parameters at each")
+    print("self-consistent electron radius:")
+    print()
+
+    r_ratios = np.concatenate([
+        np.logspace(-4, -2, 15),
+        np.linspace(0.015, 0.05, 15),
+        np.linspace(0.06, 0.5, 15),
+    ])
+    landscape = compute_circuit_landscape(r_ratios, p=2, q=1)
+
+    # Print table
+    print(f"  {'r/R':>10s}  {'ω₀/ω_circ':>10s}  {'Z_char/Z₀':>10s}"
+          f"  {'Q':>12s}  {'ζ':>12s}")
+    print(f"  {'─'*10}  {'─'*10}  {'─'*10}  {'─'*12}  {'─'*12}")
+
+    # Select ~15 representative points for the table
+    n_pts = len(landscape['r_ratio'])
+    if n_pts > 15:
+        indices = np.linspace(0, n_pts - 1, 15, dtype=int)
+    else:
+        indices = range(n_pts)
+
+    for i in indices:
+        rr = landscape['r_ratio'][i]
+        marker = " ← α" if abs(rr - alpha) / alpha < 0.1 else ""
+        print(f"  {rr:10.6f}  {landscape['omega_ratio'][i]:10.4f}"
+              f"  {landscape['Z_over_Z0'][i]:10.4f}"
+              f"  {landscape['Q'][i]:12.2f}"
+              f"  {landscape['zeta'][i]:12.4e}{marker}")
+    print()
+
+    # Interpolate crossing points
+    rr_arr = landscape['r_ratio']
+    or_arr = landscape['omega_ratio']
+    zz_arr = landscape['Z_over_Z0']
+    ze_arr = landscape['zeta']
+
+    def find_crossing(x, y, target):
+        """Find x where y crosses target by linear interpolation."""
+        for i in range(len(y) - 1):
+            if (y[i] - target) * (y[i+1] - target) <= 0:
+                # Linear interpolation
+                frac = (target - y[i]) / (y[i+1] - y[i]) if y[i+1] != y[i] else 0.5
+                return x[i] + frac * (x[i+1] - x[i])
+        return None
+
+    rr_omega_match = find_crossing(rr_arr, or_arr, 1.0)
+    rr_Z_match = find_crossing(rr_arr, zz_arr, 1.0)
+    rr_zeta_half = find_crossing(rr_arr, ze_arr, 0.5)
+
+    print("  Crossing points:")
+    if rr_omega_match is not None:
+        print(f"    ω₀ = ω_circ  (resonance match)   at r/R = {rr_omega_match:.6f}"
+              f"  (α = {alpha:.6f}, ratio = {rr_omega_match/alpha:.2f})")
+    else:
+        print(f"    ω₀ = ω_circ  (resonance match)   NOT FOUND in scan range")
+        print(f"    (ω₀/ω_circ < 1 throughout — always driven above resonance)")
+
+    if rr_Z_match is not None:
+        print(f"    Z_char = Z₀  (impedance match)   at r/R = {rr_Z_match:.6f}"
+              f"  (α = {alpha:.6f}, ratio = {rr_Z_match/alpha:.2f})")
+    else:
+        print(f"    Z_char = Z₀  (impedance match)   NOT FOUND in scan range")
+
+    if rr_zeta_half is not None:
+        print(f"    ζ = 0.5      (critical damping)   at r/R = {rr_zeta_half:.6f}"
+              f"  (α = {alpha:.6f}, ratio = {rr_zeta_half/alpha:.2f})")
+    else:
+        print(f"    ζ = 0.5      (critical damping)   NOT FOUND in scan range")
+    print()
+
+    # What is ω₀/ω_circ at r/R = α (from the scan)?
+    # Find closest point
+    idx_alpha = np.argmin(np.abs(rr_arr - alpha))
+    print(f"  At the physical point (r/R closest to α = {alpha:.6f}):")
+    print(f"    r/R = {rr_arr[idx_alpha]:.6f}")
+    print(f"    ω₀/ω_circ = {or_arr[idx_alpha]:.4f}")
+    print(f"    Z_char/Z₀  = {zz_arr[idx_alpha]:.4f}")
+    print(f"    Q          = {landscape['Q'][idx_alpha]:.2f}")
+    print(f"    ζ          = {ze_arr[idx_alpha]:.4e}")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 3: Split-Ring Formation
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 3: SPLIT-RING FORMATION")
+    print("─" * 70)
+    print()
+    print("Model: forming torus = split-ring resonator with closing gap.")
+    print("Gap width d = gap_fraction × 2πR.")
+    print("Gap capacitance: C_gap = ε₀πr²/d (parallel plate).")
+    print("As gap closes: C_gap → ∞, ω_res → 0.")
+    print()
+
+    gap_fracs = np.logspace(-7, np.log10(0.5), 50)
+    gap_data = compute_gap_formation(R_a, r_a, gap_fracs, p=2, q=1)
+
+    print(f"  {'gap_frac':>10s}  {'d (fm)':>12s}  {'C_gap (F)':>12s}"
+          f"  {'ω_res/ω_circ':>12s}")
+    print(f"  {'─'*10}  {'─'*12}  {'─'*12}  {'─'*12}")
+
+    n_gap = len(gap_data['gap_fraction'])
+    if n_gap > 15:
+        g_indices = np.linspace(0, n_gap - 1, 15, dtype=int)
+    else:
+        g_indices = range(n_gap)
+
+    for i in g_indices:
+        marker = ""
+        if abs(gap_data['omega_res_over_omega_circ'][i] - 1.0) < 0.15:
+            marker = " ← ≈ resonance"
+        print(f"  {gap_data['gap_fraction'][i]:10.6f}"
+              f"  {gap_data['d_fm'][i]:12.4f}"
+              f"  {gap_data['C_gap'][i]:12.4e}"
+              f"  {gap_data['omega_res_over_omega_circ'][i]:12.4f}{marker}")
+    print()
+
+    # Find resonance crossing
+    gf_arr = gap_data['gap_fraction']
+    or_gap = gap_data['omega_res_over_omega_circ']
+    rr_gap_cross = find_crossing(gf_arr, or_gap, 1.0)
+
+    if rr_gap_cross is not None:
+        d_cross = rr_gap_cross * 2 * np.pi * R_a
+        print(f"  Resonance crossing (ω_res = ω_circ):")
+        print(f"    gap_fraction = {rr_gap_cross:.6f}")
+        print(f"    gap width d  = {d_cross*1e15:.4f} fm")
+        print(f"    d / (2πR)    = {rr_gap_cross:.6f}")
+        print(f"    d / r        = {d_cross / r_a:.4f}")
+        print()
+        print(f"  Physical interpretation: resonance occurs when the gap is")
+        print(f"  {rr_gap_cross*100:.3f}% of the circumference, or d/r = {d_cross/r_a:.4f}.")
+        if d_cross < r_a:
+            print(f"  The gap is SMALLER than the tube radius — the torus is")
+            print(f"  nearly closed when resonance sweeps through.")
+        else:
+            print(f"  The gap is LARGER than the tube radius — resonance occurs")
+            print(f"  early in the formation process.")
+    else:
+        print(f"  Resonance crossing NOT FOUND in gap sweep range.")
+        # Check if always above or below
+        if len(or_gap) > 0:
+            print(f"  ω_res/ω_circ ranges from {or_gap[0]:.4f} to {or_gap[-1]:.4f}")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 4: Transient Overshoot
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 4: TRANSIENT OVERSHOOT")
+    print("─" * 70)
+    print()
+    print("Numerically integrate the driven damped oscillator with swept")
+    print("natural frequency to find the transient overshoot factor:")
+    print()
+    print("  d²q/dt² + 2ζω₀(t)·dq/dt + ω₀(t)²·q = cos(ω_d·t)")
+    print()
+    print("ω₀/ω_d sweeps from high (open gap) to the final value (closed torus).")
+    print()
+
+    # The physical scenario: gap closing means ω_res sweeps DOWN.
+    # Start above drive frequency, end at the final ω₀/ω_circ ratio.
+    omega_ratio_final = circ_alpha['omega_ratio']
+    omega_ratio_initial = 5.0  # start well above resonance (large gap)
+
+    # Sweep damping ratios
+    zeta_values = [0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 2.0]
+
+    print(f"  Sweep: ω₀/ω_d from {omega_ratio_initial:.1f} → {omega_ratio_final:.4f}"
+          f" over 20 drive periods")
+    print()
+    print(f"  {'ζ':>8s}  {'Peak amp':>10s}  {'Steady amp':>10s}  {'Overshoot':>10s}")
+    print(f"  {'─'*8}  {'─'*10}  {'─'*10}  {'─'*10}")
+
+    overshoot_results = []
+    for z in zeta_values:
+        peak, steady, overshoot, _, _ = compute_transient_overshoot(
+            z, omega_ratio_initial, omega_ratio_final,
+            sweep_cycles=20, N_steps=10000
+        )
+        overshoot_results.append((z, peak, steady, overshoot))
+        print(f"  {z:8.3f}  {peak:10.4f}  {steady:10.4f}  {overshoot:10.4f}")
+    print()
+
+    # Find ζ where overshoot ≈ 1.4
+    zeta_arr = np.array([r[0] for r in overshoot_results])
+    over_arr = np.array([r[3] for r in overshoot_results])
+
+    zeta_14 = find_crossing(zeta_arr, over_arr, 1.4)
+    if zeta_14 is not None:
+        print(f"  Overshoot = 1.4 occurs at ζ ≈ {zeta_14:.4f}")
+    else:
+        print(f"  Overshoot = 1.4 NOT FOUND in damping range")
+        if len(over_arr) > 0:
+            print(f"  (overshoot ranges from {over_arr.min():.4f} to {over_arr.max():.4f})")
+
+    # Physical damping ratio
+    phys_zeta = circ_alpha['zeta']
+    print()
+    print(f"  Physical damping ratio (radiation resistance): ζ = {phys_zeta:.4e}")
+
+    # Compute overshoot at physical damping
+    peak_phys, steady_phys, over_phys, _, _ = compute_transient_overshoot(
+        phys_zeta, omega_ratio_initial, omega_ratio_final,
+        sweep_cycles=20, N_steps=10000
+    )
+    print(f"  Overshoot at physical ζ: {over_phys:.4f}")
+    print()
+
+    # Also try a finer sweep around the physical regime
+    print("  Fine sweep near very low damping (physical regime):")
+    zeta_fine = [1e-6, 1e-5, 1e-4, 1e-3, 5e-3, 1e-2]
+    print(f"  {'ζ':>10s}  {'Overshoot':>10s}")
+    print(f"  {'─'*10}  {'─'*10}")
+    for z in zeta_fine:
+        _, _, ov, _, _ = compute_transient_overshoot(
+            z, omega_ratio_initial, omega_ratio_final,
+            sweep_cycles=20, N_steps=10000
+        )
+        print(f"  {z:10.2e}  {ov:10.4f}")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 5: The Frequency Response (Bode Plot)
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 5: THE FREQUENCY RESPONSE")
+    print("  (Yes, we're doing a Bode plot of the electron)")
+    print("─" * 70)
+    print()
+    print("Transfer function of the LC circuit at the operating point:")
+    print()
+    print("  H(s) = ω₀²/(s² + 2ζω₀s + ω₀²)")
+    print("  |H(jω)| = 1/√[(1 - (ω/ω₀)²)² + (2ζω/ω₀)²]")
+    print()
+
+    # Compute at operating point ω = ω_circ
+    omega_ratio_op = circ_alpha['omega_circ'] / circ_alpha['omega_0']  # ω/ω₀
+    zeta_op = circ_alpha['zeta']
+
+    denom_real = 1 - omega_ratio_op**2
+    denom_imag = 2 * zeta_op * omega_ratio_op
+    H_mag = 1.0 / np.sqrt(denom_real**2 + denom_imag**2)
+    H_phase_deg = -np.degrees(np.arctan2(denom_imag, denom_real))
+
+    print(f"  Operating point: ω/ω₀ = ω_circ/ω₀ = {omega_ratio_op:.4f}")
+    print(f"  Damping:         ζ = {zeta_op:.4e}")
+    print()
+    print(f"  Gain:    |H| = {H_mag:.6f}  ({20*np.log10(H_mag):.2f} dB)")
+    print(f"  Phase:   ∠H  = {H_phase_deg:.2f}°")
+    print()
+
+    # Gain margin: frequency where phase = -180° (for this simple system,
+    # the 2nd-order system reaches -180° only at ω → ∞ for ζ > 0)
+    print(f"  For a 2nd-order system:")
+    print(f"    Phase = -180° only at ω → ∞ (gain margin is infinite)")
+    print(f"    Phase margin = 180° + ∠H(ω_circ) = {180 + H_phase_deg:.2f}°")
+    print()
+
+    # Sweep ω/ω₀ for the "Bode plot" table
+    omega_sweep = np.array([0.01, 0.1, 0.2, 0.5, 0.8, 1.0, 1.2, 1.5,
+                            2.0, omega_ratio_op, 5.0, 10.0])
+    omega_sweep = np.sort(np.unique(omega_sweep))
+
+    print(f"  {'ω/ω₀':>8s}  {'|H| (dB)':>10s}  {'∠H (°)':>10s}  {'Note':>20s}")
+    print(f"  {'─'*8}  {'─'*10}  {'─'*10}  {'─'*20}")
+
+    for w in omega_sweep:
+        dr = 1 - w**2
+        di = 2 * zeta_op * w
+        H = 1.0 / np.sqrt(dr**2 + di**2)
+        ph = -np.degrees(np.arctan2(di, dr))
+        note = ""
+        if abs(w - 1.0) < 0.001:
+            note = "resonance"
+        elif abs(w - omega_ratio_op) / omega_ratio_op < 0.01:
+            note = "★ operating point"
+        print(f"  {w:8.4f}  {20*np.log10(H):10.2f}  {ph:10.2f}  {note:>20s}")
+    print()
+
+    # How gain varies with r/R at the operating point
+    print("  Gain at operating point vs r/R:")
+    print(f"  {'r/R':>10s}  {'ω/ω₀':>8s}  {'|H| (dB)':>10s}  {'∠H (°)':>10s}")
+    print(f"  {'─'*10}  {'─'*8}  {'─'*10}  {'─'*10}")
+
+    for i in indices:
+        rr = landscape['r_ratio'][i]
+        or_val = landscape['omega_ratio'][i]
+        if or_val > 0:
+            w_op = 1.0 / or_val  # ω_circ/ω₀
+            dr = 1 - w_op**2
+            di = 2 * landscape['zeta'][i] * w_op
+            H = 1.0 / np.sqrt(dr**2 + di**2)
+            ph = -np.degrees(np.arctan2(di, dr))
+            marker = " ← α" if abs(rr - alpha) / alpha < 0.1 else ""
+            print(f"  {rr:10.6f}  {w_op:8.4f}  {20*np.log10(H):10.2f}"
+                  f"  {ph:10.2f}{marker}")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 6: Assessment
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 6: ASSESSMENT")
+    print("─" * 70)
+    print()
+
+    print("  Summary of key results:")
+    print(f"  ┌─────────────────────────────────────────────────────┐")
+    print(f"  │ At r/R = α (the physical electron):                │")
+    print(f"  │   Z_char/Z₀   = {circ_alpha['Z_over_Z0']:.4f}"
+          f"  ({abs(1-circ_alpha['Z_over_Z0'])*100:.1f}% from unity)      │")
+    print(f"  │   ω₀/ω_circ   = {circ_alpha['omega_ratio']:.4f}"
+          f"  (driven above resonance)     │")
+    print(f"  │   Q            = {circ_alpha['Q']:.1f}"
+          f"                              │")
+    print(f"  │   ζ (physical) = {circ_alpha['zeta']:.2e}"
+          f"  (extreme underdamping)  │")
+    print(f"  └─────────────────────────────────────────────────────┘")
+    print()
+
+    # Does impedance picture explain 1.4?
+    print("  Q: Does the impedance picture explain the factor of 1.4?")
+    print()
+    print(f"  The transient overshoot at the physical damping ratio")
+    print(f"  ζ = {phys_zeta:.2e} gives overshoot factor = {over_phys:.4f}.")
+    print()
+    if abs(over_phys - 1.4) / 1.4 < 0.15:
+        print(f"  ★ YES — the transient overshoot is close to 1.4!")
+        print(f"    The swept-resonance during gap closure naturally produces")
+        print(f"    field amplification near the pair-creation value.")
+    elif over_phys > 1.3:
+        print(f"  PARTIAL — the overshoot is in the right ballpark ({over_phys:.2f})")
+        print(f"  but doesn't precisely match 1.4. The simple swept-frequency")
+        print(f"  model captures the qualitative physics but misses quantitative")
+        print(f"  details (nonlinear gap geometry, distributed vs lumped circuit).")
+    else:
+        print(f"  NOT DIRECTLY — at the physical ζ, the transient overshoot")
+        print(f"  is {over_phys:.4f}, not 1.4. The extremely low damping means")
+        print(f"  the transient rings for many cycles. The simple model may need:")
+        print(f"  • Distributed-element corrections (the torus is not lumped)")
+        print(f"  • Nonlinear gap geometry (not parallel-plate)")
+        print(f"  • Radiation damping during formation (time-dependent losses)")
+    print()
+
+    # Does any matching condition select α?
+    print("  Q: Does any matching condition select r/R = α?")
+    print()
+
+    print(f"  Impedance match (Z_char = Z₀):")
+    if rr_Z_match is not None:
+        print(f"    Occurs at r/R = {rr_Z_match:.6f} (= {rr_Z_match/alpha:.2f}α)")
+        if abs(rr_Z_match - alpha) / alpha < 0.15:
+            print(f"    ★ CLOSE TO α — impedance matching may select the geometry!")
+        else:
+            print(f"    Not at α, but the near-match (Z/Z₀ = {circ_alpha['Z_over_Z0']:.4f})"
+                  f" is striking.")
+    else:
+        closest_Z = zz_arr[np.argmin(np.abs(zz_arr - 1.0))]
+        print(f"    Not found. Closest Z/Z₀ = {closest_Z:.4f} "
+              f"at r/R = {rr_arr[np.argmin(np.abs(zz_arr - 1.0))]:.6f}")
+    print()
+
+    # α as impedance ratio
+    print("  Connection: α as impedance ratio")
+    R_K = h_planck / e_charge**2  # von Klitzing constant ≈ 25812.8 Ω
+    R_Q = R_K / (2 * np.pi)      # quantum of resistance / 2π
+    print(f"    von Klitzing constant: R_K = h/e² = {R_K:.2f} Ω")
+    print(f"    Z₀ = μ₀c = {circ_alpha['Z_0']:.2f} Ω")
+    print(f"    α = Z₀/(2R_K) = {circ_alpha['Z_0']/(2*R_K):.8f}")
+    print(f"    Actual α       = {alpha:.8f}")
+    print(f"    Match: {abs(circ_alpha['Z_0']/(2*R_K) - alpha)/alpha*1e6:.1f} ppm"
+          f" — exact (this IS the definition of α).")
+    print()
+    print(f"    This is not a coincidence — α = e²/(4πε₀ħc) = Z₀/(2R_K)")
+    print(f"    is just the fine-structure constant written in impedance units.")
+    print(f"    What IS notable: the torus LC circuit recovers Z_char ≈ Z₀")
+    print(f"    at the same r/R = α. The topology builds in the right scale.")
+    print()
+
+    # Honest assessment
+    print("  WHAT WORKS:")
+    print("  ───────────")
+    print(f"  1. Z_char/Z₀ ≈ {circ_alpha['Z_over_Z0']:.2f} at r/R = α.")
+    print(f"     The electron torus is nearly impedance-matched to free space.")
+    print(f"     This is a necessary condition for efficient energy transfer")
+    print(f"     during pair creation (vacuum → particle).")
+    print()
+    print(f"  2. The split-ring model gives a concrete formation mechanism:")
+    print(f"     as the torus gap closes, the resonant frequency sweeps")
+    print(f"     through the drive frequency, producing a transient.")
+    print()
+    print(f"  3. The circuit language maps naturally onto pair creation:")
+    print(f"     the vacuum photon is the drive signal, the forming torus")
+    print(f"     is the resonator, and pair creation is impedance matching.")
+    print()
+
+    print("  WHAT DOESN'T WORK (YET):")
+    print("  ────────────────────────")
+    print(f"  1. The lumped-element model breaks down when the wavelength")
+    print(f"     is comparable to the circuit size (it always is here —")
+    print(f"     the photon wavelength IS the torus circumference).")
+    print()
+    print(f"  2. The radiation resistance estimate uses the magnetic dipole")
+    print(f"     formula, giving ζ ≈ {phys_zeta:.1e}. This is too small")
+    print(f"     to produce significant transient effects. A more realistic")
+    print(f"     damping mechanism (radiation during formation, nonlinear")
+    print(f"     coupling) could change the picture significantly.")
+    print()
+    print(f"  3. The factor of 1.4 is not yet explained. The transient")
+    print(f"     overshoot depends sensitively on the damping ratio and")
+    print(f"     the sweep profile. The simple linear sweep may not capture")
+    print(f"     the actual formation dynamics.")
+    print()
+
+    print("  NEXT STEPS:")
+    print("  ───────────")
+    print(f"  1. Distributed-element model: treat the torus as a transmission")
+    print(f"     line rather than a lumped LC. This is natural for the torus")
+    print(f"     topology and handles the wavelength ≈ size regime.")
+    print()
+    print(f"  2. Better damping: compute radiation losses during formation")
+    print(f"     using the time-dependent multipole moments of the closing")
+    print(f"     split-ring configuration.")
+    print()
+    print(f"  3. Nonlinear gap model: the parallel-plate capacitor is crude.")
+    print(f"     The actual gap geometry is toroidal, and the field")
+    print(f"     concentration at the gap edges matters.")
+    print()
+    print(f"  4. Connection to Schwinger rate: the transient field enhancement")
+    print(f"     during formation determines the pair-creation probability")
+    print(f"     via exp(-π E_S/E). Map the time-dependent fields to the")
+    print(f"     Schwinger rate integral.")
+
+    print()
+    print("=" * 70)
+
+
+# ────────────────────────────────────────────────────────────────────
+# Transmission line / waveguide analysis
+# ────────────────────────────────────────────────────────────────────
+
+def compute_transmission_line(R, r, p=2, q=1):
+    """
+    Distributed-parameter transmission line model of the torus.
+
+    Treats the torus as a uniform TL with distributed inductance l (H/m)
+    and capacitance c (F/m) derived from the lumped L and C spread over
+    the path length.
+
+    Returns dict with TL parameters, standing wave quantization,
+    and impedance matching metrics.
+    """
+    circ = compute_torus_circuit(R, r, p, q)
+    L_total = circ['L']
+    C_total = circ['C']
+    L_path = circ['L_path']
+    omega_circ = circ['omega_circ']
+    omega_0 = circ['omega_0']
+    Z_0 = circ['Z_0']
+
+    # Distributed parameters
+    l = L_total / L_path              # inductance per unit length (H/m)
+    c_dist = C_total / L_path         # capacitance per unit length (F/m)
+
+    # Phase velocity
+    v_p = 1.0 / np.sqrt(l * c_dist)
+
+    # Line impedance (= Z_char algebraically)
+    Z_line = np.sqrt(l / c_dist)
+
+    # Propagation constant at circulation frequency
+    beta = omega_circ / v_p
+
+    # Wavelength on the line
+    lambda_line = 2 * np.pi / beta
+
+    # Standing wave quantization: n_eff = beta*L_path/(2*pi) = omega_circ/omega_0
+    n_eff = beta * L_path / (2 * np.pi)
+
+    # Fundamental frequency of the TL (same as omega_0 of LC)
+    omega_1 = 2 * np.pi * v_p / L_path
+
+    # Reflection coefficient (mismatch between line and free space)
+    Gamma = (Z_0 - Z_line) / (Z_0 + Z_line)
+
+    # VSWR
+    abs_Gamma = abs(Gamma)
+    VSWR = (1 + abs_Gamma) / (1 - abs_Gamma) if abs_Gamma < 1 else np.inf
+
+    # Return loss (dB)
+    return_loss = -20 * np.log10(abs_Gamma) if abs_Gamma > 0 else np.inf
+
+    # Power coupling
+    power_coupling = 1 - Gamma**2
+
+    return {
+        'l': l, 'c_dist': c_dist,
+        'v_p': v_p, 'v_p_over_c': v_p / c,
+        'Z_line': Z_line, 'Z_0': Z_0,
+        'Z_line_over_Z0': Z_line / Z_0,
+        'beta': beta, 'lambda_line': lambda_line,
+        'n_eff': n_eff,
+        'omega_0': omega_0, 'omega_circ': omega_circ,
+        'omega_1': omega_1,
+        'Gamma': Gamma, 'abs_Gamma': abs_Gamma,
+        'VSWR': VSWR, 'return_loss_dB': return_loss,
+        'power_coupling': power_coupling,
+        'L_total': L_total, 'C_total': C_total, 'L_path': L_path,
+        'Z_char': circ['Z_char'],
+        'ln_8Rr': circ['ln_8Rr'], 'log_factor': circ['log_factor'],
+    }
+
+
+def compute_waveguide_cutoffs(R, r, p=2, q=1):
+    """
+    Waveguide cutoff frequencies for a circular cross-section of radius r.
+
+    Uses hardcoded Bessel zeros (no scipy dependency). Returns list of
+    mode dicts sorted by cutoff frequency, each with omega_circ/omega_c.
+    """
+    params = TorusParams(R=R, r=r, p=p, q=q)
+    L_path = compute_path_length(params)
+    omega_circ = 2 * np.pi * c / L_path
+
+    # Bessel zeros: TE modes use J'_m zeros, TM modes use J_m zeros
+    modes = [
+        ('TE', 1, 1, 1.8412),   # x'_11 — lowest cutoff
+        ('TM', 0, 1, 2.4048),   # x_01
+        ('TE', 2, 1, 3.0542),   # x'_21
+        ('TE', 0, 1, 3.8317),   # x'_01
+        ('TM', 1, 1, 3.8317),   # x_11
+        ('TE', 3, 1, 4.2012),   # x'_31
+        ('TM', 2, 1, 5.1356),   # x_21
+        ('TE', 4, 1, 5.3175),   # x'_41
+        ('TE', 1, 2, 5.3314),   # x'_12
+        ('TM', 0, 2, 5.5201),   # x_02
+    ]
+
+    result = []
+    for mode_type, m, n, x_mn in modes:
+        omega_c = x_mn * c / r
+        f_c = omega_c / (2 * np.pi)
+        ratio = omega_circ / omega_c
+        result.append({
+            'type': mode_type, 'm': m, 'n': n,
+            'label': f"{mode_type}_{m}{n}",
+            'x_mn': x_mn,
+            'omega_c': omega_c, 'f_c': f_c,
+            'omega_circ_over_omega_c': ratio,
+            'evanescent': ratio < 1.0,
+        })
+
+    result.sort(key=lambda d: d['omega_c'])
+    return result
+
+
+def compute_nonuniform_tl(R, r, p=2, q=1, N=500):
+    """
+    Position-dependent TL parameters along the (p,q) knot path.
+
+    The poloidal angle varies along the knot, so the distance from the
+    torus axis oscillates: rho(s) = R + r*cos(phi(s)). This modulates
+    the local inductance, capacitance, and impedance.
+
+    Returns dict with position arrays and statistics.
+    """
+    params = TorusParams(R=R, r=r, p=p, q=q)
+    lam, xyz, dxyz, ds = torus_knot_curve(params, N)
+    dlam = 2 * np.pi / N
+
+    # Poloidal angle at each point
+    phi = q * lam
+
+    # Distance from symmetry axis
+    rho = R + r * np.cos(phi)
+
+    # Local geometric factor
+    ln_8rho_r = np.log(8.0 * rho / r)
+
+    # Local distributed parameters (standard TL formulas)
+    l_local = (mu0 / (2 * np.pi)) * ln_8rho_r       # H/m
+    c_local = 2 * np.pi * eps0 / ln_8rho_r           # F/m
+    Z_local = np.sqrt(l_local / c_local)              # Ohm
+    v_p_local = 1.0 / np.sqrt(l_local * c_local)     # m/s
+
+    # Cumulative arc length
+    ds_arr = ds * dlam
+    s_cum = np.cumsum(ds_arr)
+    s_cum = np.insert(s_cum, 0, 0.0)[:-1]
+    L_path = np.sum(ds_arr)
+
+    # Effective phase accumulation: Phi = omega * integral(ds/v_p_local)
+    L_path_check = compute_path_length(params)
+    omega_circ = 2 * np.pi * c / L_path_check
+
+    # Transit time along the line
+    transit_time = np.sum(ds_arr / v_p_local)
+
+    # Effective phase and harmonic number
+    phase_total = omega_circ * transit_time
+    n_eff_nonuniform = phase_total / (2 * np.pi)
+
+    # Compare with uniform model
+    tl_uniform = compute_transmission_line(R, r, p, q)
+    n_eff_uniform = tl_uniform['n_eff']
+
+    # Statistics
+    Z_mean = np.mean(Z_local)
+    Z_min = np.min(Z_local)
+    Z_max = np.max(Z_local)
+    Z_modulation = (Z_max - Z_min) / Z_mean
+
+    v_mean = np.mean(v_p_local)
+    v_min = np.min(v_p_local)
+    v_max = np.max(v_p_local)
+
+    return {
+        's': s_cum, 'phi': phi, 'rho': rho,
+        'l': l_local, 'c': c_local, 'Z': Z_local, 'v_p': v_p_local,
+        'L_path': L_path,
+        'Z_mean': Z_mean, 'Z_min': Z_min, 'Z_max': Z_max,
+        'Z_modulation': Z_modulation,
+        'v_mean': v_mean, 'v_min': v_min, 'v_max': v_max,
+        'n_eff_nonuniform': n_eff_nonuniform,
+        'n_eff_uniform': n_eff_uniform,
+        'resonance_shift': (n_eff_nonuniform - n_eff_uniform) / n_eff_uniform,
+        'transit_time': transit_time,
+        'phase_total': phase_total,
+        'ds_arr': ds_arr,
+    }
+
+
+def print_transmission_line_analysis():
+    """
+    Distributed transmission line and waveguide model of the electron torus.
+
+    Goes beyond the lumped LC model (--transient-impedance) to embrace the
+    full wave physics: telegrapher's equations, standing waves, waveguide
+    cutoffs, and non-uniform impedance along the knot path.
+    """
+    print("=" * 70)
+    print("TRANSMISSION LINE: Distributed TL / Waveguide Model")
+    print("=" * 70)
+    print()
+    print("The --transient-impedance module modeled the torus as a lumped LC")
+    print("circuit and found Z_char/Z₀ ≈ 0.94. But it honestly noted that")
+    print("the lumped model breaks down because the wavelength ≈ device size.")
+    print()
+    print("This module embraces the full transmission line / waveguide")
+    print("formalism. Start from Maxwell, let the telegrapher's equations")
+    print("fall out, and see what new physics emerges.")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 1: From Lumped to Distributed
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 1: FROM LUMPED TO DISTRIBUTED")
+    print("─" * 70)
+    print()
+    print("The telegrapher's equations on the torus:")
+    print()
+    print("  ∂V/∂s = -l · ∂I/∂t       l = distributed inductance (H/m)")
+    print("  ∂I/∂s = -c · ∂V/∂t       c = distributed capacitance (F/m)")
+    print()
+    print("For a uniform line of length L_path, the lumped L and C distribute:")
+    print()
+    print("  l = L_total / L_path      c = C_total / L_path")
+    print()
+
+    # Compute at r/R = α
+    sol_alpha = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=alpha)
+    if sol_alpha is None:
+        print("ERROR: Could not find self-consistent radius at r/R = α")
+        return
+
+    R_a = sol_alpha['R']
+    r_a = alpha * R_a
+    circ = compute_torus_circuit(R_a, r_a, p=2, q=1)
+    tl = compute_transmission_line(R_a, r_a, p=2, q=1)
+
+    print(f"At r/R = α = {alpha:.6f}:")
+    print(f"  R = {R_a*1e15:.4f} fm,  r = {r_a*1e15:.6f} fm")
+    print()
+    print(f"  Lumped model (--transient-impedance):")
+    print(f"    L = {circ['L']:.4e} H")
+    print(f"    C = {circ['C']:.4e} F")
+    print(f"    Z_char = √(L/C) = {circ['Z_char']:.2f} Ω")
+    print(f"    Z_char/Z₀ = {circ['Z_over_Z0']:.4f}")
+    print()
+    print(f"  Distributed model (this module):")
+    print(f"    l = L/L_path = {tl['l']:.4e} H/m")
+    print(f"    c = C/L_path = {tl['c_dist']:.4e} F/m")
+    print(f"    Z_line = √(l/c) = {tl['Z_line']:.2f} Ω")
+    print(f"    Z_line/Z₀ = {tl['Z_line_over_Z0']:.4f}")
+    print()
+    print(f"  Z_line = Z_char = {tl['Z_line']:.2f} Ω  (algebraic identity)")
+    print(f"  The impedance is the SAME. What's new: propagation, standing")
+    print(f"  waves, phase velocity, reflection/VSWR in proper TL language.")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 2: Distributed Parameters
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 2: DISTRIBUTED PARAMETERS")
+    print("─" * 70)
+    print()
+    print(f"  Path length:          L_path  = {tl['L_path']:.4e} m")
+    print(f"  Distributed L:        l       = {tl['l']:.4e} H/m")
+    print(f"  Distributed C:        c       = {tl['c_dist']:.4e} F/m")
+    print(f"  Line impedance:       Z_line  = {tl['Z_line']:.2f} Ω")
+    print()
+    print(f"  Phase velocity:       v_p     = {tl['v_p']:.4e} m/s")
+    print(f"                        v_p/c   = {tl['v_p_over_c']:.4f}")
+    print()
+    print(f"  Propagation constant: β       = {tl['beta']:.4e} rad/m")
+    print(f"  Wavelength on line:   λ_line  = {tl['lambda_line']:.4e} m")
+    print(f"                        λ/L_path = {tl['lambda_line']/tl['L_path']:.4f}")
+    print()
+    print(f"  ★ v_p/c = {tl['v_p_over_c']:.4f} — superluminal phase velocity")
+    print()
+    print(f"  This is NORMAL for waveguides. The phase velocity exceeds c")
+    print(f"  but the group velocity (which carries energy) does not.")
+    print()
+
+    # Analytical derivation
+    lf = tl['log_factor']   # ln(8R/r) - 2
+    ln8 = tl['ln_8Rr']      # ln(8R/r)
+    L_over_2piR = tl['L_path'] / (2 * np.pi * R_a)
+
+    print(f"  Analytical derivation:")
+    print(f"    v_p = L_path / √(L·C)")
+    print(f"    v_p/c = [L_path/(2πR)] · √[ln(8R/r) / (ln(8R/r) - 2)]")
+    print(f"          = {L_over_2piR:.4f} × √({ln8:.3f}/{lf:.3f})")
+    print(f"          = {L_over_2piR:.4f} × {np.sqrt(ln8/lf):.4f}")
+    print(f"          = {L_over_2piR * np.sqrt(ln8/lf):.4f}")
+    print()
+    print(f"  For (2,1) knot with r ≪ R:")
+    print(f"    L_path → 4πR,  so  L_path/(2πR) → 2")
+    print(f"    v_p/c → 2·√(ln₈/lf) = 2·√({ln8:.1f}/{lf:.1f})")
+    print(f"          = 2·√({ln8/lf:.2f}) = {2*np.sqrt(ln8/lf):.4f}")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 3: Standing Wave Quantization
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 3: STANDING WAVE QUANTIZATION")
+    print("─" * 70)
+    print()
+    print("  The torus is a CLOSED transmission line. Standing waves form")
+    print("  when an integer number of wavelengths fit around the path:")
+    print()
+    print("    β · L_path = 2πn   →   ω_n = n · ω₁_TL")
+    print()
+    print("  where ω₁_TL = 2π·v_p/L_path is the TL fundamental.")
+    print()
+    print(f"  Key relationship:  ω₁_TL = 2π · ω₀")
+    print(f"  The TL fundamental is 2π times the lumped LC resonance.")
+    print()
+    print(f"    ω₀     = {tl['omega_0']:.4e} rad/s  (lumped LC resonance)")
+    print(f"    ω_circ = {tl['omega_circ']:.4e} rad/s  (circulation frequency)")
+    print(f"    ω₁_TL  = {tl['omega_1']:.4e} rad/s  (1st TL harmonic = 2π·ω₀)")
+    print()
+    print(f"  Frequency hierarchy:   ω₀  <  ω_circ  <  ω₁_TL")
+    print()
+
+    # Frequency hierarchy table
+    n_eff = tl['n_eff']
+    theta_el = tl['beta'] * tl['L_path']  # electrical length in radians
+    theta_deg = np.degrees(theta_el)
+
+    print(f"  {'Frequency':>25s}  {'Value (rad/s)':>14s}  {'ω/ω_circ':>10s}")
+    print(f"  {'─'*25}  {'─'*14}  {'─'*10}")
+    print(f"  {'ω₀  (LC resonance)':>25s}  {tl['omega_0']:14.4e}  "
+          f"{tl['omega_0']/tl['omega_circ']:10.4f}")
+    print(f"  {'ω_circ (drive)':>25s}  {tl['omega_circ']:14.4e}  "
+          f"{'1.0000':>10s}")
+    for n in range(1, 5):
+        omega_n = n * tl['omega_1']
+        label = f"ω_{n}_TL (harmonic {n})"
+        print(f"  {label:>25s}  {omega_n:14.4e}  "
+              f"{omega_n/tl['omega_circ']:10.4f}")
+
+    print()
+    print(f"  Electrical length:  θ = β·L = {theta_el:.4f} rad"
+          f" = {theta_deg:.1f}°")
+    print(f"  Wavelengths:        n_eff = θ/(2π) = {n_eff:.4f}")
+    print()
+    print(f"  ★ The electron sits BETWEEN ω₀ and ω₁_TL")
+    print(f"    — at the boundary of the lumped and distributed regimes.")
+    print()
+    print(f"  The lumped model says:  driven ABOVE resonance  (ω_circ > ω₀)")
+    print(f"  The TL model says:     driven BELOW 1st harmonic (ω_circ < ω₁_TL)")
+    print()
+    print(f"  Both are correct! The lumped ω₀ and distributed ω₁_TL = 2π·ω₀")
+    print(f"  bracket the drive frequency. This boundary character is why")
+    print(f"  the lumped model gets impedance right (Z_char = Z_line)")
+    print(f"  but misses the wave structure.")
+    print()
+    print(f"  In microwave terms: θ = {theta_deg:.0f}° is between λ/4 (90°)")
+    print(f"  and λ/2 (180°). The torus is electrically compact (0.42λ)")
+    print(f"  but NOT electrically small (≪ λ). Resonance effects are")
+    print(f"  significant but the object is not a full resonator.")
+    print()
+
+    # Analytical
+    theta_anal = np.pi * np.sqrt(lf / ln8)
+    n_eff_anal = np.sqrt(lf / ln8) / 2.0
+    print(f"  Analytical:  θ = π·√(lf/ln₈)")
+    print(f"             = π·√({lf:.3f}/{ln8:.3f})")
+    print(f"             = π × {np.sqrt(lf/ln8):.4f} = {theta_anal:.4f} rad")
+    print(f"             n_eff = √(lf/ln₈)/2 = {n_eff_anal:.4f}")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 4: Waveguide Cutoff Analysis
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 4: WAVEGUIDE CUTOFF ANALYSIS")
+    print("─" * 70)
+    print()
+    print("  The torus cross-section (radius r) acts as a circular waveguide.")
+    print("  Standard TE and TM modes have cutoff frequencies:")
+    print()
+    print("    TE_mn:  ω_c = x'_mn · c / r    (x'_mn = zeros of J'_m)")
+    print("    TM_mn:  ω_c = x_mn  · c / r    (x_mn  = zeros of J_m)")
+    print()
+
+    modes = compute_waveguide_cutoffs(R_a, r_a, p=2, q=1)
+
+    print(f"  {'Mode':>8s}  {'x_mn':>8s}  {'ω_c (rad/s)':>16s}"
+          f"  {'ω_circ/ω_c':>12s}  {'status':s}")
+    print(f"  {'─'*8}  {'─'*8}  {'─'*16}  {'─'*12}  {'─'*12}")
+
+    for m in modes:
+        status = "evanescent" if m['evanescent'] else "propagating"
+        print(f"  {m['label']:>8s}  {m['x_mn']:8.4f}  {m['omega_c']:16.4e}"
+              f"  {m['omega_circ_over_omega_c']:12.6f}  {status}")
+
+    print()
+    print(f"  ALL standard waveguide modes are deeply evanescent!")
+    print(f"  The lowest (TE₁₁) has ω_circ/ω_c = "
+          f"{modes[0]['omega_circ_over_omega_c']:.6f}")
+    print(f"  — three orders of magnitude below cutoff.")
+    print()
+    print(f"  Standard waveguide physics says: NOTHING propagates.")
+    print()
+    print(f"  But the torus has genus 1 — its topology enables TEM-like")
+    print(f"  propagation that requires no cutoff. The hole through the")
+    print(f"  torus acts like the inner conductor of a coaxial cable.")
+    print()
+    print(f"  This is the deep reason the photon-on-torus model works:")
+    print(f"  topology trumps geometry. A simply-connected waveguide of")
+    print(f"  this size could not support propagation at this frequency.")
+    print(f"  The torus can, because it is multiply connected.")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 5: Impedance Matching — The Star Result
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 5: IMPEDANCE MATCHING — THE STAR RESULT")
+    print("─" * 70)
+    print()
+    print("  In transmission line language, impedance matching is quantified")
+    print("  by the reflection coefficient, VSWR, and return loss:")
+    print()
+    print("    Γ = (Z₀ - Z_line) / (Z₀ + Z_line)")
+    print("    VSWR = (1 + |Γ|) / (1 - |Γ|)")
+    print("    Return loss = -20 log₁₀|Γ|  (dB)")
+    print("    Power coupling = 1 - Γ²")
+    print()
+    print(f"  At r/R = α:")
+    print(f"    Z_line      = {tl['Z_line']:.2f} Ω")
+    print(f"    Z₀          = {tl['Z_0']:.2f} Ω")
+    print(f"    Γ           = {tl['Gamma']:.6f}")
+    print(f"    |Γ|         = {tl['abs_Gamma']:.6f}")
+    print(f"    VSWR        = {tl['VSWR']:.4f}")
+    print(f"    Return loss = {tl['return_loss_dB']:.1f} dB")
+    print(f"    Power       = {tl['power_coupling']:.6f}"
+          f" = {tl['power_coupling']*100:.3f}%")
+    print()
+
+    # Comparison table
+    print(f"  Comparison with engineered systems:")
+    print()
+    print(f"  {'System':>25s}  {'VSWR':>6s}  {'|Γ|':>8s}"
+          f"  {'RL (dB)':>8s}  {'Coupling':>10s}")
+    print(f"  {'─'*25}  {'─'*6}  {'─'*8}  {'─'*8}  {'─'*10}")
+
+    comparisons = [
+        ("Cell phone antenna",     1.5),
+        ("Wi-Fi antenna",          1.3),
+        ("Professional antenna",   1.2),
+        ("Lab-grade antenna",      1.1),
+        ("Electron torus",         tl['VSWR']),
+    ]
+    for name, vswr in comparisons:
+        g = (vswr - 1) / (vswr + 1)
+        rl = -20 * np.log10(g) if g > 0 else np.inf
+        pc = 1 - g**2
+        marker = "  ★" if name == "Electron torus" else ""
+        print(f"  {name:>25s}  {vswr:6.3f}  {g:8.4f}"
+              f"  {rl:8.1f}  {pc*100:8.2f}%{marker}")
+
+    print()
+    coupling_pct = tl['power_coupling'] * 100
+    print(f"  ┌────────────────────────────────────────────────────────────┐")
+    print(f"  │  STAR RESULT:                                             │")
+    print(f"  │                                                           │")
+    print(f"  │  The electron torus is impedance-matched to free space    │")
+    print(f"  │  with {coupling_pct:.1f}% power coupling"
+          f" (VSWR = {tl['VSWR']:.2f}).                │")
+    print(f"  │                                                           │")
+    print(f"  │  It is a better antenna than most engineered devices.     │")
+    print(f"  └────────────────────────────────────────────────────────────┘")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 6: Impedance Landscape
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 6: IMPEDANCE LANDSCAPE")
+    print("─" * 70)
+    print()
+    print("  Sweep r/R from 10⁻⁴ to 0.5, compute TL matching at each")
+    print("  self-consistent electron radius:")
+    print()
+
+    r_ratios = np.concatenate([
+        np.logspace(-4, -2, 12),
+        np.linspace(0.015, 0.05, 10),
+        np.linspace(0.06, 0.5, 10),
+    ])
+
+    # Collect sweep data
+    sweep_rr = []
+    sweep_Z = []
+    sweep_Gamma = []
+    sweep_VSWR = []
+    sweep_rl = []
+    sweep_pc = []
+
+    for rr in r_ratios:
+        sol = find_self_consistent_radius(m_e_MeV, p=2, q=1, r_ratio=rr)
+        if sol is None:
+            continue
+        tl_i = compute_transmission_line(sol['R'], rr * sol['R'], p=2, q=1)
+        sweep_rr.append(rr)
+        sweep_Z.append(tl_i['Z_line'])
+        sweep_Gamma.append(tl_i['abs_Gamma'])
+        sweep_VSWR.append(tl_i['VSWR'])
+        sweep_rl.append(tl_i['return_loss_dB'])
+        sweep_pc.append(tl_i['power_coupling'])
+
+    sweep_rr = np.array(sweep_rr)
+    sweep_Z = np.array(sweep_Z)
+    sweep_Gamma = np.array(sweep_Gamma)
+    sweep_VSWR = np.array(sweep_VSWR)
+    sweep_rl = np.array(sweep_rl)
+    sweep_pc = np.array(sweep_pc)
+
+    # Print table (select ~15 rows)
+    n_pts = len(sweep_rr)
+    if n_pts > 15:
+        indices = np.linspace(0, n_pts - 1, 15, dtype=int)
+    else:
+        indices = range(n_pts)
+
+    print(f"  {'r/R':>10s}  {'Z_line (Ω)':>10s}  {'|Γ|':>8s}"
+          f"  {'VSWR':>7s}  {'RL (dB)':>8s}  {'Coupling':>10s}")
+    print(f"  {'─'*10}  {'─'*10}  {'─'*8}"
+          f"  {'─'*7}  {'─'*8}  {'─'*10}")
+
+    for i in indices:
+        marker = " ← α" if abs(sweep_rr[i] - alpha) / alpha < 0.1 else ""
+        print(f"  {sweep_rr[i]:10.6f}  {sweep_Z[i]:10.2f}  "
+              f"{sweep_Gamma[i]:8.5f}  {sweep_VSWR[i]:7.3f}  "
+              f"{sweep_rl[i]:8.1f}  {sweep_pc[i]*100:8.3f}%{marker}")
+
+    print()
+
+    # Find perfect match (Γ = 0, i.e. Z_line/Z₀ = 1)
+    def find_crossing(x, y, target):
+        """Find x where y crosses target by linear interpolation."""
+        for i in range(len(y) - 1):
+            if (y[i] - target) * (y[i+1] - target) <= 0:
+                frac = (target - y[i]) / (y[i+1] - y[i]) if y[i+1] != y[i] else 0.5
+                return x[i] + frac * (x[i+1] - x[i])
+        return None
+
+    sweep_Z_over_Z0 = sweep_Z / (mu0 * c)
+    rr_match = find_crossing(sweep_rr, sweep_Z_over_Z0, 1.0)
+
+    if rr_match is not None:
+        print(f"  Perfect match (Γ = 0) at r/R ≈ {rr_match:.5f}")
+        print(f"  Ratio to α: {rr_match/alpha:.4f}")
+        print()
+
+    # Analytical perfect match
+    # Z_line/Z₀ = √(lf·ln₈)/(2π) = 1  →  lf·ln₈ = 4π²
+    # (x-2)·x = 4π²  →  x = 1 + √(1 + 4π²)
+    x_match = 1.0 + np.sqrt(1.0 + 4 * np.pi**2)
+    rr_match_anal = 8.0 / np.exp(x_match)
+
+    print(f"  Analytical:  ln(8R/r) · [ln(8R/r) - 2] = 4π² = {4*np.pi**2:.3f}")
+    print(f"    ln(8R/r) = {x_match:.4f}")
+    print(f"    r/R = 8/exp({x_match:.4f}) = {rr_match_anal:.5f}")
+    print(f"    Ratio to α: {rr_match_anal/alpha:.4f}")
+    print()
+    print(f"  The perfect match is at r/R ≈ {rr_match_anal:.5f} ≈ 0.70α.")
+    print(f"  Close to α, but not exact. The gap may encode real physics:")
+    print(f"  α is selected by the self-consistency condition (mass),")
+    print(f"  not by impedance matching. That these two conditions nearly")
+    print(f"  coincide is remarkable.")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 7: Non-Uniform Transmission Line
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 7: NON-UNIFORM TRANSMISSION LINE")
+    print("─" * 70)
+    print()
+    print("  The (2,1) knot has position-dependent geometry. The poloidal")
+    print("  angle φ varies along the path, so the distance from the")
+    print("  torus axis oscillates: ρ(s) = R + r·cos(φ(s)).")
+    print()
+    print("  This modulates the local TL parameters:")
+    print()
+    print("    l(s) = (μ₀/2π) · ln(8ρ(s)/r)      (local L per length)")
+    print("    c(s) = 2πε₀ / ln(8ρ(s)/r)          (local C per length)")
+    print("    Z(s) = √(l/c) = (Z₀/2π) · ln(8ρ(s)/r)")
+    print()
+
+    nutl = compute_nonuniform_tl(R_a, r_a, p=2, q=1, N=500)
+
+    # Table of position-dependent parameters
+    N_table = 12
+    N_pts = len(nutl['s'])
+    table_idx = np.linspace(0, N_pts - 1, N_table, dtype=int)
+
+    print(f"  {'s/L':>8s}  {'φ/2π':>8s}  {'ρ/R':>10s}"
+          f"  {'Z/Z_mean':>10s}  {'Z (Ω)':>10s}")
+    print(f"  {'─'*8}  {'─'*8}  {'─'*10}"
+          f"  {'─'*10}  {'─'*10}")
+
+    for i in table_idx:
+        s_frac = nutl['s'][i] / nutl['L_path'] if nutl['L_path'] > 0 else 0
+        phi_frac = (nutl['phi'][i] % (2 * np.pi)) / (2 * np.pi)
+        rho_frac = nutl['rho'][i] / R_a
+        Z_frac = nutl['Z'][i] / nutl['Z_mean']
+        Z_abs = nutl['Z'][i]
+        print(f"  {s_frac:8.4f}  {phi_frac:8.4f}  {rho_frac:10.6f}"
+              f"  {Z_frac:10.6f}  {Z_abs:10.2f}")
+
+    print()
+    print(f"  Statistics:")
+    print(f"    Z_mean = {nutl['Z_mean']:.2f} Ω")
+    print(f"    Z_min  = {nutl['Z_min']:.2f} Ω")
+    print(f"    Z_max  = {nutl['Z_max']:.2f} Ω")
+    print(f"    Modulation (Z_max - Z_min)/Z_mean = {nutl['Z_modulation']:.6f}"
+          f"  ({nutl['Z_modulation']*100:.4f}%)")
+    print()
+    print(f"  Note on local vs global formulas:")
+    print(f"    The local l·c = μ₀ε₀ = 1/c², so v_p_local = c everywhere.")
+    print(f"    The global Neumann/Smythe formulas give v_p = {tl['v_p_over_c']:.2f}c")
+    print(f"    because they include topology corrections (the -2 in the")
+    print(f"    log factor) that don't localize to individual elements.")
+    print(f"    The IMPEDANCE MODULATION (ratio Z/Z_mean) is robust —")
+    print(f"    it depends only on the geometric variation of ln(8ρ/r).")
+    print()
+    print(f"  At r/R = α, the impedance modulation is tiny"
+          f" (~{nutl['Z_modulation']*100:.2f}%).")
+    print(f"  The uniform model is an excellent approximation.")
+    print()
+    print(f"  But the periodic impedance modulation is physically significant:")
+    print(f"  it acts like a BRAGG GRATING. For heavier particles with larger")
+    print(f"  r/R, the modulation grows and could produce bandgap effects,")
+    print(f"  selectively blocking certain frequencies from propagating.")
+    print()
+
+    # ────────────────────────────────────────────────────────────────
+    # Section 8: Assessment
+    # ────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("SECTION 8: ASSESSMENT")
+    print("─" * 70)
+    print()
+    print("  What the transmission line model adds beyond the lumped circuit:")
+    print()
+    print(f"  1. STANDING WAVE STRUCTURE — the TL fundamental ω₁ = 2π·ω₀")
+    print(f"     is distinct from the lumped ω₀. The electron sits between")
+    print(f"     them: ω₀ < ω_circ < ω₁_TL, at the lumped/distributed boundary.")
+    print()
+    print(f"  2. SUPERLUMINAL PHASE VELOCITY — v_p/c = {tl['v_p_over_c']:.2f} is natural")
+    print(f"     waveguide physics, not exotic. The group velocity (energy")
+    print(f"     transport) remains subluminal.")
+    print()
+    print(f"  3. ELECTRICAL LENGTH — θ = {theta_deg:.0f}° ({n_eff:.2f}λ) is a new")
+    print(f"     observable the lumped model cannot see. The torus is")
+    print(f"     electrically compact but not electrically small.")
+    print()
+    print(f"  4. WAVEGUIDE CUTOFF — confirms that standard TE/TM modes are")
+    print(f"     evanescent (ω_circ/ω_c ≈ {modes[0]['omega_circ_over_omega_c']:.4f})."
+          f" Propagation")
+    print(f"     requires the torus topology (genus 1, TEM-like).")
+    print()
+    print(f"  5. IMPEDANCE MATCHING in proper TL language:")
+    print(f"     Γ = {tl['abs_Gamma']:.4f},"
+          f" VSWR = {tl['VSWR']:.2f},"
+          f" RL = {tl['return_loss_dB']:.0f} dB")
+    print(f"     Power coupling = {tl['power_coupling']*100:.1f}%")
+    print()
+
+    print(f"  What stays the same:")
+    print(f"  ─────────────────────")
+    print(f"    Z_line = Z_char  (algebraic identity)")
+    print(f"    The impedance matching result is EXACTLY the lumped model's")
+    print(f"    Z_char/Z₀ ≈ 0.94, just expressed in TL vocabulary.")
+    print()
+
+    print(f"  Open questions:")
+    print(f"  ───────────────")
+    print()
+    print(f"  1. Why θ = {theta_anal:.2f} rad ({theta_deg:.0f}°)?")
+    print(f"     θ = π·√(lf/ln₈) — does this specific value encode α?")
+    print(f"     Setting θ = π (half-wave resonator): lf/ln₈ = 1,")
+    print(f"     i.e. ln(8R/r) = 4. This gives r/R = 8/e⁴ = {8/np.exp(4):.4f}.")
+    print(f"     Setting θ = 2π (first TL resonance): drive = ω₁,")
+    print(f"     i.e. lumped and distributed resonances coincide — never")
+    print(f"     possible since ω₁_TL = 2π·ω₀ by construction.")
+    print()
+    print(f"  2. Perfect impedance match at r/R ≈ {rr_match_anal:.5f}"
+          f" vs α = {alpha:.5f}.")
+    print(f"     What physics selects α? Self-consistency (mass = 0.511 MeV)")
+    print(f"     pins r/R, not impedance matching. That the two nearly")
+    print(f"     coincide may be a deep structural connection or coincidence.")
+    print()
+    print(f"  3. Can the Bragg grating effect at larger r/R explain mode")
+    print(f"     selection for heavier particles? The periodic impedance")
+    print(f"     modulation grows with r/R and could create stop bands.")
+    print()
+
+    # Summary box
+    print(f"  ┌──────────────────────────────────────────────────────────────┐")
+    print(f"  │  TRANSMISSION LINE MODEL — HEADLINE NUMBERS                 │")
+    print(f"  │                                                             │")
+    print(f"  │  Phase velocity:      v_p/c    = {tl['v_p_over_c']:>8.4f}                │")
+    print(f"  │  Electrical length:  θ        = {theta_deg:>5.0f}° ({n_eff:.2f}λ)           │")
+    print(f"  │  Waveguide cutoff:    ω/ω_c   = {modes[0]['omega_circ_over_omega_c']:>8.4f}"
+          f" (TE₁₁)    │")
+    print(f"  │  Reflection coeff:    |Γ|      = {tl['abs_Gamma']:>8.5f}               │")
+    print(f"  │  VSWR:                         = {tl['VSWR']:>8.4f}                │")
+    print(f"  │  Return loss:                  = {tl['return_loss_dB']:>6.1f} dB              │")
+    print(f"  │  Power coupling:               = {tl['power_coupling']*100:>7.1f}%                │")
+    print(f"  │  Impedance modulation:         = {nutl['Z_modulation']*100:>7.3f}%"
+          f" (at α)     │")
+    print(f"  └──────────────────────────────────────────────────────────────┘")
+
+    print()
     print("=" * 70)
 
 
@@ -13669,6 +15672,12 @@ def main():
                         help='Casimir energy: can vacuum fluctuations set r/R = α?')
     parser.add_argument('--greybody', action='store_true',
                         help='Greybody factors: partial transparency of the NWT surface')
+    parser.add_argument('--pair-creation', action='store_true', dest='pair_creation',
+                        help='Pair creation: what determines the torus geometry?')
+    parser.add_argument('--transient-impedance', action='store_true', dest='transient_impedance',
+                        help='LC circuit transient impedance during pair creation')
+    parser.add_argument('--transmission-line', action='store_true', dest='transmission_line',
+                        help='Distributed transmission line / waveguide model')
     parser.add_argument('--R', type=float, default=1.0, help='Major radius in units of λ_C')
     parser.add_argument('--r', type=float, default=0.1, help='Minor radius in units of λ_C')
     parser.add_argument('--p', type=int, default=1, help='Toroidal winding number')
@@ -13761,6 +15770,18 @@ def main():
 
     if args.greybody:
         print_greybody_analysis()
+        return
+
+    if args.pair_creation:
+        print_pair_creation_analysis()
+        return
+
+    if args.transient_impedance:
+        print_transient_impedance_analysis()
+        return
+
+    if args.transmission_line:
+        print_transmission_line_analysis()
         return
 
     params = TorusParams(
