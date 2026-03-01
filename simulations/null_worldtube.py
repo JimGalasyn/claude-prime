@@ -9873,17 +9873,29 @@ def compute_thevenin_matching(R, r, p=2, q=1):
     # ── Circuit current for power comparison ──
     # I = e × f_circ (one electron charge per circulation period)
     I_circ = e_charge * omega_circ / (2 * np.pi)
-    P_circuit = I_circ**2 * R_rad  # Ohmic radiation from circuit model
+    P_circuit_MD = I_circ**2 * R_rad  # magnetic dipole radiation
 
-    # ── Circuit damping rate ──
-    gamma_circuit = R_rad / (2 * L) if L > 0 else 0.0
+    # ── Electric dipole radiation resistance ──
+    # A circulating charge e at radius R, frequency omega_circ, radiates
+    # via Larmor: P_ED = e² ω⁴ R² / (6π ε₀ c³).
+    # As a resistance: R_rad_ED = P_ED / I² = 2π ω² R² / (3 ε₀ c³)
+    R_rad_ED = 2 * np.pi * omega_circ**2 * R**2 / (3 * eps0 * c**3)
+
+    # ── Q-factors using SAME (electric dipole) radiation for both ──
+    # Circuit Q with ED radiation (apples-to-apples with Kelvin Q)
+    Q_circuit_ED = Z_char / R_rad_ED if R_rad_ED > 0 else np.inf
+
+    # ── Damping rates ──
+    gamma_circuit_MD = R_rad / (2 * L) if L > 0 else 0.0
+    gamma_circuit_ED = R_rad_ED / (2 * L) if L > 0 else 0.0
 
     # ── Six matching metrics (each = 1.0 at consistency) ──
     freq_ratio = omega_KW1 / omega_circ if omega_circ > 0 else np.inf
     freq_ratio_LC = omega_KW1 / omega_LC if omega_LC > 0 else np.inf
-    Q_ratio = Q_KW1 / Q_LC if Q_LC > 0 and Q_LC != np.inf else np.inf
-    P_ratio = P_KW1 / P_circuit if P_circuit > 0 else np.inf
-    gamma_ratio = gamma_KW1 / gamma_circuit if gamma_circuit > 0 else np.inf
+    Q_ratio = Q_KW1 / Q_circuit_ED if (Q_circuit_ED > 0
+                                        and Q_circuit_ED != np.inf) else np.inf
+    gamma_ratio = gamma_KW1 / gamma_circuit_ED if gamma_circuit_ED > 0 else np.inf
+    P_ratio = P_KW1 / (I_circ**2 * R_rad_ED) if (I_circ**2 * R_rad_ED) > 0 else np.inf
     Z_ratio = Z_char / Z0 if Z0 > 0 else np.inf
 
     return {
@@ -9892,13 +9904,16 @@ def compute_thevenin_matching(R, r, p=2, q=1):
         'omega_circ': omega_circ,
         'Z_char': Z_char,
         'Z_0': Z0,
-        'R_rad': R_rad,
+        'R_rad_MD': R_rad,
+        'R_rad_ED': R_rad_ED,
         'Q_LC': Q_LC,
+        'Q_circuit_ED': Q_circuit_ED,
         'L': L,
         'C': C,
         'I_circ': I_circ,
-        'P_circuit': P_circuit,
-        'gamma_circuit': gamma_circuit,
+        'P_circuit_MD': P_circuit_MD,
+        'gamma_circuit_MD': gamma_circuit_MD,
+        'gamma_circuit_ED': gamma_circuit_ED,
         # Kelvin wave quantities
         'omega_KW1': omega_KW1,
         'Q_KW1': Q_KW1,
@@ -9983,7 +9998,7 @@ def sweep_thevenin_landscape(mass_MeV, p=2, q=1, N_points=200):
         rr = r_ratios[idx]
         R_sol = Rs[idx]
         r_sol = rr * R_sol
-        params = TorusParams(R=R_sol, r=r_sol, p=1, q=1)
+        params = TorusParams(R=R_sol, r=r_sol, p=2, q=1)
         try:
             am = compute_angular_momentum(params, N=2000)
             Lz_coarse[j] = am['Lz_over_hbar']
@@ -10233,13 +10248,19 @@ def print_thevenin_analysis():
     print("  5. Q-FACTOR MATCHING: Q_KW = Q_LC")
     print("─" * 70)
     print()
-    print("  Q_LC  = Z_char / R_rad ~ sqrt(L/C) / R_rad")
-    print("  Q_KW1 = omega_KW1 / (2 gamma_KW1)")
+    print("  The original Q_LC (using magnetic dipole R_rad) is ~10^29 while")
+    print("  Q_KW (using electric dipole Larmor) is ~10^1. The 28-order gap")
+    print("  reflects different radiation channels, not a geometric mismatch.")
     print()
-    print("  These have different r-dependences:")
-    print("    R_rad ~ (omega r^2)^2 ~ r^4  →  Q_LC ~ 1/r^4")
-    print("    gamma_KW1 ~ P_dipole/E_stored  →  Q_KW ~ different power")
-    print("  The different power laws guarantee a crossing.")
+    print("  Fix: compare both Q-factors using the SAME radiation mechanism.")
+    print("  The Kelvin wave is an ED oscillation (charge wobbles), so we")
+    print("  compute the circuit Q with electric dipole radiation resistance:")
+    print()
+    print("    R_rad_ED = 2π ω² R² / (3 ε₀ c³)   (Larmor, not loop)")
+    print("    Q_circuit_ED = Z_char / R_rad_ED")
+    print("    Q_KW = omega_KW / (2 gamma_KW)")
+    print()
+    print("  Now both Q-factors use ED radiation — apples to apples.")
     print()
 
     Q_cross = landscape['Q_crossings']
@@ -10309,8 +10330,17 @@ def print_thevenin_analysis():
     print("  This is a mechanical property of the circulating photon,")
     print("  computed by path integration over the torus knot curve.")
     print()
+    print("  With p=1 winding, L_z ≈ hbar (tautological: R ≈ lambda_C).")
+    print("  With p=2 winding (matching the circuit analysis), the photon")
+    print("  wraps toroidally twice, roughly halving the effective angular")
+    print("  velocity at the same speed c. This should bring L_z → hbar/2.")
+    print()
 
     Lz_cross = landscape['Lz_crossings']
+    Lz_arr = landscape['Lz_full']
+    Lz_valid_mask = ~np.isnan(Lz_arr) & v
+    Lz_valid = Lz_arr[Lz_valid_mask]
+
     if Lz_cross:
         print(f"  L_z/hbar = 0.5 crossings:")
         for lc in Lz_cross:
@@ -10329,15 +10359,28 @@ def print_thevenin_analysis():
                         if abs(lc - tc) / max(lc, tc) < 0.1:
                             print(f"  ** L_z and {name} crossings within 10%:"
                                   f" {lc:.4f} vs {tc:.4f} **")
-    else:
-        # Report Lz range
-        Lz_arr = landscape['Lz_full']
-        Lz_valid = Lz_arr[~np.isnan(Lz_arr) & v]
-        if len(Lz_valid) > 0:
-            print(f"  No L_z = 0.5 crossing found in sweep range.")
-            print(f"  L_z/hbar range: [{Lz_valid.min():.4f}, {Lz_valid.max():.4f}]")
+    elif len(Lz_valid) > 0:
+        Lz_min = Lz_valid.min()
+        Lz_max = Lz_valid.max()
+        print(f"  L_z/hbar range: [{Lz_min:.4f}, {Lz_max:.4f}]")
+        # Check if L_z is approximately 0.5 across the whole range
+        Lz_mean = Lz_valid.mean()
+        Lz_dev = np.abs(Lz_valid - 0.5).max()
+        if Lz_dev < 0.05:
+            print()
+            print(f"  ** L_z/hbar ≈ 0.5 EVERYWHERE on the mass shell! **")
+            print(f"  Mean: {Lz_mean:.4f}, max deviation from 0.5: {Lz_dev:.4f}")
+            print(f"  Spin-1/2 is not a constraint on r/R — it is a")
+            print(f"  CONSEQUENCE of the p=2 torus knot geometry.")
+            # Find where L_z is closest to exactly 0.5
+            rr_valid = rr[Lz_valid_mask]
+            closest_idx = np.argmin(np.abs(Lz_valid - 0.5))
+            print(f"  Closest to 0.5: L_z/hbar = {Lz_valid[closest_idx]:.5f}"
+                  f" at r/R = {rr_valid[closest_idx]:.4f}")
         else:
-            print("  Angular momentum data not available.")
+            print(f"  No exact L_z = 0.5 crossing (always {'above' if Lz_min > 0.5 else 'below'}).")
+    else:
+        print("  Angular momentum data not available.")
 
     # ────────────────────────────────────────────────────────────────
     # 8. CONVERGENCE AND UNIVERSALITY
@@ -10352,8 +10395,8 @@ def print_thevenin_analysis():
     all_named_crossings = [
         ('omega_KW = omega_circ', freq_cross),
         ('omega_KW = omega_LC', landscape['freq_LC_crossings']),
-        ('Q_KW = Q_LC', Q_cross),
-        ('gamma_KW = gamma_circ', landscape['gamma_crossings']),
+        ('Q_KW = Q_circ (ED)', Q_cross),
+        ('gamma_KW = gamma_ED', landscape['gamma_crossings']),
         ('Z_char = Z_0', Z_cross),
         ('L_z = hbar/2', Lz_cross),
     ]
