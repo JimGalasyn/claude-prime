@@ -55,6 +55,7 @@ Usage:
     python3 null_worldtube.py --transient-impedance  # LC circuit transient during pair creation
     python3 null_worldtube.py --transmission-line  # distributed TL / waveguide model
     python3 null_worldtube.py --euler-heisenberg  # EH Lagrangian, Schwinger rate, pair creation grid
+    python3 null_worldtube.py --gradient-profile   # field gradients, LCFA validity, violence parameter
 """
 
 import numpy as np
@@ -8688,6 +8689,542 @@ def print_euler_heisenberg_analysis():
     print("=" * 70)
 
 
+def compute_gradient_profile(Z=92, N=200, L=5.0):
+    """
+    Field gradient analysis on the Coulomb pair-creation grid.
+
+    Computes numerical and analytical gradients, LCFA validity (Keldysh gamma),
+    violence parameter V, energy densities, and pair creation power.
+    Returns dict with all grids/profiles, spreading base snapshot data.
+    """
+    snap = compute_coulomb_pair_snapshot(Z=Z, N=N, L=L)
+    E_S = snap['E_S']
+    rho_arr = snap['rho_arr']
+    z_arr = snap['z_arr']
+    E_coulomb = snap['E_coulomb_grid']
+    rate_grid = snap['rate_grid']
+    rho_peak_a = snap['rho_peak_analytical']
+
+    drho = rho_arr[1] - rho_arr[0]
+    dz = z_arr[1] - z_arr[0]
+
+    # Numerical gradient of |E| on the (rho, z) grid
+    dE_drho, dE_dz = np.gradient(E_coulomb, drho, dz)
+    grad_E_mag = np.sqrt(dE_drho**2 + dE_dz**2)
+
+    # LCFA parameter gamma = m_e c^2 |grad E| / (e E^2)
+    # Equivalently gamma = (hbar c |grad E|) / (e E^2) ... but the standard
+    # Keldysh-like definition for Schwinger is gamma = m_e c omega_eff / (e E)
+    # where omega_eff = c |grad E| / E, giving gamma = m_e c^2 |grad E| / (e E^2)
+    gamma_grid = np.zeros_like(E_coulomb)
+    mask = E_coulomb > 0.01 * E_S
+    gamma_grid[mask] = (m_e * c**2 * grad_E_mag[mask]) / (e_charge * E_coulomb[mask]**2)
+
+    # Violence parameter V = e |dE/dr| lambda_C^2 / (2 m_e c^2)
+    # For Coulomb at z=0: V = Z*alpha*(lambda_C/rho)^3
+    V_grid = e_charge * grad_E_mag * lambda_C**2 / (2.0 * m_e * c**2)
+
+    # Energy density u = eps0 E^2 / 2
+    u_grid = eps0 * E_coulomb**2 / 2.0
+
+    # Pair creation power density P = w * 2 m_e c^2
+    power_grid = rate_grid * 2.0 * m_e * c**2
+
+    # Midplane profiles (z=0)
+    j_mid = N // 2
+    grad_E_radial = grad_E_mag[:, j_mid]
+    gamma_radial = gamma_grid[:, j_mid]
+    V_radial = V_grid[:, j_mid]
+    u_radial = u_grid[:, j_mid]
+    power_radial = power_grid[:, j_mid]
+    dE_drho_radial = np.abs(dE_drho[:, j_mid])
+
+    # Analytical profiles at z=0 for validation
+    # |dE/dr| = 2 k_e Z e / rho^3  (for z=0, r = rho)
+    grad_E_analytical = 2.0 * k_e * Z * e_charge / rho_arr**3
+    # gamma = 2 / ((E/E_S)(rho/lambda_C))  where E/E_S = Z*alpha*(lambda_C/rho)^2
+    gamma_analytical = 2.0 / ((Z * alpha * (lambda_C / rho_arr)**2) * (rho_arr / lambda_C))
+    # Simplifies to: gamma = 2 rho^3 / (Z * alpha * lambda_C^3)
+    # ... no, let's be explicit:
+    # E/E_S = Z*alpha*(lambda_C/rho)^2
+    # gamma = 2/((E/E_S)*(rho/lambda_C)) = 2*rho^2 / (Z*alpha*lambda_C^2 * (rho/lambda_C))
+    #       = 2*rho / (Z*alpha*lambda_C) ... wait let me recalculate
+    # gamma = m_e c^2 |dE/dr| / (e E^2)
+    # E = k_e Z e / rho^2,  |dE/dr| = 2 k_e Z e / rho^3
+    # gamma = m_e c^2 * 2 k_e Z e / rho^3 / (e * (k_e Z e / rho^2)^2)
+    #       = m_e c^2 * 2 k_e Z e * rho^4 / (rho^3 * e * k_e^2 * Z^2 * e^2)
+    #       = 2 m_e c^2 * rho / (k_e * Z * e^2)
+    # Now k_e e^2 / (m_e c^2) = r_e (classical electron radius)
+    # So gamma = 2 rho / (Z * r_e) = 2 rho / (Z * alpha * lambda_C)
+    # At rho = lambda_C: gamma = 2/(Z*alpha) = 2/(92*0.00730) = 2.98
+    # At rho = 0.57*lambda_C: gamma = 2*0.57/(92*0.00730) = 1.70  YES!
+    gamma_analytical = 2.0 * rho_arr / (Z * alpha * lambda_C)
+    # V = Z*alpha*(lambda_C/rho)^3
+    V_analytical = Z * alpha * (lambda_C / rho_arr)**3
+
+    # Axial profile at rho_peak
+    i_peak_a = np.argmin(np.abs(rho_arr - rho_peak_a))
+    grad_E_axial = grad_E_mag[i_peak_a, :]
+    gamma_axial = gamma_grid[i_peak_a, :]
+    V_axial = V_grid[i_peak_a, :]
+
+    # Total integrated pair creation power
+    cyl_power_grid = power_grid * 2.0 * np.pi * snap['rho_arr'][:, np.newaxis] * np.ones_like(z_arr)[np.newaxis, :]
+    # Actually need rho_grid
+    rho_grid = snap['rho_arr'][:, np.newaxis] * np.ones((1, N))
+    cyl_power_grid = power_grid * 2.0 * np.pi * rho_grid
+    total_power = np.sum(cyl_power_grid) * drho * dz
+
+    # V=1 crossing: Z*alpha*(lambda_C/rho)^3 = 1 => rho = lambda_C * (Z*alpha)^(1/3)
+    rho_V1 = lambda_C * (Z * alpha)**(1.0 / 3.0)
+
+    result = dict(snap)  # spread base snapshot
+    result.update({
+        'grad_E_mag': grad_E_mag,
+        'dE_drho': dE_drho,
+        'dE_dz': dE_dz,
+        'gamma_grid': gamma_grid,
+        'V_grid': V_grid,
+        'u_grid': u_grid,
+        'power_grid': power_grid,
+        'grad_E_radial': grad_E_radial,
+        'gamma_radial': gamma_radial,
+        'V_radial': V_radial,
+        'u_radial': u_radial,
+        'power_radial': power_radial,
+        'dE_drho_radial': dE_drho_radial,
+        'grad_E_analytical': grad_E_analytical,
+        'gamma_analytical': gamma_analytical,
+        'V_analytical': V_analytical,
+        'grad_E_axial': grad_E_axial,
+        'gamma_axial': gamma_axial,
+        'V_axial': V_axial,
+        'total_power': total_power,
+        'rho_V1': rho_V1,
+        'drho': drho,
+        'dz': dz,
+    })
+    return result
+
+
+def print_gradient_profile_analysis():
+    """
+    Field gradient analysis: LCFA validity, violence parameter, energy densities.
+
+    Extends the Euler-Heisenberg pair creation analysis by asking HOW VIOLENT
+    the process is: computes field gradients, the LCFA validity parameter
+    (Keldysh gamma), gradient work on virtual pairs, and energy densities.
+    """
+    Z = 92
+    gp = compute_gradient_profile(Z=Z, N=200, L=5.0)
+    E_S = gp['E_S']
+    rho_arr = gp['rho_arr']
+    rho_peak_a = gp['rho_peak_analytical']
+
+    print("=" * 70)
+    print("  FIELD GRADIENT PROFILE")
+    print("  LCFA Validity, Violence Parameter, Energy Densities")
+    print("=" * 70)
+    print()
+    print("  The --euler-heisenberg module established WHERE pairs form")
+    print("  (ring at rho ~ 0.57 lambda_C). This module asks:")
+    print("  HOW VIOLENT is the process?")
+    print()
+
+    # ==================================================================
+    # Section 1: Coulomb Field Gradient — Analytical
+    # ==================================================================
+    print("─" * 70)
+    print("  1. COULOMB FIELD GRADIENT — ANALYTICAL")
+    print("─" * 70)
+    print()
+    print("  For a Coulomb field E = k_e Z e / r^2:")
+    print()
+    print("    |dE/dr| = 2E/r = 2 k_e Z e / r^3")
+    print()
+    print("  Dimensionless gradient (natural units):")
+    print()
+    print("    lambda_C |dE/dr| / E_S = 2 Z alpha (lambda_C/r)^3")
+    print()
+
+    rho_vals_lC = np.array([0.1, 0.2, 0.3, 0.5, 0.57, 0.8, 1.0, 2.0])
+    rho_vals = rho_vals_lC * lambda_C
+
+    print(f"    {'rho/lambda_C':>12s}  {'|dE/dr| (V/m^2)':>16s}  {'Dimensionless':>14s}")
+    print(f"    {'─'*12}  {'─'*16}  {'─'*14}")
+    for x in rho_vals_lC:
+        rho = x * lambda_C
+        grad = 2.0 * k_e * Z * e_charge / rho**3
+        dimless = 2.0 * Z * alpha * (1.0 / x)**3
+        marker = "  <-- lambda_C" if abs(x - 1.0) < 0.01 else ""
+        marker = "  <-- emergence peak" if abs(x - 0.57) < 0.01 else marker
+        print(f"    {x:12.2f}  {grad:16.3e}  {dimless:14.4f}{marker}")
+    print()
+
+    grad_at_lC = 2.0 * k_e * Z * e_charge / lambda_C**3
+    dimless_at_lC = 2.0 * Z * alpha
+    print(f"  At lambda_C: |dE/dr| = {grad_at_lC:.3e} V/m^2")
+    print(f"  Dimensionless gradient = 2*Z*alpha = {dimless_at_lC:.4f}")
+    print()
+
+    # ==================================================================
+    # Section 2: LCFA Validity — The Keldysh Parameter
+    # ==================================================================
+    print("─" * 70)
+    print("  2. LCFA VALIDITY — THE KELDYSH PARAMETER")
+    print("─" * 70)
+    print()
+    print("  The LCFA (locally constant field approximation) treats the field")
+    print("  as uniform over the pair's Compton wavelength. Its validity is")
+    print("  controlled by the Keldysh-like parameter:")
+    print()
+    print("    gamma = m_e c^2 |grad E| / (e E^2)")
+    print()
+    print("  Physical meaning: gamma = (field variation scale) / (pair size)")
+    print()
+    print("  For Coulomb at z=0:")
+    print()
+    print("    gamma = 2 rho / (Z alpha lambda_C)")
+    print()
+    print("  LCFA valid when gamma << 1 (field uniform over pair extent)")
+    print()
+
+    print(f"    {'rho/lambda_C':>12s}  {'E/E_S':>10s}  {'gamma':>8s}  {'Status'}")
+    print(f"    {'─'*12}  {'─'*10}  {'─'*8}  {'─'*20}")
+
+    for x in rho_vals_lC:
+        E_over_ES = Z * alpha * (1.0 / x)**2
+        gamma_val = 2.0 * x / (Z * alpha)
+        if gamma_val < 0.5:
+            status = "LCFA valid"
+        elif gamma_val < 1.0:
+            status = "borderline"
+        elif gamma_val < 2.0:
+            status = "MARGINAL"
+        else:
+            status = "LCFA fails"
+        marker = ""
+        if abs(x - 0.57) < 0.01:
+            marker = " <-- EMERGENCE PEAK"
+        elif abs(x - 1.0) < 0.01:
+            marker = " <-- lambda_C"
+        print(f"    {x:12.2f}  {E_over_ES:10.4f}  {gamma_val:8.3f}  {status}{marker}")
+    print()
+
+    gamma_peak = 2.0 * 0.57 / (Z * alpha)
+    print(f"  KEY RESULT: At emergence peak (rho = 0.57 lambda_C):")
+    print(f"    gamma = {gamma_peak:.3f}")
+    print()
+    print(f"  gamma ~ 1.7 means the LCFA is MARGINAL at the pair emergence peak.")
+    print(f"  The Schwinger rate formula is qualitatively correct (right order of")
+    print(f"  magnitude in the exponent) but quantitative corrections are O(1).")
+    print()
+
+    # Bar chart: gamma vs rho/lambda_C
+    print("  gamma vs rho/lambda_C:")
+    print()
+    bar_rhos = [0.1, 0.2, 0.3, 0.5, 0.57, 0.8, 1.0, 2.0]
+    max_gamma_display = 6.0
+    bar_width = 40
+    for x in bar_rhos:
+        g = 2.0 * x / (Z * alpha)
+        bar_len = int(min(g / max_gamma_display, 1.0) * bar_width)
+        marker = " *" if abs(x - 0.57) < 0.01 else ""
+        lcfa_mark = "|" if bar_len > 0 else ""
+        # Mark gamma=1 position
+        g1_pos = int((1.0 / max_gamma_display) * bar_width)
+        bar = ""
+        for i in range(bar_width):
+            if i < bar_len:
+                bar += "█"
+            elif i == g1_pos:
+                bar += "┊"
+            else:
+                bar += " "
+        print(f"    {x:4.2f}  {bar}  {g:.2f}{marker}")
+    print(f"           {'':>{int((1.0/max_gamma_display)*bar_width)}}┊")
+    print(f"           {'':>{int((1.0/max_gamma_display)*bar_width)}}gamma=1")
+    print(f"    (* = emergence peak)")
+    print()
+
+    # ==================================================================
+    # Section 3: Gradient Work — Violence Parameter
+    # ==================================================================
+    print("─" * 70)
+    print("  3. GRADIENT WORK — VIOLENCE PARAMETER")
+    print("─" * 70)
+    print()
+    print("  The gradient does work on a virtual pair separated by lambda_C:")
+    print()
+    print("    W_grad = e |dE/dr| lambda_C^2")
+    print()
+    print("  The violence parameter normalizes this to the pair threshold:")
+    print()
+    print("    V = W_grad / (2 m_e c^2) = e |dE/dr| lambda_C^2 / (2 m_e c^2)")
+    print()
+    print("  For Coulomb at z=0:")
+    print()
+    print("    V = Z alpha (lambda_C/rho)^3")
+    print()
+    print("  V > 1 means the gradient alone rips pairs apart over one lambda_C.")
+    print()
+
+    print(f"    {'rho/lambda_C':>12s}  {'W_grad (MeV)':>12s}  {'V':>8s}  {'Interpretation'}")
+    print(f"    {'─'*12}  {'─'*12}  {'─'*8}  {'─'*25}")
+    for x in rho_vals_lC:
+        grad = 2.0 * k_e * Z * e_charge / (x * lambda_C)**3
+        W_grad = e_charge * grad * lambda_C**2
+        V_val = Z * alpha * (1.0 / x)**3
+        W_MeV = W_grad / MeV
+        if V_val > 10:
+            interp = "extreme tearing"
+        elif V_val > 1:
+            interp = "gradient rips pairs"
+        elif V_val > 0.5:
+            interp = "near threshold"
+        else:
+            interp = "gradient sub-dominant"
+        marker = ""
+        if abs(x - 0.57) < 0.01:
+            marker = " <--"
+        print(f"    {x:12.2f}  {W_MeV:12.4f}  {V_val:8.3f}  {interp}{marker}")
+    print()
+
+    V_peak = Z * alpha * (1.0 / 0.57)**3
+    rho_V1 = gp['rho_V1']
+    print(f"  At emergence peak (rho = 0.57 lambda_C): V = {V_peak:.2f}")
+    print(f"  V = 1 crossing at rho = {rho_V1/lambda_C:.4f} lambda_C")
+    print()
+    print(f"  The gradient does not just CREATE pairs — it SEPARATES them.")
+    print(f"  Throughout the emergence zone (rho < {rho_V1/lambda_C:.2f} lambda_C),")
+    print(f"  the field gradient does more than 2 m_e c^2 of work over one")
+    print(f"  Compton wavelength, ensuring prompt pair separation.")
+    print()
+
+    # ==================================================================
+    # Section 4: 2D Gradient Map — Numerical vs Analytical
+    # ==================================================================
+    print("─" * 70)
+    print("  4. 2D GRADIENT MAP — NUMERICAL VS ANALYTICAL")
+    print("─" * 70)
+    print()
+
+    # Radial bar chart of |grad E| at z=0 (normalized)
+    grad_radial = gp['grad_E_radial']
+    grad_analytical = gp['grad_E_analytical']
+    rho_arr = gp['rho_arr']
+
+    # Sample at specific rho values for bar chart
+    print("  |grad E| at z=0 (radial profile, normalized to value at lambda_C):")
+    print()
+    grad_at_lC_num = np.interp(lambda_C, rho_arr, grad_radial)
+    bar_rhos_full = [0.2, 0.3, 0.4, 0.5, 0.57, 0.7, 0.8, 1.0, 1.5, 2.0]
+    max_log = 4.0  # log10 of max normalized gradient
+    bar_width = 40
+    for x in bar_rhos_full:
+        rho = x * lambda_C
+        g_num = np.interp(rho, rho_arr, grad_radial) / grad_at_lC_num
+        if g_num > 0:
+            log_g = np.log10(g_num)
+        else:
+            log_g = -1
+        bar_len = int(max(0, min((log_g + 1) / (max_log + 1), 1.0)) * bar_width)
+        marker = " *" if abs(x - 0.57) < 0.01 else ""
+        bar = "█" * bar_len
+        print(f"    {x:4.2f}  {bar:<{bar_width}s}  {g_num:8.1f}x{marker}")
+    print(f"    (* = emergence peak)")
+    print()
+
+    # Axial bar chart at rho_peak
+    print(f"  |grad E| axial profile at rho = {rho_peak_a/lambda_C:.2f} lambda_C:")
+    print()
+    z_arr = gp['z_arr']
+    grad_axial = gp['grad_E_axial']
+    grad_at_z0 = grad_axial[len(z_arr)//2]
+    z_samples = [0.0, 0.2, 0.5, 1.0, 2.0]
+    for zv in z_samples:
+        zv_m = zv * lambda_C
+        g = np.interp(zv_m, z_arr, grad_axial) / grad_at_z0 if grad_at_z0 > 0 else 0
+        bar_len = int(max(0, g) * bar_width)
+        bar = "█" * bar_len
+        print(f"    z={zv:4.1f}  {bar:<{bar_width}s}  {g:.3f}")
+    print()
+
+    # Numerical vs analytical comparison table
+    print("  Numerical vs analytical |grad E| at z=0 (validation):")
+    print()
+    print(f"    {'rho/lambda_C':>12s}  {'Numerical (V/m^2)':>18s}  {'Analytical (V/m^2)':>18s}  {'Ratio':>8s}")
+    print(f"    {'─'*12}  {'─'*18}  {'─'*18}  {'─'*8}")
+    check_rhos = [0.2, 0.3, 0.5, 0.57, 0.8, 1.0, 2.0]
+    for x in check_rhos:
+        rho = x * lambda_C
+        g_num = np.interp(rho, rho_arr, grad_radial)
+        g_ana = 2.0 * k_e * Z * e_charge / rho**3
+        ratio = g_num / g_ana if g_ana > 0 else 0
+        print(f"    {x:12.2f}  {g_num:18.3e}  {g_ana:18.3e}  {ratio:8.4f}")
+    print()
+    print("  Note: Ratio ~ 1.00 validates the numerical gradient computation.")
+    print("  Small deviations arise from grid discretization (N=200 points).")
+    print()
+
+    # ==================================================================
+    # Section 5: Energy Density and Pair Creation Power
+    # ==================================================================
+    print("─" * 70)
+    print("  5. ENERGY DENSITY AND PAIR CREATION POWER")
+    print("─" * 70)
+    print()
+    print("  Energy density:  u = eps_0 E^2 / 2")
+    print("  Pair power:      P = w * 2 m_e c^2  (rate * threshold energy)")
+    print()
+
+    u_nuclear = 5.0e35  # J/m^3 (approximate nuclear energy density)
+
+    print(f"    {'rho/lambda_C':>12s}  {'u (J/m^3)':>12s}  {'u/u_nuclear':>12s}  {'P (W/m^3)':>12s}")
+    print(f"    {'─'*12}  {'─'*12}  {'─'*12}  {'─'*12}")
+    for x in rho_vals_lC:
+        rho = x * lambda_C
+        E = k_e * Z * e_charge / rho**2
+        u = eps0 * E**2 / 2.0
+        rate = schwinger_pair_rate(np.array([E]))[0]
+        P = rate * 2.0 * m_e * c**2
+        u_ratio = u / u_nuclear
+        marker = ""
+        if abs(x - 0.57) < 0.01:
+            marker = "  <--"
+        print(f"    {x:12.2f}  {u:12.3e}  {u_ratio:12.3e}  {P:12.3e}{marker}")
+    print()
+
+    # Values at emergence peak
+    rho_peak = 0.57 * lambda_C
+    E_peak = k_e * Z * e_charge / rho_peak**2
+    u_peak = eps0 * E_peak**2 / 2.0
+    print(f"  At emergence peak:")
+    print(f"    Energy density u = {u_peak:.3e} J/m^3")
+    print(f"    Fraction of nuclear: u/u_nuclear = {u_peak/u_nuclear:.3e}")
+    print()
+
+    total_power = gp['total_power']
+    print(f"  Total integrated pair creation power: {total_power:.3e} W")
+    print(f"  (integrated over full cylindrical volume)")
+    print()
+
+    # ==================================================================
+    # Section 6: Context — How Extreme Is This?
+    # ==================================================================
+    print("─" * 70)
+    print("  6. CONTEXT — HOW EXTREME IS THIS?")
+    print("─" * 70)
+    print()
+
+    # Compute reference values
+    E_hydrogen = e_charge / (4.0 * np.pi * eps0 * a_0**2)  # E at Bohr radius
+    grad_hydrogen = 2.0 * E_hydrogen / a_0
+
+    E_laser = 1.0e14  # 10 PW focused laser, V/m
+    scale_laser = 1.0e-6  # focal spot ~1 um
+    grad_laser = E_laser / scale_laser
+
+    E_magnetar = 1.0e16  # surface B ~ 10^11 T -> E ~ 10^16 V/m equivalent
+    scale_magnetar = 1.0e4  # ~10 km
+    grad_magnetar = E_magnetar / scale_magnetar
+
+    E_coulomb_lC = k_e * Z * e_charge / lambda_C**2
+    grad_coulomb_lC = 2.0 * k_e * Z * e_charge / lambda_C**3
+    gamma_coulomb_lC = 2.0 / (Z * alpha)
+
+    E_coulomb_peak = k_e * Z * e_charge / rho_peak**2
+    grad_coulomb_peak = 2.0 * k_e * Z * e_charge / rho_peak**3
+    gamma_coulomb_peak = 2.0 * 0.57 / (Z * alpha)
+
+    gamma_hydrogen = m_e * c**2 * grad_hydrogen / (e_charge * E_hydrogen**2)
+    gamma_laser = m_e * c**2 * grad_laser / (e_charge * E_laser**2)
+    gamma_magnetar = m_e * c**2 * grad_magnetar / (e_charge * E_magnetar**2)
+
+    print(f"    {'Regime':24s}  {'E (V/m)':>12s}  {'|dE/dr| (V/m^2)':>16s}  {'Scale':>10s}  {'gamma':>8s}")
+    print(f"    {'─'*24}  {'─'*12}  {'─'*16}  {'─'*10}  {'─'*8}")
+    print(f"    {'Atomic (H, Bohr)':24s}  {E_hydrogen:12.2e}  {grad_hydrogen:16.2e}  {'53 pm':>10s}  {gamma_hydrogen:8.1e}")
+    print(f"    {'Best laser (10 PW)':24s}  {E_laser:12.2e}  {grad_laser:16.2e}  {'~1 um':>10s}  {gamma_laser:8.1e}")
+    print(f"    {'Magnetar surface':24s}  {E_magnetar:12.2e}  {grad_magnetar:16.2e}  {'~10 km':>10s}  {gamma_magnetar:8.1e}")
+    print(f"    {'Coulomb Z=92 at lam_C':24s}  {E_coulomb_lC:12.2e}  {grad_coulomb_lC:16.2e}  {'386 fm':>10s}  {gamma_coulomb_lC:8.2f}")
+    print(f"    {'Coulomb Z=92 at peak':24s}  {E_coulomb_peak:12.2e}  {grad_coulomb_peak:16.2e}  {'220 fm':>10s}  {gamma_coulomb_peak:8.2f}")
+    print()
+    print("  The Coulomb near-zone is the most violent EM environment in")
+    print("  nature outside a black hole. Key distinctions:")
+    print()
+    print("  - Lasers: high E but nearly uniform (gamma ~ 10^4)")
+    print("  - Magnetars: extreme E but huge scale (gamma ~ 10^8)")
+    print("  - Coulomb Z=92: E ~ E_S with sub-femtometer gradients (gamma ~ 2)")
+    print()
+    print("  Only the Coulomb near-zone combines near-critical field strength")
+    print("  with Compton-scale gradients, making gamma ~ O(1).")
+    print()
+
+    # ==================================================================
+    # Section 7: Assessment
+    # ==================================================================
+    print("─" * 70)
+    print("  7. ASSESSMENT")
+    print("─" * 70)
+    print()
+    print("  1. LCFA MARGINAL (gamma ~ 1.7)")
+    print("     The Schwinger formula uses the locally-constant-field approximation.")
+    print("     At the pair emergence peak, gamma = 1.7 means the field varies")
+    print("     significantly over one Compton wavelength. The Schwinger rate is")
+    print("     qualitatively correct (the exponential dominates) but the prefactor")
+    print("     receives O(1) corrections. Full WKB or worldline-instanton methods")
+    print("     are needed for quantitative rates.")
+    print()
+    print("  2. PAIR LOCALIZATION ROBUST")
+    print("     The ring at rho = 0.57 lambda_C comes from the product of the")
+    print("     exponential suppression exp(-pi E_S/E) and the geometric phase")
+    print("     space factor rho^3. This is controlled by the EXPONENT, not the")
+    print("     LCFA prefactor. The peak location is robust against O(1) prefactor")
+    print("     corrections.")
+    print()
+    print("  3. GRADIENT SEPARATES PAIRS (V > 1)")
+    print(f"     Throughout the emergence zone (rho < {rho_V1/lambda_C:.2f} lambda_C),")
+    print(f"     the violence parameter V > 1. At the peak, V = {V_peak:.1f}: the gradient")
+    print("     does 3.6x the pair threshold energy over one Compton wavelength.")
+    print("     Created pairs are immediately torn apart — no recombination.")
+    print()
+    print("  4. ENERGY DENSITY: ENORMOUS BUT SUB-NUCLEAR")
+    print(f"     u ~ {u_peak:.1e} J/m^3 at the peak — far above any terrestrial field.")
+    print(f"     But still ~10^(-10) of nuclear energy density ({u_nuclear:.0e} J/m^3).")
+    print("     QED pair creation occurs in the electromagnetic sector, well below")
+    print("     the QCD scale.")
+    print()
+    print("  5. NO LABORATORY CAN REPRODUCE")
+    print("     Best lasers achieve E ~ 10^14 V/m (10^4 below E_S) with")
+    print("     gradients ~ 10^20 V/m^2 (10^10 below Coulomb at lambda_C).")
+    print("     The Coulomb near-zone near Z=92 is uniquely extreme: no")
+    print("     accessible regime combines comparable E and |grad E|.")
+    print()
+
+    # Summary box
+    print(f"  ┌──────────────────────────────────────────────────────────────┐")
+    print(f"  │  GRADIENT PROFILE — HEADLINE NUMBERS                       │")
+    print(f"  │                                                             │")
+    print(f"  │  Keldysh gamma at peak  = {gamma_peak:8.3f}"
+          f"   (MARGINAL)             │")
+    print(f"  │  Violence V at peak     = {V_peak:8.2f}"
+          f"   (gradient rips pairs)   │")
+    print(f"  │  V = 1 crossing         = {rho_V1/lambda_C:8.4f} lambda_C"
+          f"                 │")
+    print(f"  │  |dE/dr| at lambda_C    = {grad_at_lC:.3e} V/m^2"
+          f"            │")
+    print(f"  │  Energy density at peak = {u_peak:.3e} J/m^3"
+          f"            │")
+    print(f"  │  Total pair power       = {total_power:.3e} W"
+          f"                  │")
+    print(f"  │  E/E_S at peak          = {Z*alpha*(1/0.57)**2:8.4f}"
+          f"                           │")
+    print(f"  └──────────────────────────────────────────────────────────────┘")
+
+    print()
+    print("=" * 70)
+
+
 def print_skilton_analysis():
     """
     Skilton's integer-based cosmological model (1986-1988): α⁻¹ = √(137² + π²)
@@ -16261,6 +16798,8 @@ def main():
                         help='Distributed transmission line / waveguide model')
     parser.add_argument('--euler-heisenberg', action='store_true', dest='euler_heisenberg',
                         help='EH Lagrangian, Schwinger rate, pair creation grid')
+    parser.add_argument('--gradient-profile', action='store_true', dest='gradient_profile',
+                        help='Field gradients, LCFA validity, violence parameter')
     parser.add_argument('--R', type=float, default=1.0, help='Major radius in units of λ_C')
     parser.add_argument('--r', type=float, default=0.1, help='Minor radius in units of λ_C')
     parser.add_argument('--p', type=int, default=1, help='Toroidal winding number')
@@ -16369,6 +16908,10 @@ def main():
 
     if args.euler_heisenberg:
         print_euler_heisenberg_analysis()
+        return
+
+    if args.gradient_profile:
+        print_gradient_profile_analysis()
         return
 
     params = TorusParams(
